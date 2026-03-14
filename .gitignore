@@ -1,0 +1,26 @@
+# Build output
+build/
+build-*/
+out/
+cmake-build-*/
+bin/
+Testing/
+compile_commands.json
+CMakeUserPresets.json
+
+# IDE
+.idea/
+.vscode/
+.vs/
+*.user
+*.pro.user
+*.VC.db
+*.opendb
+*.suo
+
+# Skia checkout (large; sync via scripts instead of committing)
+3rdparty/skia/
+.ace-tool/
+
+# OS
+Thumbs.db

@@ -1,0 +1,59 @@
+add_library(TinaluxUI STATIC
+    Constraints.cpp
+    Widget.cpp
+    Container.cpp
+    DemoScene.cpp
+    Theme.cpp
+    Animation.cpp
+    Clipboard.cpp
+    layouts/VBoxLayout.cpp
+    layouts/HBoxLayout.cpp
+    widgets/Label.cpp
+    widgets/ParagraphLabel.cpp
+    widgets/Button.cpp
+    widgets/Checkbox.cpp
+    widgets/Panel.cpp
+    widgets/Radio.cpp
+    widgets/ScrollView.cpp
+    widgets/Slider.cpp
+    widgets/ListView.cpp
+    widgets/TextInput.cpp
+    widgets/Toggle.cpp
+)
+
+add_library(Tinalux::UI ALIAS TinaluxUI)
+
+target_include_directories(TinaluxUI
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+if(MSVC)
+    target_compile_options(TinaluxUI PRIVATE /MP1 /bigobj)
+endif()
+
+if(CMAKE_CONFIGURATION_TYPES)
+    target_link_libraries(TinaluxUI
+        PUBLIC
+            Tinalux::Core
+            Skia::Skia
+            "$<$<CONFIG:Debug>:${SKIA_BUILD_DIR}/Debug/skparagraph.lib>"
+            "$<$<CONFIG:Debug>:${SKIA_BUILD_DIR}/Debug/skshaper.lib>"
+            "$<$<CONFIG:Debug>:${SKIA_BUILD_DIR}/Debug/skunicode_core.lib>"
+            "$<$<CONFIG:Debug>:${SKIA_BUILD_DIR}/Debug/skunicode_icu.lib>"
+            "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:${SKIA_BUILD_DIR}/Release/skparagraph.lib>"
+            "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:${SKIA_BUILD_DIR}/Release/skshaper.lib>"
+            "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:${SKIA_BUILD_DIR}/Release/skunicode_core.lib>"
+            "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:${SKIA_BUILD_DIR}/Release/skunicode_icu.lib>"
+    )
+else()
+    target_link_libraries(TinaluxUI
+        PUBLIC
+            Tinalux::Core
+            Skia::Skia
+            "${SKIA_BUILD_DIR}/${SKIA_BUILD_TYPE}/skparagraph.lib"
+            "${SKIA_BUILD_DIR}/${SKIA_BUILD_TYPE}/skshaper.lib"
+            "${SKIA_BUILD_DIR}/${SKIA_BUILD_TYPE}/skunicode_core.lib"
+            "${SKIA_BUILD_DIR}/${SKIA_BUILD_TYPE}/skunicode_icu.lib"
+    )
+endif()

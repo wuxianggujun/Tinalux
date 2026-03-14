@@ -1,0 +1,5 @@
+add_subdirectory(core)
+add_subdirectory(platform)
+add_subdirectory(rendering)
+add_subdirectory(ui)
+add_subdirectory(app)
