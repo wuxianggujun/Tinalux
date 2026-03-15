@@ -55,6 +55,28 @@ int main()
     expect(!dirtyRoot->isLayoutDirty(), "paint dirty child should not force root layout dirty");
     expect(dirtyRoot->hasDirtyRegion(), "paint dirty child should record dirty region");
 
+    ui::TextInput callbackInput("search");
+    int textChangedCount = 0;
+    std::string lastTextChanged;
+    callbackInput.onTextChanged([&textChangedCount, &lastTextChanged](const std::string& text) {
+        ++textChangedCount;
+        lastTextChanged = text;
+    });
+    callbackInput.setText("query");
+    expect(textChangedCount == 1, "setText should emit one text changed callback");
+    expect(lastTextChanged == "query", "text changed callback should receive latest setText value");
+    callbackInput.setText("query");
+    expect(textChangedCount == 1, "setting the same text should not emit an extra callback");
+    callbackInput.setFocused(true);
+    core::TextInputEvent textBang(static_cast<uint32_t>('!'));
+    callbackInput.onEvent(textBang);
+    expect(callbackInput.text() == "query!", "text input callback probe should accept direct text input events");
+    expect(textChangedCount == 2, "text input event should emit a text changed callback");
+    core::KeyEvent callbackBackspace(core::keys::kBackspace, 0, 0, core::EventType::KeyPress);
+    callbackInput.onEvent(callbackBackspace);
+    expect(callbackInput.text() == "query", "backspace should update callback probe text");
+    expect(textChangedCount == 3, "backspace should emit a text changed callback");
+
     auto root = std::make_shared<ui::Panel>();
     auto layout = std::make_unique<ui::VBoxLayout>();
     layout->padding = 12.0f;

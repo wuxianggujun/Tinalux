@@ -120,6 +120,9 @@ int Application::run()
         if (impl_->uiContext.tickAnimations(ui::animationNowSeconds())) {
             impl_->uiContext.noteAnimationTickUpdated();
         }
+        if (impl_->uiContext.tickAsyncResources()) {
+            impl_->uiContext.noteAnimationTickUpdated();
+        }
 
         if (impl_->uiContext.shouldRender()) {
             using clock = std::chrono::steady_clock;

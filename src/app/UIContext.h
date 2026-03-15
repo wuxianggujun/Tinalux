@@ -53,6 +53,7 @@ public:
     void noteFrameRendered(bool fullRedraw, double frameMs);
     void noteFrameSkipped();
     bool tickAnimations(double nowSeconds);
+    bool tickAsyncResources();
     bool hasActiveAnimations() const;
 
     bool shouldRender() const;

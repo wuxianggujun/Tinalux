@@ -5,8 +5,10 @@
 #include <optional>
 #include <string>
 
+#include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Container.h"
 #include "tinalux/ui/DialogStyle.h"
+#include "tinalux/ui/IconRegistry.h"
 
 namespace tinalux::ui {
 
@@ -25,6 +27,11 @@ public:
     bool dismissOnBackdrop() const;
     void setDismissOnEscape(bool enabled);
     bool dismissOnEscape() const;
+    void setShowCloseButton(bool show);
+    bool showCloseButton() const;
+    void setCloseIcon(rendering::Image icon);
+    void setCloseIcon(IconType type, float sizeHint = 0.0f);
+    const rendering::Image& closeIcon() const;
 
     void setBackdropColor(core::Color color);
     void setBackgroundColor(core::Color color);
@@ -57,6 +64,8 @@ private:
     std::function<void()> onDismiss_;
     core::Rect cardBounds_ = core::Rect::MakeEmpty();
     core::Rect contentBounds_ = core::Rect::MakeEmpty();
+    core::Rect closeButtonBounds_ = core::Rect::MakeEmpty();
+    rendering::Image closeIcon_;
     std::optional<DialogStyle> customStyle_;
     std::optional<core::Color> backdropColorOverride_;
     std::optional<core::Color> backgroundColorOverride_;
@@ -65,7 +74,10 @@ private:
     std::optional<core::Size> maxSizeOverride_;
     bool dismissOnBackdrop_ = true;
     bool dismissOnEscape_ = true;
+    bool showCloseButton_ = true;
     bool backdropPressed_ = false;
+    bool closeButtonHovered_ = false;
+    bool closeButtonPressed_ = false;
 };
 
 }  // namespace tinalux::ui

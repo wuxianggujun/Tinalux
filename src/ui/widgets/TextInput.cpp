@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <vector>
 
@@ -18,6 +19,10 @@
 namespace tinalux::ui {
 
 namespace {
+
+constexpr float kTextInputIconMinSide = 14.0f;
+constexpr float kTextInputIconMinGap = 6.0f;
+
 std::size_t nextUtf8Offset(const std::string& text, std::size_t offset)
 {
     if (offset >= text.size()) {
@@ -79,6 +84,65 @@ std::string encodeUtf8(uint32_t codepoint)
     return encoded;
 }
 
+bool reservesIconSlot(
+    const rendering::Image& icon,
+    bool loading,
+    TextInputIconLoadState state)
+{
+    return static_cast<bool>(icon) || loading || state == TextInputIconLoadState::Failed;
+}
+
+float textInputIconSide(const TextInputStyle& style)
+{
+    return std::max(kTextInputIconMinSide, style.textStyle.fontSize);
+}
+
+float textInputIconGap(const TextInputStyle& style)
+{
+    return std::max(kTextInputIconMinGap, style.textStyle.fontSize * 0.35f);
+}
+
+core::Rect textInputIconBounds(float x, float height, float side)
+{
+    return core::Rect::MakeXYWH(
+        x,
+        std::max(0.0f, (height - side) * 0.5f),
+        side,
+        side);
+}
+
+void drawTextInputIconPlaceholder(
+    rendering::Canvas& canvas,
+    core::Rect bounds,
+    core::Color color,
+    bool failed)
+{
+    const float radius = std::max(3.0f, std::min(bounds.width(), bounds.height()) * 0.3f);
+    canvas.drawRoundRect(bounds, radius, radius, color);
+    if (!failed) {
+        return;
+    }
+
+    const float inset = std::max(2.0f, std::min(bounds.width(), bounds.height()) * 0.22f);
+    const core::Color stroke = core::colorARGB(255, 255, 248, 248);
+    canvas.drawLine(
+        bounds.left() + inset,
+        bounds.top() + inset,
+        bounds.right() - inset,
+        bounds.bottom() - inset,
+        stroke,
+        1.5f,
+        true);
+    canvas.drawLine(
+        bounds.right() - inset,
+        bounds.top() + inset,
+        bounds.left() + inset,
+        bounds.bottom() - inset,
+        stroke,
+        1.5f,
+        true);
+}
+
 }  // namespace
 
 TextInput::TextInput(std::string placeholder)
@@ -90,6 +154,12 @@ TextInput::~TextInput()
 {
     if (animationAlive_ != nullptr) {
         *animationAlive_ = false;
+    }
+    if (leadingIconLoadAlive_ != nullptr) {
+        *leadingIconLoadAlive_ = false;
+    }
+    if (trailingIconLoadAlive_ != nullptr) {
+        *trailingIconLoadAlive_ = false;
     }
 }
 
@@ -108,6 +178,9 @@ void TextInput::setText(const std::string& text)
     collapseSelection(text_.size());
     draggingSelection_ = false;
     invalidateTextLayoutCache();
+    if (onTextChanged_) {
+        onTextChanged_(text_);
+    }
     markLayoutDirty();
 }
 
@@ -131,6 +204,151 @@ void TextInput::setObscured(bool obscured)
     obscured_ = obscured;
     invalidateTextLayoutCache();
     markLayoutDirty();
+}
+
+void TextInput::setLeadingIcon(rendering::Image icon)
+{
+    ++(*leadingIconLoadGeneration_);
+    pendingLeadingIcon_ = {};
+    leadingIconPath_.clear();
+    leadingIconLoading_ = false;
+    leadingIcon_ = std::move(icon);
+    leadingIconLoadState_ = leadingIcon_ ? TextInputIconLoadState::Ready : TextInputIconLoadState::Idle;
+    markLayoutDirty();
+}
+
+void TextInput::setLeadingIcon(IconType type, float sizeHint)
+{
+    setLeadingIcon(IconRegistry::instance().getIcon(type, sizeHint));
+}
+
+const rendering::Image& TextInput::leadingIcon() const
+{
+    return leadingIcon_;
+}
+
+void TextInput::loadLeadingIconAsync(const std::string& path)
+{
+    ++(*leadingIconLoadGeneration_);
+    leadingIconPath_ = path;
+    leadingIcon_ = {};
+    leadingIconLoading_ = !path.empty();
+    leadingIconLoadState_ = leadingIconLoading_ ? TextInputIconLoadState::Loading : TextInputIconLoadState::Idle;
+    pendingLeadingIcon_ = {};
+    markLayoutDirty();
+    if (path.empty()) {
+        return;
+    }
+
+    const std::uint64_t generation = *leadingIconLoadGeneration_;
+    pendingLeadingIcon_ = ResourceLoader::instance().loadImageAsync(path);
+    const std::shared_ptr<bool> alive = leadingIconLoadAlive_;
+    const std::shared_ptr<std::uint64_t> loadGeneration = leadingIconLoadGeneration_;
+    pendingLeadingIcon_.onReady([this, alive, loadGeneration, generation](const rendering::Image& image) {
+        if (alive == nullptr || !*alive || loadGeneration == nullptr || *loadGeneration != generation) {
+            return;
+        }
+
+        leadingIconLoading_ = false;
+        leadingIcon_ = image;
+        leadingIconLoadState_ = leadingIcon_ ? TextInputIconLoadState::Ready : TextInputIconLoadState::Failed;
+        markLayoutDirty();
+    });
+}
+
+const std::string& TextInput::leadingIconPath() const
+{
+    return leadingIconPath_;
+}
+
+bool TextInput::leadingIconLoading() const
+{
+    return leadingIconLoading_;
+}
+
+TextInputIconLoadState TextInput::leadingIconLoadState() const
+{
+    return leadingIconLoadState_;
+}
+
+void TextInput::onLeadingIconClick(std::function<void()> handler)
+{
+    onLeadingIconClick_ = std::move(handler);
+}
+
+void TextInput::setTrailingIcon(rendering::Image icon)
+{
+    ++(*trailingIconLoadGeneration_);
+    pendingTrailingIcon_ = {};
+    trailingIconPath_.clear();
+    trailingIconLoading_ = false;
+    trailingIcon_ = std::move(icon);
+    trailingIconLoadState_ = trailingIcon_ ? TextInputIconLoadState::Ready : TextInputIconLoadState::Idle;
+    markLayoutDirty();
+}
+
+void TextInput::setTrailingIcon(IconType type, float sizeHint)
+{
+    setTrailingIcon(IconRegistry::instance().getIcon(type, sizeHint));
+}
+
+const rendering::Image& TextInput::trailingIcon() const
+{
+    return trailingIcon_;
+}
+
+void TextInput::loadTrailingIconAsync(const std::string& path)
+{
+    ++(*trailingIconLoadGeneration_);
+    trailingIconPath_ = path;
+    trailingIcon_ = {};
+    trailingIconLoading_ = !path.empty();
+    trailingIconLoadState_ = trailingIconLoading_ ? TextInputIconLoadState::Loading : TextInputIconLoadState::Idle;
+    pendingTrailingIcon_ = {};
+    markLayoutDirty();
+    if (path.empty()) {
+        return;
+    }
+
+    const std::uint64_t generation = *trailingIconLoadGeneration_;
+    pendingTrailingIcon_ = ResourceLoader::instance().loadImageAsync(path);
+    const std::shared_ptr<bool> alive = trailingIconLoadAlive_;
+    const std::shared_ptr<std::uint64_t> loadGeneration = trailingIconLoadGeneration_;
+    pendingTrailingIcon_.onReady([this, alive, loadGeneration, generation](const rendering::Image& image) {
+        if (alive == nullptr || !*alive || loadGeneration == nullptr || *loadGeneration != generation) {
+            return;
+        }
+
+        trailingIconLoading_ = false;
+        trailingIcon_ = image;
+        trailingIconLoadState_ = trailingIcon_ ? TextInputIconLoadState::Ready : TextInputIconLoadState::Failed;
+        markLayoutDirty();
+    });
+}
+
+const std::string& TextInput::trailingIconPath() const
+{
+    return trailingIconPath_;
+}
+
+bool TextInput::trailingIconLoading() const
+{
+    return trailingIconLoading_;
+}
+
+TextInputIconLoadState TextInput::trailingIconLoadState() const
+{
+    return trailingIconLoadState_;
+}
+
+void TextInput::onTrailingIconClick(std::function<void()> handler)
+{
+    onTrailingIconClick_ = std::move(handler);
+}
+
+void TextInput::onTextChanged(std::function<void(const std::string&)> handler)
+{
+    onTextChanged_ = std::move(handler);
 }
 
 std::string TextInput::selectedText() const
@@ -294,7 +512,12 @@ core::Size TextInput::measure(const Constraints& constraints)
     const TextInputStyle& style = resolvedStyle();
     ensureTextLayout(style.textStyle.fontSize);
     return constraints.constrain(core::Size::Make(
-        std::max(style.minWidth, cachedTextWidth_ + style.paddingHorizontal * 2.0f),
+        std::max(
+            style.minWidth,
+            cachedTextWidth_
+                + style.paddingHorizontal * 2.0f
+                + leadingIconSlotWidth(style)
+                + trailingIconSlotWidth(style)),
         std::max(style.minHeight, cachedTextHeight_ + style.paddingVertical * 2.0f)));
 }
 
@@ -331,6 +554,8 @@ void TextInput::onDraw(rendering::Canvas& canvas)
         style.borderWidth.resolve(WidgetState::Focused),
         focusProgress);
     const float inset = borderWidth * 0.5f;
+    const float leadingSlot = leadingIconSlotWidth(style);
+    const float trailingSlot = trailingIconSlotWidth(style);
 
     canvas.drawRoundRect(
         core::Rect::MakeWH(bounds_.width(), bounds_.height()),
@@ -349,15 +574,55 @@ void TextInput::onDraw(rendering::Canvas& canvas)
         rendering::PaintStyle::Stroke,
         borderWidth);
 
-    const float textX = style.paddingHorizontal + cachedDrawX_;
+    const core::Color placeholderIconColor = core::colorARGB(
+        180,
+        style.placeholderColor.red(),
+        style.placeholderColor.green(),
+        style.placeholderColor.blue());
+    const core::Color failedIconColor = borderColor;
+    const float iconSide = textInputIconSide(style);
+
+    if (leadingSlot > 0.0f) {
+        const core::Rect iconBounds = textInputIconBounds(
+            style.paddingHorizontal,
+            bounds_.height(),
+            iconSide);
+        if (leadingIcon_) {
+            canvas.drawImage(leadingIcon_, iconBounds);
+        } else {
+            drawTextInputIconPlaceholder(
+                canvas,
+                iconBounds,
+                leadingIconLoadState_ == TextInputIconLoadState::Failed ? failedIconColor : placeholderIconColor,
+                leadingIconLoadState_ == TextInputIconLoadState::Failed);
+        }
+    }
+
+    if (trailingSlot > 0.0f) {
+        const core::Rect iconBounds = textInputIconBounds(
+            bounds_.width() - style.paddingHorizontal - iconSide,
+            bounds_.height(),
+            iconSide);
+        if (trailingIcon_) {
+            canvas.drawImage(trailingIcon_, iconBounds);
+        } else {
+            drawTextInputIconPlaceholder(
+                canvas,
+                iconBounds,
+                trailingIconLoadState_ == TextInputIconLoadState::Failed ? failedIconColor : placeholderIconColor,
+                trailingIconLoadState_ == TextInputIconLoadState::Failed);
+        }
+    }
+
+    const float textX = style.paddingHorizontal + leadingSlot + cachedDrawX_;
     const float textTop = (bounds_.height() - cachedTextHeight_) * 0.5f;
     const float textY = (bounds_.height() - cachedTextHeight_) * 0.5f + cachedBaseline_;
 
     if (focused() && hasSelection() && !text_.empty()) {
         const float selectionLeft =
-            style.paddingHorizontal + prefixWidth(selectionStart(), style.textStyle.fontSize);
+            style.paddingHorizontal + leadingSlot + prefixWidth(selectionStart(), style.textStyle.fontSize);
         const float selectionRight =
-            style.paddingHorizontal + prefixWidth(selectionEnd(), style.textStyle.fontSize);
+            style.paddingHorizontal + leadingSlot + prefixWidth(selectionEnd(), style.textStyle.fontSize);
 
         canvas.drawRoundRect(
             core::Rect::MakeXYWH(
@@ -379,7 +644,7 @@ void TextInput::onDraw(rendering::Canvas& canvas)
 
     if (focused()) {
         const float caretX =
-            style.paddingHorizontal + prefixWidth(cursorPos_, style.textStyle.fontSize);
+            style.paddingHorizontal + leadingSlot + prefixWidth(cursorPos_, style.textStyle.fontSize);
         canvas.drawLine(
             caretX,
             style.paddingVertical,
@@ -410,7 +675,21 @@ bool TextInput::onEvent(core::Event& event)
             return false;
         }
 
-        const float localX = localPoint.x() - style.paddingHorizontal;
+        if (leadingIconSlotWidth(style) > 0.0f && leadingIconBounds(style).contains(localPoint)) {
+            leadingIconPressed_ = true;
+            trailingIconPressed_ = false;
+            draggingSelection_ = false;
+            return true;
+        }
+
+        if (trailingIconSlotWidth(style) > 0.0f && trailingIconBounds(style).contains(localPoint)) {
+            trailingIconPressed_ = true;
+            leadingIconPressed_ = false;
+            draggingSelection_ = false;
+            return true;
+        }
+
+        const float localX = localPoint.x() - style.paddingHorizontal - leadingIconSlotWidth(style);
         const std::size_t hitCursor =
             cursorFromLocalX(std::max(0.0f, localX), style.textStyle.fontSize);
         if ((mouseEvent.mods & core::mods::kShift) != 0 && focused()) {
@@ -430,11 +709,14 @@ bool TextInput::onEvent(core::Event& event)
             static_cast<float>(mouseEvent.x),
             static_cast<float>(mouseEvent.y)));
         updateHovered(containsLocalPoint(localPoint.x(), localPoint.y()));
+        if (leadingIconPressed_ || trailingIconPressed_) {
+            return true;
+        }
         if (!draggingSelection_) {
             return false;
         }
 
-        const float localX = localPoint.x() - style.paddingHorizontal;
+        const float localX = localPoint.x() - style.paddingHorizontal - leadingIconSlotWidth(style);
         const std::size_t hitCursor =
             cursorFromLocalX(std::max(0.0f, localX), style.textStyle.fontSize);
         if (cursorPos_ != hitCursor || selectionExtent_ != hitCursor) {
@@ -454,6 +736,24 @@ bool TextInput::onEvent(core::Event& event)
                 static_cast<float>(mouseEvent.x),
                 static_cast<float>(mouseEvent.y)));
             updateHovered(containsLocalPoint(localPoint.x(), localPoint.y()));
+
+            if (leadingIconPressed_ || trailingIconPressed_) {
+                const bool triggerLeading = leadingIconPressed_
+                    && leadingIconSlotWidth(style) > 0.0f
+                    && leadingIconBounds(style).contains(localPoint);
+                const bool triggerTrailing = trailingIconPressed_
+                    && trailingIconSlotWidth(style) > 0.0f
+                    && trailingIconBounds(style).contains(localPoint);
+                leadingIconPressed_ = false;
+                trailingIconPressed_ = false;
+                if (triggerLeading && onLeadingIconClick_) {
+                    onLeadingIconClick_();
+                }
+                if (triggerTrailing && onTrailingIconClick_) {
+                    onTrailingIconClick_();
+                }
+                return triggerLeading || triggerTrailing;
+            }
         }
         draggingSelection_ = false;
         return focused();
@@ -489,6 +789,9 @@ bool TextInput::onEvent(core::Event& event)
                 text_.erase(selectionStart(), selectionEnd() - selectionStart());
                 collapseSelection(selectionStart());
                 invalidateTextLayoutCache();
+                if (onTextChanged_) {
+                    onTextChanged_(text_);
+                }
                 markLayoutDirty();
                 return true;
             }
@@ -508,6 +811,9 @@ bool TextInput::onEvent(core::Event& event)
             text_.insert(cursorPos_, pasted);
             collapseSelection(cursorPos_ + pasted.size());
             invalidateTextLayoutCache();
+            if (onTextChanged_) {
+                onTextChanged_(text_);
+            }
             markLayoutDirty();
             return true;
         }
@@ -518,12 +824,18 @@ bool TextInput::onEvent(core::Event& event)
                 text_.erase(selectionStart(), selectionEnd() - selectionStart());
                 collapseSelection(selectionStart());
                 invalidateTextLayoutCache();
+                if (onTextChanged_) {
+                    onTextChanged_(text_);
+                }
                 markLayoutDirty();
             } else if (cursorPos_ > 0) {
                 const std::size_t previous = previousUtf8Offset(text_, cursorPos_);
                 text_.erase(previous, cursorPos_ - previous);
                 collapseSelection(previous);
                 invalidateTextLayoutCache();
+                if (onTextChanged_) {
+                    onTextChanged_(text_);
+                }
                 markLayoutDirty();
             }
             return true;
@@ -532,11 +844,17 @@ bool TextInput::onEvent(core::Event& event)
                 text_.erase(selectionStart(), selectionEnd() - selectionStart());
                 collapseSelection(selectionStart());
                 invalidateTextLayoutCache();
+                if (onTextChanged_) {
+                    onTextChanged_(text_);
+                }
                 markLayoutDirty();
             } else if (cursorPos_ < text_.size()) {
                 const std::size_t next = nextUtf8Offset(text_, cursorPos_);
                 text_.erase(cursorPos_, next - cursorPos_);
                 invalidateTextLayoutCache();
+                if (onTextChanged_) {
+                    onTextChanged_(text_);
+                }
                 markLayoutDirty();
             }
             return true;
@@ -618,6 +936,9 @@ bool TextInput::onEvent(core::Event& event)
         text_.insert(cursorPos_, encoded);
         collapseSelection(cursorPos_ + encoded.size());
         invalidateTextLayoutCache();
+        if (onTextChanged_) {
+            onTextChanged_(text_);
+        }
         markLayoutDirty();
         return true;
     }
@@ -731,6 +1052,48 @@ void TextInput::collapseSelection(std::size_t caret)
     cursorPos_ = std::min(caret, text_.size());
     selectionAnchor_ = cursorPos_;
     selectionExtent_ = cursorPos_;
+}
+
+float TextInput::leadingIconSlotWidth(const TextInputStyle& style) const
+{
+    if (!reservesIconSlot(leadingIcon_, leadingIconLoading_, leadingIconLoadState_)) {
+        return 0.0f;
+    }
+
+    return textInputIconSide(style) + textInputIconGap(style);
+}
+
+core::Rect TextInput::leadingIconBounds(const TextInputStyle& style) const
+{
+    if (leadingIconSlotWidth(style) <= 0.0f) {
+        return core::Rect::MakeEmpty();
+    }
+
+    return textInputIconBounds(
+        style.paddingHorizontal,
+        bounds_.height(),
+        textInputIconSide(style));
+}
+
+float TextInput::trailingIconSlotWidth(const TextInputStyle& style) const
+{
+    if (!reservesIconSlot(trailingIcon_, trailingIconLoading_, trailingIconLoadState_)) {
+        return 0.0f;
+    }
+
+    return textInputIconSide(style) + textInputIconGap(style);
+}
+
+core::Rect TextInput::trailingIconBounds(const TextInputStyle& style) const
+{
+    if (trailingIconSlotWidth(style) <= 0.0f) {
+        return core::Rect::MakeEmpty();
+    }
+
+    return textInputIconBounds(
+        bounds_.width() - style.paddingHorizontal - textInputIconSide(style),
+        bounds_.height(),
+        textInputIconSide(style));
 }
 
 }  // namespace tinalux::ui

@@ -1,13 +1,25 @@
 #pragma once
 
+#include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
+#include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Widget.h"
 #include "tinalux/core/Geometry.h"
+#include "tinalux/ui/IconRegistry.h"
+#include "tinalux/ui/ResourceLoader.h"
 
 namespace tinalux::ui {
+
+enum class DropdownIndicatorLoadState {
+    Idle,
+    Loading,
+    Ready,
+    Failed,
+};
 
 /// 下拉菜单控件
 /// 允许用户从列表中选择一个选项
@@ -16,6 +28,7 @@ public:
     /// 构造函数
     /// @param items 选项列表
     explicit Dropdown(std::vector<std::string> items = {});
+    ~Dropdown() override;
     
     /// 设置选项列表
     void setItems(const std::vector<std::string>& items);
@@ -41,6 +54,14 @@ public:
     /// 设置占位符文本（未选中时显示）
     void setPlaceholder(const std::string& placeholder);
     const std::string& placeholder() const { return placeholder_; }
+
+    void setIndicatorIcon(rendering::Image icon);
+    void setIndicatorIcon(IconType type, float sizeHint = 0.0f);
+    const rendering::Image& indicatorIcon() const;
+    void loadIndicatorIconAsync(const std::string& path);
+    const std::string& indicatorIconPath() const;
+    bool indicatorIconLoading() const;
+    DropdownIndicatorLoadState indicatorIconLoadState() const;
     
     // Widget接口实现
     bool focusable() const override { return true; }
@@ -61,6 +82,13 @@ private:
     bool expanded_ = false;
     bool hovered_ = false;
     int hoveredItem_ = -1;
+    rendering::Image indicatorIcon_;
+    ResourceHandle<rendering::Image> pendingIndicatorIcon_;
+    std::shared_ptr<bool> indicatorIconLoadAlive_ = std::make_shared<bool>(true);
+    std::shared_ptr<std::uint64_t> indicatorIconLoadGeneration_ = std::make_shared<std::uint64_t>(0);
+    std::string indicatorIconPath_;
+    bool indicatorIconLoading_ = false;
+    DropdownIndicatorLoadState indicatorIconLoadState_ = DropdownIndicatorLoadState::Idle;
     int maxVisibleItems_ = 5;
     std::function<void(int)> onSelectionChanged_;
     

@@ -97,6 +97,30 @@ target_link_libraries(TinaluxUITextInputStyleSmoke
 
 add_test(NAME TinaluxUITextInputStyleSmoke COMMAND TinaluxUITextInputStyleSmoke)
 
+add_executable(TinaluxUITextInputIconSmoke
+    ui/text_input_icon_smoke.cpp
+)
+
+target_link_libraries(TinaluxUITextInputIconSmoke
+    PRIVATE
+        Tinalux::UI
+)
+
+add_test(NAME TinaluxUITextInputIconSmoke COMMAND TinaluxUITextInputIconSmoke)
+
+add_executable(TinaluxUIDemoSceneSmoke
+    ui/demo_scene_smoke.cpp
+)
+
+target_link_libraries(TinaluxUIDemoSceneSmoke
+    PRIVATE
+        Tinalux::UI
+)
+
+tinalux_copy_skia_runtime_data(TinaluxUIDemoSceneSmoke)
+
+add_test(NAME TinaluxUIDemoSceneSmoke COMMAND TinaluxUIDemoSceneSmoke)
+
 add_executable(TinaluxUITextPrimitivesSmoke
     ui/text_primitives_smoke.cpp
 )
@@ -141,6 +165,18 @@ target_link_libraries(TinaluxUIListViewStyleSmoke
 
 add_test(NAME TinaluxUIListViewStyleSmoke COMMAND TinaluxUIListViewStyleSmoke)
 
+add_executable(TinaluxUIListViewSelectionSmoke
+    ui/list_view_selection_smoke.cpp
+)
+
+target_link_libraries(TinaluxUIListViewSelectionSmoke
+    PRIVATE
+        Tinalux::UI
+        Tinalux::App
+)
+
+add_test(NAME TinaluxUIListViewSelectionSmoke COMMAND TinaluxUIListViewSelectionSmoke)
+
 add_executable(TinaluxUIRenderCacheSmoke
     ui/render_cache_smoke.cpp
 )
@@ -177,6 +213,17 @@ if(MSVC)
 endif()
 
 add_test(NAME TinaluxUIControlsSmoke COMMAND TinaluxUIControlsSmoke)
+
+add_executable(TinaluxUIDropdownSmoke
+    ui/dropdown_smoke.cpp
+)
+
+target_link_libraries(TinaluxUIDropdownSmoke
+    PRIVATE
+        Tinalux::UI
+)
+
+add_test(NAME TinaluxUIDropdownSmoke COMMAND TinaluxUIDropdownSmoke)
 
 add_executable(TinaluxUISelectionControlStyleSmoke
     ui/selection_control_style_smoke.cpp
@@ -287,6 +334,17 @@ target_link_libraries(TinaluxUIResourceManagerSmoke
 )
 
 add_test(NAME TinaluxUIResourceManagerSmoke COMMAND TinaluxUIResourceManagerSmoke)
+
+add_executable(TinaluxUIResourceLoaderSmoke
+    ui/resource_loader_smoke.cpp
+)
+
+target_link_libraries(TinaluxUIResourceLoaderSmoke
+    PRIVATE
+        Tinalux::UI
+)
+
+add_test(NAME TinaluxUIResourceLoaderSmoke COMMAND TinaluxUIResourceLoaderSmoke)
 
 add_executable(TinaluxUIParagraphClipboardSmoke
     ui/paragraph_clipboard_smoke.cpp

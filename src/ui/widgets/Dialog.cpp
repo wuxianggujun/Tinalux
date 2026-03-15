@@ -12,6 +12,48 @@
 
 namespace tinalux::ui {
 
+namespace {
+
+float closeButtonSide(const DialogStyle& style)
+{
+    return std::max(18.0f, style.titleTextStyle.fontSize * 0.85f);
+}
+
+float headerHeight(const DialogStyle& style, const TextMetrics& titleMetrics, bool showCloseButton)
+{
+    return std::max(titleMetrics.height, showCloseButton ? closeButtonSide(style) : 0.0f);
+}
+
+void drawFallbackCloseIcon(rendering::Canvas& canvas, core::Rect bounds, core::Color color)
+{
+    const float inset = std::max(2.0f, std::min(bounds.width(), bounds.height()) * 0.22f);
+    const float stroke = std::max(1.5f, std::min(bounds.width(), bounds.height()) * 0.12f);
+    canvas.drawLine(
+        bounds.left() + inset,
+        bounds.top() + inset,
+        bounds.right() - inset,
+        bounds.bottom() - inset,
+        color,
+        stroke,
+        true);
+    canvas.drawLine(
+        bounds.right() - inset,
+        bounds.top() + inset,
+        bounds.left() + inset,
+        bounds.bottom() - inset,
+        color,
+        stroke,
+        true);
+}
+
+core::Color closeButtonFill(core::Color titleColor, bool hovered, bool pressed)
+{
+    const core::Color::Channel alpha = pressed ? 84 : (hovered ? 48 : 20);
+    return core::colorARGB(alpha, titleColor.red(), titleColor.green(), titleColor.blue());
+}
+
+}  // namespace
+
 Dialog::Dialog(std::string title)
     : title_(std::move(title))
 {
@@ -73,6 +115,39 @@ void Dialog::setDismissOnEscape(bool enabled)
 bool Dialog::dismissOnEscape() const
 {
     return dismissOnEscape_;
+}
+
+void Dialog::setShowCloseButton(bool show)
+{
+    if (showCloseButton_ == show) {
+        return;
+    }
+
+    showCloseButton_ = show;
+    closeButtonHovered_ = false;
+    closeButtonPressed_ = false;
+    markLayoutDirty();
+}
+
+bool Dialog::showCloseButton() const
+{
+    return showCloseButton_;
+}
+
+void Dialog::setCloseIcon(rendering::Image icon)
+{
+    closeIcon_ = std::move(icon);
+    markPaintDirty();
+}
+
+void Dialog::setCloseIcon(IconType type, float sizeHint)
+{
+    setCloseIcon(IconRegistry::instance().getIcon(type, sizeHint));
+}
+
+const rendering::Image& Dialog::closeIcon() const
+{
+    return closeIcon_;
 }
 
 void Dialog::setBackdropColor(core::Color color)
@@ -184,7 +259,10 @@ core::Size Dialog::measure(const Constraints& constraints)
     const TextMetrics titleMetrics = title_.empty()
         ? TextMetrics {}
         : measureTextMetrics(title_, titleFontSize);
-    const float titleHeight = title_.empty() ? 0.0f : titleMetrics.height;
+    const float headerBoxHeight = headerHeight(style, titleMetrics, showCloseButton_);
+    const float headerReservation = showCloseButton_
+        ? closeButtonSide(style) + (title_.empty() ? 0.0f : style.padding * 0.5f)
+        : 0.0f;
     const float availableCardWidth = std::isfinite(constraints.maxWidth)
         ? std::min(style.maxSize.width() > 0.0f ? style.maxSize.width() : constraints.maxWidth, constraints.maxWidth)
         : style.maxSize.width();
@@ -194,18 +272,18 @@ core::Size Dialog::measure(const Constraints& constraints)
     const float maxContentWidth = std::max(0.0f, availableCardWidth - style.padding * 2.0f);
     const float maxContentHeight = std::max(
         0.0f,
-        availableCardHeight - style.padding * 2.0f - titleHeight
-            - (title_.empty() ? 0.0f : style.titleGap));
+        availableCardHeight - style.padding * 2.0f - headerBoxHeight
+            - (headerBoxHeight > 0.0f ? style.titleGap : 0.0f));
 
     Widget* contentWidgetPtr = contentWidget();
     const core::Size contentSize = contentWidgetPtr != nullptr
         ? contentWidgetPtr->measure(Constraints::loose(maxContentWidth, maxContentHeight))
         : core::Size::Make(0.0f, 0.0f);
 
-    const float cardWidth = std::max(titleMetrics.width, contentSize.width()) + style.padding * 2.0f;
+    const float cardWidth = std::max(titleMetrics.width + headerReservation, contentSize.width()) + style.padding * 2.0f;
     const float cardHeight = style.padding * 2.0f
-        + titleHeight
-        + (contentWidgetPtr != nullptr && !title_.empty() ? style.titleGap : 0.0f)
+        + headerBoxHeight
+        + (contentWidgetPtr != nullptr && headerBoxHeight > 0.0f ? style.titleGap : 0.0f)
         + contentSize.height();
 
     return constraints.constrain(core::Size::Make(cardWidth, cardHeight));
@@ -220,7 +298,10 @@ void Dialog::arrange(const core::Rect& bounds)
     const TextMetrics titleMetrics = title_.empty()
         ? TextMetrics {}
         : measureTextMetrics(title_, titleFontSize);
-    const float titleHeight = title_.empty() ? 0.0f : titleMetrics.height;
+    const float headerBoxHeight = headerHeight(style, titleMetrics, showCloseButton_);
+    const float headerReservation = showCloseButton_
+        ? closeButtonSide(style) + (title_.empty() ? 0.0f : style.padding * 0.5f)
+        : 0.0f;
     const float maxCardWidth = std::min(
         bounds.width() * 0.9f,
         style.maxSize.width() > 0.0f ? style.maxSize.width() : bounds.width());
@@ -233,19 +314,19 @@ void Dialog::arrange(const core::Rect& bounds)
         const float maxContentWidth = std::max(0.0f, maxCardWidth - style.padding * 2.0f);
         const float maxContentHeight = std::max(
             0.0f,
-            maxCardHeight - style.padding * 2.0f - titleHeight
-                - (title_.empty() ? 0.0f : style.titleGap));
+            maxCardHeight - style.padding * 2.0f - headerBoxHeight
+                - (headerBoxHeight > 0.0f ? style.titleGap : 0.0f));
         contentSize = contentWidgetPtr->measure(Constraints::loose(maxContentWidth, maxContentHeight));
     }
 
     const float cardWidth = std::min(
         maxCardWidth,
-        std::max(titleMetrics.width, contentSize.width()) + style.padding * 2.0f);
+        std::max(titleMetrics.width + headerReservation, contentSize.width()) + style.padding * 2.0f);
     const float cardHeight = std::min(
         maxCardHeight,
         style.padding * 2.0f
-            + titleHeight
-            + (contentWidget() != nullptr && !title_.empty() ? style.titleGap : 0.0f)
+            + headerBoxHeight
+            + (contentWidget() != nullptr && headerBoxHeight > 0.0f ? style.titleGap : 0.0f)
             + contentSize.height());
 
     cardBounds_ = core::Rect::MakeXYWH(
@@ -254,9 +335,20 @@ void Dialog::arrange(const core::Rect& bounds)
         cardWidth,
         cardHeight);
 
+    if (showCloseButton_) {
+        const float side = closeButtonSide(style);
+        closeButtonBounds_ = core::Rect::MakeXYWH(
+            cardBounds_.right() - style.padding - side,
+            cardBounds_.y() + style.padding + (headerBoxHeight - side) * 0.5f,
+            side,
+            side);
+    } else {
+        closeButtonBounds_ = core::Rect::MakeEmpty();
+    }
+
     if (Widget* contentWidgetPtr = contentWidget(); contentWidgetPtr != nullptr) {
-        const float contentY = cardBounds_.y() + style.padding + titleHeight
-            + (!title_.empty() ? style.titleGap : 0.0f);
+        const float contentY = cardBounds_.y() + style.padding + headerBoxHeight
+            + (headerBoxHeight > 0.0f ? style.titleGap : 0.0f);
         contentBounds_ = core::Rect::MakeXYWH(
             cardBounds_.x() + style.padding,
             contentY,
@@ -279,6 +371,7 @@ void Dialog::onDraw(rendering::Canvas& canvas)
     const TextMetrics titleMetrics = title_.empty()
         ? TextMetrics {}
         : measureTextMetrics(title_, titleFontSize);
+    const float headerBoxHeight = headerHeight(style, titleMetrics, showCloseButton_);
 
     canvas.drawRect(
         core::Rect::MakeWH(bounds_.width(), bounds_.height()),
@@ -293,9 +386,29 @@ void Dialog::onDraw(rendering::Canvas& canvas)
         canvas.drawText(
             title_,
             cardBounds_.x() + style.padding + titleMetrics.drawX,
-            cardBounds_.y() + style.padding + titleMetrics.baseline,
+            cardBounds_.y() + style.padding + (headerBoxHeight - titleMetrics.height) * 0.5f + titleMetrics.baseline,
             titleFontSize,
             style.titleColor);
+    }
+
+    if (showCloseButton_ && !closeButtonBounds_.isEmpty()) {
+        canvas.drawRoundRect(
+            closeButtonBounds_,
+            std::max(6.0f, closeButtonBounds_.width() * 0.28f),
+            std::max(6.0f, closeButtonBounds_.height() * 0.28f),
+            closeButtonFill(style.titleColor, closeButtonHovered_, closeButtonPressed_));
+        if (closeIcon_) {
+            const float inset = std::max(2.0f, closeButtonBounds_.width() * 0.16f);
+            canvas.drawImage(
+                closeIcon_,
+                core::Rect::MakeXYWH(
+                    closeButtonBounds_.x() + inset,
+                    closeButtonBounds_.y() + inset,
+                    std::max(0.0f, closeButtonBounds_.width() - inset * 2.0f),
+                    std::max(0.0f, closeButtonBounds_.height() - inset * 2.0f)));
+        } else {
+            drawFallbackCloseIcon(canvas, closeButtonBounds_, style.titleColor);
+        }
     }
 
     drawChildren(canvas);
@@ -326,11 +439,32 @@ Widget* Dialog::hitTest(float x, float y)
 bool Dialog::onEvent(core::Event& event)
 {
     switch (event.type()) {
+    case core::EventType::MouseMove: {
+        const auto& mouseEvent = static_cast<const core::MouseMoveEvent&>(event);
+        const core::Point localPoint = globalToLocal(core::Point::Make(
+            static_cast<float>(mouseEvent.x),
+            static_cast<float>(mouseEvent.y)));
+        const bool hovered = showCloseButton_ && closeButtonBounds_.contains(localPoint);
+        if (closeButtonHovered_ != hovered) {
+            closeButtonHovered_ = hovered;
+            markPaintDirty();
+        }
+        return closeButtonPressed_;
+    }
     case core::EventType::MouseButtonPress: {
         const auto& mouseEvent = static_cast<const core::MouseButtonEvent&>(event);
         const core::Point localPoint = globalToLocal(core::Point::Make(
             static_cast<float>(mouseEvent.x),
             static_cast<float>(mouseEvent.y)));
+        if (mouseEvent.button == core::mouse::kLeft
+            && showCloseButton_
+            && closeButtonBounds_.contains(localPoint)) {
+            closeButtonPressed_ = true;
+            closeButtonHovered_ = true;
+            backdropPressed_ = false;
+            markPaintDirty();
+            return true;
+        }
         backdropPressed_ = dismissOnBackdrop_ && !cardBounds_.contains(localPoint);
         return backdropPressed_;
     }
@@ -339,6 +473,17 @@ bool Dialog::onEvent(core::Event& event)
         const core::Point localPoint = globalToLocal(core::Point::Make(
             static_cast<float>(mouseEvent.x),
             static_cast<float>(mouseEvent.y)));
+        if (closeButtonPressed_) {
+            const bool shouldDismiss = closeButtonBounds_.contains(localPoint);
+            closeButtonPressed_ = false;
+            closeButtonHovered_ = showCloseButton_ && closeButtonBounds_.contains(localPoint);
+            markPaintDirty();
+            if (shouldDismiss) {
+                dismiss();
+                return true;
+            }
+            return false;
+        }
         const bool shouldDismiss = backdropPressed_ && dismissOnBackdrop_ && !cardBounds_.contains(localPoint);
         backdropPressed_ = false;
         if (shouldDismiss) {
@@ -347,6 +492,13 @@ bool Dialog::onEvent(core::Event& event)
         }
         return false;
     }
+    case core::EventType::MouseLeave:
+        if (closeButtonHovered_ || closeButtonPressed_) {
+            closeButtonHovered_ = false;
+            closeButtonPressed_ = false;
+            markPaintDirty();
+        }
+        return false;
     case core::EventType::KeyPress: {
         const auto& keyEvent = static_cast<const core::KeyEvent&>(event);
         if (dismissOnEscape_ && keyEvent.key == core::keys::kEscape) {

@@ -7,6 +7,7 @@
 #include "tinalux/core/events/Event.h"
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Button.h"
+#include "tinalux/ui/Constraints.h"
 #include "tinalux/ui/Dialog.h"
 #include "tinalux/ui/Panel.h"
 
@@ -64,6 +65,25 @@ int main()
     app.handleEvent(enterKey);
     expect(dialogClicks == 1, "Enter on focused dialog button should trigger click");
 
+    const core::Size dialogSize = dialog->measure(ui::Constraints::loose(320.0f, 200.0f));
+    const double closeX = (320.0 - dialogSize.width()) * 0.5 + dialogSize.width() - 24.0;
+    const double closeY = (200.0 - dialogSize.height()) * 0.5 + 24.0;
+    core::MouseButtonEvent closePress(
+        core::mouse::kLeft,
+        0,
+        closeX,
+        closeY,
+        core::EventType::MouseButtonPress);
+    core::MouseButtonEvent closeRelease(
+        core::mouse::kLeft,
+        0,
+        closeX,
+        closeY,
+        core::EventType::MouseButtonRelease);
+    app.handleEvent(closePress);
+    app.handleEvent(closeRelease);
+    expect(dismissCount == 1, "close button click should dismiss dialog");
+
     core::MouseButtonEvent backdropPress(
         core::mouse::kLeft,
         0,
@@ -78,7 +98,7 @@ int main()
         core::EventType::MouseButtonRelease);
     app.handleEvent(backdropPress);
     app.handleEvent(backdropRelease);
-    expect(dismissCount == 1, "backdrop click should dismiss dialog");
+    expect(dismissCount == 2, "backdrop click should dismiss dialog");
 
     app.clearOverlayWidget();
 

@@ -16,6 +16,7 @@
 #include "tinalux/ui/Clipboard.h"
 #include "tinalux/ui/Container.h"
 #include "tinalux/ui/Constraints.h"
+#include "tinalux/ui/ResourceLoader.h"
 #include "tinalux/ui/ThemeManager.h"
 #include "tinalux/ui/Widget.h"
 
@@ -293,6 +294,7 @@ void UIContext::shutdown()
     }
 
     runtimeState_->animationScheduler.clear();
+    ui::ResourceLoader::instance().clear();
     ui::clearClipboardHandlers();
 
     if (focusedWidget_ != nullptr) {
@@ -551,6 +553,16 @@ void UIContext::noteFrameSkipped()
 bool UIContext::tickAnimations(double nowSeconds)
 {
     return runtimeState_ != nullptr && runtimeState_->animationScheduler.tick(nowSeconds);
+}
+
+bool UIContext::tickAsyncResources()
+{
+    if (runtimeState_ == nullptr) {
+        return false;
+    }
+
+    ui::ScopedRuntimeState runtimeScope(*runtimeState_);
+    return ui::ResourceLoader::instance().pumpCallbacks();
 }
 
 bool UIContext::hasActiveAnimations() const

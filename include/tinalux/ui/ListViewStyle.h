@@ -9,6 +9,10 @@ namespace tinalux::ui {
 struct ListViewStyle {
     float padding = 8.0f;
     float spacing = 8.0f;
+    float itemCornerRadius = 12.0f;
+    core::Color selectionFillColor = core::colorARGB(28, 137, 180, 250);
+    core::Color selectionBorderColor = core::colorARGB(168, 88, 126, 196);
+    core::Color focusBorderColor = core::colorARGB(220, 137, 180, 250);
 
     static ListViewStyle standard(
         const ColorScheme& colors,

@@ -1,5 +1,9 @@
 #include "tinalux/ui/Button.h"
 
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
 #include "tinalux/rendering/rendering.h"
@@ -41,6 +45,73 @@ core::Size resolveButtonIconSize(const rendering::Image& icon, core::Size reques
     return icon.size();
 }
 
+core::Size resolveButtonIconSlotSize(
+    const rendering::Image& icon,
+    core::Size requestedSize,
+    float fallbackSide)
+{
+    const core::Size resolvedImageSize = resolveButtonIconSize(icon, requestedSize);
+    if (resolvedImageSize.width() > 0.0f && resolvedImageSize.height() > 0.0f) {
+        return resolvedImageSize;
+    }
+
+    const float requestedWidth = std::max(0.0f, requestedSize.width());
+    const float requestedHeight = std::max(0.0f, requestedSize.height());
+    if (requestedWidth > 0.0f && requestedHeight > 0.0f) {
+        return core::Size::Make(requestedWidth, requestedHeight);
+    }
+
+    if (requestedWidth > 0.0f) {
+        return core::Size::Make(requestedWidth, requestedWidth);
+    }
+
+    if (requestedHeight > 0.0f) {
+        return core::Size::Make(requestedHeight, requestedHeight);
+    }
+
+    const float fallback = std::max(0.0f, fallbackSide);
+    return fallback > 0.0f ? core::Size::Make(fallback, fallback) : core::Size::Make(0.0f, 0.0f);
+}
+
+core::Color placeholderColor(core::Color textColor, bool failed)
+{
+    if (failed) {
+        return core::colorARGB(255, 196, 88, 88);
+    }
+
+    return core::colorARGB(196, textColor.red(), textColor.green(), textColor.blue());
+}
+
+void drawButtonIconPlaceholder(
+    rendering::Canvas& canvas,
+    core::Rect bounds,
+    core::Color color,
+    bool failed)
+{
+    const float radius = std::max(2.0f, std::min(bounds.width(), bounds.height()) * 0.25f);
+    canvas.drawRoundRect(bounds, radius, radius, color);
+    if (!failed) {
+        return;
+    }
+
+    const float inset = std::max(2.0f, std::min(bounds.width(), bounds.height()) * 0.22f);
+    const core::Color strokeColor = core::colorARGB(255, 255, 244, 244);
+    canvas.drawLine(
+        bounds.x() + inset,
+        bounds.y() + inset,
+        bounds.right() - inset,
+        bounds.bottom() - inset,
+        strokeColor,
+        1.5f);
+    canvas.drawLine(
+        bounds.right() - inset,
+        bounds.y() + inset,
+        bounds.x() + inset,
+        bounds.bottom() - inset,
+        strokeColor,
+        1.5f);
+}
+
 }  // namespace
 
 Button::Button(std::string label)
@@ -52,6 +123,9 @@ Button::~Button()
 {
     if (hoverAnimationAlive_ != nullptr) {
         *hoverAnimationAlive_ = false;
+    }
+    if (iconLoadAlive_ != nullptr) {
+        *iconLoadAlive_ = false;
     }
 }
 
@@ -67,13 +141,67 @@ void Button::setLabel(const std::string& label)
 
 void Button::setIcon(rendering::Image icon)
 {
+    ++(*iconLoadGeneration_);
+    pendingIcon_ = {};
+    iconPath_.clear();
+    iconLoading_ = false;
     icon_ = std::move(icon);
+    iconLoadState_ = icon_ ? ButtonIconLoadState::Ready : ButtonIconLoadState::Idle;
     markLayoutDirty();
+}
+
+void Button::setIcon(IconType type, float sizeHint)
+{
+    setIcon(IconRegistry::instance().getIcon(type, sizeHint));
 }
 
 const rendering::Image& Button::icon() const
 {
     return icon_;
+}
+
+void Button::loadIconAsync(const std::string& path)
+{
+    ++(*iconLoadGeneration_);
+    iconPath_ = path;
+    icon_ = {};
+    iconLoading_ = !path.empty();
+    iconLoadState_ = iconLoading_ ? ButtonIconLoadState::Loading : ButtonIconLoadState::Idle;
+    pendingIcon_ = {};
+    markLayoutDirty();
+    if (path.empty()) {
+        return;
+    }
+
+    const std::uint64_t generation = *iconLoadGeneration_;
+    pendingIcon_ = ResourceLoader::instance().loadImageAsync(path);
+    const std::shared_ptr<bool> alive = iconLoadAlive_;
+    const std::shared_ptr<std::uint64_t> loadGeneration = iconLoadGeneration_;
+    pendingIcon_.onReady([this, alive, loadGeneration, generation](const rendering::Image& image) {
+        if (alive == nullptr || !*alive || loadGeneration == nullptr || *loadGeneration != generation) {
+            return;
+        }
+
+        iconLoading_ = false;
+        icon_ = image;
+        iconLoadState_ = icon_ ? ButtonIconLoadState::Ready : ButtonIconLoadState::Failed;
+        markLayoutDirty();
+    });
+}
+
+const std::string& Button::iconPath() const
+{
+    return iconPath_;
+}
+
+bool Button::iconLoading() const
+{
+    return iconLoading_;
+}
+
+ButtonIconLoadState Button::iconLoadState() const
+{
+    return iconLoadState_;
 }
 
 void Button::setIconPlacement(ButtonIconPlacement placement)
@@ -213,7 +341,12 @@ core::Size Button::measure(const Constraints& constraints)
 {
     const ButtonStyle& style = resolvedStyle();
     const TextMetrics metrics = measureTextMetrics(label_, style.textStyle.fontSize);
-    const core::Size resolvedIconSize = resolveButtonIconSize(icon_, iconSize_);
+    const bool reserveIconSlot = static_cast<bool>(icon_)
+        || iconLoading_
+        || iconLoadState_ == ButtonIconLoadState::Failed;
+    const core::Size resolvedIconSize = reserveIconSlot
+        ? resolveButtonIconSlotSize(icon_, iconSize_, style.textStyle.fontSize)
+        : core::Size::Make(0.0f, 0.0f);
     const bool hasIcon = resolvedIconSize.width() > 0.0f && resolvedIconSize.height() > 0.0f;
     const bool hasLabel = !label_.empty();
     const float contentWidth = metrics.width
@@ -278,8 +411,16 @@ void Button::onDraw(rendering::Canvas& canvas)
     }
 
     const TextMetrics metrics = measureTextMetrics(label_, style.textStyle.fontSize);
-    const core::Size resolvedIconSize = resolveButtonIconSize(icon_, iconSize_);
+    const bool reserveIconSlot = static_cast<bool>(icon_)
+        || iconLoading_
+        || iconLoadState_ == ButtonIconLoadState::Failed;
+    const core::Size resolvedIconSize = reserveIconSlot
+        ? resolveButtonIconSlotSize(icon_, iconSize_, style.textStyle.fontSize)
+        : core::Size::Make(0.0f, 0.0f);
     const bool hasIcon = resolvedIconSize.width() > 0.0f && resolvedIconSize.height() > 0.0f;
+    const bool hasIconImage = static_cast<bool>(icon_);
+    const bool showIconPlaceholder = hasIcon && !hasIconImage
+        && (iconLoading_ || iconLoadState_ == ButtonIconLoadState::Failed);
     const bool hasLabel = !label_.empty();
     const float contentWidth = metrics.width
         + (hasIcon ? resolvedIconSize.width() : 0.0f)
@@ -287,11 +428,25 @@ void Button::onDraw(rendering::Canvas& canvas)
     float cursorX = (bounds_.width() - contentWidth) * 0.5f;
     const float textY = (bounds_.height() - metrics.height) * 0.5f + metrics.baseline;
     const float iconY = (bounds_.height() - resolvedIconSize.height()) * 0.5f;
+    const core::Color iconPlaceholder = placeholderColor(
+        textColor,
+        iconLoadState_ == ButtonIconLoadState::Failed);
 
     if (hasIcon && iconPlacement_ == ButtonIconPlacement::Start) {
-        canvas.drawImage(
-            icon_,
-            core::Rect::MakeXYWH(cursorX, iconY, resolvedIconSize.width(), resolvedIconSize.height()));
+        const core::Rect iconBounds = core::Rect::MakeXYWH(
+            cursorX,
+            iconY,
+            resolvedIconSize.width(),
+            resolvedIconSize.height());
+        if (hasIconImage) {
+            canvas.drawImage(icon_, iconBounds);
+        } else if (showIconPlaceholder) {
+            drawButtonIconPlaceholder(
+                canvas,
+                iconBounds,
+                iconPlaceholder,
+                iconLoadState_ == ButtonIconLoadState::Failed);
+        }
         cursorX += resolvedIconSize.width();
         if (hasLabel) {
             cursorX += style.iconSpacing;
@@ -307,9 +462,20 @@ void Button::onDraw(rendering::Canvas& canvas)
         if (hasLabel) {
             cursorX += style.iconSpacing;
         }
-        canvas.drawImage(
-            icon_,
-            core::Rect::MakeXYWH(cursorX, iconY, resolvedIconSize.width(), resolvedIconSize.height()));
+        const core::Rect iconBounds = core::Rect::MakeXYWH(
+            cursorX,
+            iconY,
+            resolvedIconSize.width(),
+            resolvedIconSize.height());
+        if (hasIconImage) {
+            canvas.drawImage(icon_, iconBounds);
+        } else if (showIconPlaceholder) {
+            drawButtonIconPlaceholder(
+                canvas,
+                iconBounds,
+                iconPlaceholder,
+                iconLoadState_ == ButtonIconLoadState::Failed);
+        }
     }
 }
 

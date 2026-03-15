@@ -1,11 +1,16 @@
 #include "tinalux/ui/DemoScene.h"
 
 #include <algorithm>
+#include <array>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
+#include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Animation.h"
 #include "tinalux/ui/Button.h"
 #include "tinalux/ui/Checkbox.h"
@@ -24,6 +29,12 @@ namespace tinalux::ui {
 
 namespace {
 
+struct ActivityEntry {
+    std::string title;
+    std::string meta;
+    std::string hint;
+};
+
 core::Color lerpColor(core::Color from, core::Color to, float progress)
 {
     const float t = std::clamp(progress, 0.0f, 1.0f);
@@ -39,10 +50,196 @@ core::Color lerpColor(core::Color from, core::Color to, float progress)
         lerpChannel(core::colorBlue(from), core::colorBlue(to)));
 }
 
+std::string lowerAscii(std::string_view text)
+{
+    std::string lowered;
+    lowered.reserve(text.size());
+    for (const char ch : text) {
+        lowered.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+    }
+    return lowered;
+}
+
+bool matchesActivityEntry(const ActivityEntry& entry, std::string_view query)
+{
+    if (query.empty()) {
+        return true;
+    }
+
+    const std::string loweredQuery = lowerAscii(query);
+    const std::string haystack =
+        lowerAscii(entry.title) + " " + lowerAscii(entry.meta) + " " + lowerAscii(entry.hint);
+    return haystack.find(loweredQuery) != std::string::npos;
+}
+
+rendering::Image makeIcon(
+    float sizeHint,
+    const std::function<void(rendering::Canvas&, float)>& draw)
+{
+    const int side = std::max(16, static_cast<int>(std::lround(sizeHint)));
+    const rendering::RenderSurface surface = rendering::createRasterSurface(side, side);
+    if (!surface) {
+        return {};
+    }
+
+    rendering::Canvas canvas = surface.canvas();
+    if (!canvas) {
+        return {};
+    }
+
+    canvas.clear(core::colorARGB(0, 0, 0, 0));
+    draw(canvas, static_cast<float>(side));
+    return surface.snapshotImage();
+}
+
+rendering::Image makeUserIcon(core::Color color, float sizeHint)
+{
+    return makeIcon(sizeHint, [color](rendering::Canvas& canvas, float side) {
+        canvas.drawCircle(side * 0.5f, side * 0.34f, side * 0.15f, color);
+        canvas.drawRoundRect(
+            core::Rect::MakeXYWH(side * 0.2f, side * 0.56f, side * 0.6f, side * 0.18f),
+            side * 0.1f,
+            side * 0.1f,
+            color);
+    });
+}
+
+rendering::Image makeLockIcon(core::Color color, float sizeHint)
+{
+    return makeIcon(sizeHint, [color](rendering::Canvas& canvas, float side) {
+        canvas.drawRoundRect(
+            core::Rect::MakeXYWH(side * 0.24f, side * 0.46f, side * 0.52f, side * 0.30f),
+            side * 0.08f,
+            side * 0.08f,
+            color);
+        canvas.drawRoundRect(
+            core::Rect::MakeXYWH(side * 0.34f, side * 0.18f, side * 0.32f, side * 0.34f),
+            side * 0.16f,
+            side * 0.16f,
+            color,
+            rendering::PaintStyle::Stroke,
+            std::max(1.5f, side * 0.08f));
+    });
+}
+
+rendering::Image makeClearIcon(core::Color color, float sizeHint)
+{
+    return makeIcon(sizeHint, [color](rendering::Canvas& canvas, float side) {
+        const float inset = side * 0.24f;
+        const float stroke = std::max(1.5f, side * 0.1f);
+        canvas.drawLine(inset, inset, side - inset, side - inset, color, stroke, true);
+        canvas.drawLine(side - inset, inset, inset, side - inset, color, stroke, true);
+    });
+}
+
+rendering::Image makeSearchIcon(core::Color color, float sizeHint)
+{
+    return makeIcon(sizeHint, [color](rendering::Canvas& canvas, float side) {
+        const float stroke = std::max(1.5f, side * 0.08f);
+        canvas.drawCircle(
+            side * 0.42f,
+            side * 0.42f,
+            side * 0.18f,
+            color,
+            rendering::PaintStyle::Stroke,
+            stroke);
+        canvas.drawLine(
+            side * 0.56f,
+            side * 0.56f,
+            side * 0.78f,
+            side * 0.78f,
+            color,
+            stroke,
+            true);
+    });
+}
+
+std::shared_ptr<Panel> makeActivityCard(const ActivityEntry& entry, Theme theme, std::size_t index)
+{
+    auto itemCard = std::make_shared<Panel>();
+    itemCard->setBackgroundColor(index % 2 == 0 ? theme.surface : theme.background);
+    itemCard->setCornerRadius(theme.cornerRadius);
+
+    auto itemLayout = std::make_unique<VBoxLayout>();
+    itemLayout->padding = 14.0f;
+    itemLayout->spacing = 6.0f;
+    itemCard->setLayout(std::move(itemLayout));
+
+    auto itemTitle = std::make_shared<Label>(entry.title);
+    auto itemMeta = std::make_shared<Label>(entry.meta);
+    itemMeta->setColor(theme.textSecondary);
+    auto itemHint = std::make_shared<ParagraphLabel>(entry.hint);
+    itemHint->setColor(theme.textSecondary);
+    itemHint->setMaxLines(2);
+
+    itemCard->addChild(itemTitle);
+    itemCard->addChild(itemMeta);
+    itemCard->addChild(itemHint);
+    return itemCard;
+}
+
+void rebuildActivityList(
+    const std::shared_ptr<ListView>& list,
+    const std::shared_ptr<ParagraphLabel>& summary,
+    const std::vector<ActivityEntry>& entries,
+    Theme theme,
+    std::string_view query)
+{
+    if (list == nullptr || summary == nullptr) {
+        return;
+    }
+
+    list->clearItems();
+    std::size_t visibleCount = 0;
+    for (std::size_t index = 0; index < entries.size(); ++index) {
+        if (!matchesActivityEntry(entries[index], query)) {
+            continue;
+        }
+        list->addItem(makeActivityCard(entries[index], theme, visibleCount));
+        ++visibleCount;
+    }
+
+    if (visibleCount == 0) {
+        auto emptyState = std::make_shared<Panel>();
+        emptyState->setBackgroundColor(theme.surface);
+        emptyState->setCornerRadius(theme.cornerRadius);
+        auto emptyLayout = std::make_unique<VBoxLayout>();
+        emptyLayout->padding = 18.0f;
+        emptyLayout->spacing = 8.0f;
+        emptyState->setLayout(std::move(emptyLayout));
+
+        auto emptyTitle = std::make_shared<Label>("No sessions match your filter");
+        auto emptyHint = std::make_shared<ParagraphLabel>(
+            "Try searching by device, city, or review state, or clear the search field.");
+        emptyHint->setColor(theme.textSecondary);
+        emptyHint->setMaxLines(2);
+        emptyState->addChild(emptyTitle);
+        emptyState->addChild(emptyHint);
+        list->addItem(emptyState);
+    }
+
+    if (query.empty()) {
+        summary->setText(
+            "Browse recent sessions by device, city, and review state. "
+            "Use the search box to narrow the feed instantly.");
+    } else {
+        summary->setText(
+            "Showing " + std::to_string(visibleCount) + " of "
+            + std::to_string(entries.size()) + " sessions for \"" + std::string(query) + "\".");
+    }
+}
+
 }  // namespace
 
 std::shared_ptr<Widget> createDemoScene(Theme theme, AnimationSink& animations)
 {
+    const rendering::Image userFieldIcon = makeUserIcon(theme.primary, 18.0f);
+    const rendering::Image lockFieldIcon = makeLockIcon(theme.primary, 18.0f);
+    const rendering::Image searchFieldIcon = makeSearchIcon(theme.textSecondary, 18.0f);
+    const rendering::Image clearFieldIcon = makeClearIcon(theme.textSecondary, 16.0f);
+    const rendering::Image loginButtonIcon = makeLockIcon(theme.onPrimary, 16.0f);
+    const rendering::Image clearButtonIcon = makeClearIcon(theme.onPrimary, 16.0f);
+
     auto root = std::make_shared<Panel>();
     root->setBackgroundColor(theme.background);
     root->setCornerRadius(0.0f);
@@ -62,10 +259,23 @@ std::shared_ptr<Widget> createDemoScene(Theme theme, AnimationSink& animations)
     title->setColor(theme.text);
     root->addChild(title);
 
-    auto subtitle = std::make_shared<Label>("Phase 5: ScrollView, ListView, richer workspace UI");
+    auto subtitle = std::make_shared<Label>("Phase 6: icon-ready forms and searchable activity workspace");
     subtitle->setFontSize(theme.fontSize);
     subtitle->setColor(theme.textSecondary);
     root->addChild(subtitle);
+
+    auto workspace = std::make_shared<Container>();
+    auto workspaceResponsive = std::make_unique<ResponsiveLayout>();
+    auto stackedWorkspace = std::make_unique<VBoxLayout>();
+    stackedWorkspace->spacing = 18.0f;
+    auto wideWorkspace = std::make_unique<FlexLayout>();
+    auto* wideWorkspaceLayout = wideWorkspace.get();
+    wideWorkspace->direction = FlexDirection::Row;
+    wideWorkspace->spacing = 22.0f;
+    wideWorkspace->alignItems = AlignItems::Stretch;
+    workspaceResponsive->addBreakpoint(0.0f, std::move(stackedWorkspace));
+    workspaceResponsive->addBreakpoint(980.0f, std::move(wideWorkspace));
+    workspace->setLayout(std::move(workspaceResponsive));
 
     auto loginCard = std::make_shared<Panel>();
     loginCard->setBackgroundColor(theme.surface);
@@ -79,18 +289,22 @@ std::shared_ptr<Widget> createDemoScene(Theme theme, AnimationSink& animations)
     cardTitle->setFontSize(theme.fontSizeLarge);
     auto cardBody = std::make_shared<ParagraphLabel>(
         "Sign in with your workspace email and password. "
-        "The form now supports multi-line rich text layout and clipboard shortcuts.");
+        "The form now supports field icons, quick clear actions, and clipboard shortcuts.");
     cardBody->setColor(theme.textSecondary);
     cardBody->setMaxLines(3);
 
     auto emailCaption = std::make_shared<Label>("Email");
     emailCaption->setColor(theme.textSecondary);
     auto emailInput = std::make_shared<TextInput>("name@company.com");
+    emailInput->setLeadingIcon(userFieldIcon);
+    emailInput->setTrailingIcon(clearFieldIcon);
 
     auto passwordCaption = std::make_shared<Label>("Password");
     passwordCaption->setColor(theme.textSecondary);
     auto passwordInput = std::make_shared<TextInput>("Enter your password");
     passwordInput->setObscured(true);
+    passwordInput->setLeadingIcon(lockFieldIcon);
+    passwordInput->setTrailingIcon(clearFieldIcon);
 
     auto hint = std::make_shared<ParagraphLabel>(
         "Tip: Tab moves focus. Use Ctrl+C / Ctrl+X / Ctrl+V inside the inputs, "
@@ -110,6 +324,8 @@ std::shared_ptr<Widget> createDemoScene(Theme theme, AnimationSink& animations)
     actionRow->setLayout(std::move(actionLayout));
 
     auto loginButton = std::make_shared<Button>("Sign In");
+    loginButton->setIcon(loginButtonIcon);
+    loginButton->setIconSize(core::Size::Make(16.0f, 16.0f));
     loginButton->onClick([emailInput, passwordInput, status, theme] {
         if (emailInput->text().empty() || passwordInput->text().empty()) {
             status->setText("Please enter both email and password.");
@@ -122,6 +338,8 @@ std::shared_ptr<Widget> createDemoScene(Theme theme, AnimationSink& animations)
     });
 
     auto resetButton = std::make_shared<Button>("Clear");
+    resetButton->setIcon(clearButtonIcon);
+    resetButton->setIconSize(core::Size::Make(16.0f, 16.0f));
     resetButton->onClick([emailInput, passwordInput, status, theme] {
         emailInput->setText("");
         passwordInput->setText("");
@@ -141,8 +359,6 @@ std::shared_ptr<Widget> createDemoScene(Theme theme, AnimationSink& animations)
     loginCard->addChild(actionRow);
     loginCard->addChild(hint);
     loginCard->addChild(status);
-
-    root->addChild(loginCard);
 
     auto controlsCard = std::make_shared<Panel>();
     controlsCard->setBackgroundColor(theme.surface);
@@ -182,54 +398,108 @@ std::shared_ptr<Widget> createDemoScene(Theme theme, AnimationSink& animations)
     controlsCard->addChild(standardReview);
     controlsCard->addChild(strictReview);
     controlsCard->addChild(controlsStatus);
-    root->addChild(controlsCard);
+
+    auto accountColumn = std::make_shared<Container>();
+    auto accountLayout = std::make_unique<VBoxLayout>();
+    accountLayout->spacing = 18.0f;
+    accountColumn->setLayout(std::move(accountLayout));
+    accountColumn->addChild(loginCard);
+    accountColumn->addChild(controlsCard);
+
+    auto activityCard = std::make_shared<Panel>();
+    activityCard->setBackgroundColor(theme.surface);
+    activityCard->setCornerRadius(theme.cornerRadius + 4.0f);
+    auto activityLayout = std::make_unique<VBoxLayout>();
+    activityLayout->padding = 20.0f;
+    activityLayout->spacing = 12.0f;
+    activityCard->setLayout(std::move(activityLayout));
 
     auto feedTitle = std::make_shared<Label>("Recent Sign-In Activity");
     feedTitle->setFontSize(theme.fontSizeLarge - 2.0f);
-    root->addChild(feedTitle);
 
     auto feedBody = std::make_shared<ParagraphLabel>(
-        "Scroll to inspect recent sessions, devices, and review checks.");
+        "Browse recent sessions by device, city, and review state.");
     feedBody->setColor(theme.textSecondary);
     feedBody->setMaxLines(2);
-    root->addChild(feedBody);
+
+    auto searchInput = std::make_shared<TextInput>("Filter by device, city, or review state");
+    searchInput->setLeadingIcon(searchFieldIcon);
+    searchInput->setTrailingIcon(clearFieldIcon);
 
     auto activityList = std::make_shared<ListView>();
     activityList->setPreferredHeight(240.0f);
     activityList->setSpacing(10.0f);
     activityList->setPadding(10.0f);
 
-    for (int index = 0; index < 12; ++index) {
-        auto itemCard = std::make_shared<Panel>();
-        itemCard->setBackgroundColor(index % 2 == 0 ? theme.surface : theme.background);
-        itemCard->setCornerRadius(theme.cornerRadius);
+    const auto activityEntries = std::make_shared<std::vector<ActivityEntry>>(std::initializer_list<ActivityEntry>{
+        { "Session #1  |  Windows 11", "Shanghai Office  |  Review score 92", "Multi-factor challenge completed successfully." },
+        { "Session #2  |  macOS Sonoma", "Tokyo Remote  |  Review score 90", "Trusted device check completed in under 2 seconds." },
+        { "Session #3  |  Android 15", "Shenzhen Mobile  |  Review score 88", "Passwordless sign-in used a recent passkey." },
+        { "Session #4  |  Ubuntu 24.04", "Singapore VPN  |  Review score 85", "New browser fingerprint reviewed by strict policy." },
+        { "Session #5  |  iPadOS 18", "Shanghai Lab  |  Review score 91", "No unusual risk detected in the last 24 hours." },
+        { "Session #6  |  Android 14", "Beijing Transit  |  Review score 80", "Carrier network changed twice during the session." },
+        { "Session #7  |  Windows 11", "Seoul Office  |  Review score 89", "Background device posture scan completed successfully." },
+        { "Session #8  |  macOS Sonoma", "Hangzhou Remote  |  Review score 87", "Geo-location drift stayed within workspace baseline." },
+        { "Session #9  |  ChromeOS", "Guangzhou Kiosk  |  Review score 78", "Review score lowered because the device is shared." },
+        { "Session #10  |  iPhone 17", "Shanghai Mobile  |  Review score 93", "Face ID verified, session resumed without challenge." },
+        { "Session #11  |  Windows 11", "Singapore Office  |  Review score 90", "No unusual risk detected in the last 24 hours." },
+        { "Session #12  |  Ubuntu 24.04", "Tokyo Satellite  |  Review score 84", "Session remained stable after elevated review." },
+    });
 
-        auto itemLayout = std::make_unique<VBoxLayout>();
-        itemLayout->padding = 14.0f;
-        itemLayout->spacing = 6.0f;
-        itemCard->setLayout(std::move(itemLayout));
+    rebuildActivityList(activityList, feedBody, *activityEntries, theme, {});
+    activityCard->addChild(feedTitle);
+    activityCard->addChild(feedBody);
+    activityCard->addChild(searchInput);
+    activityCard->addChild(activityList);
 
-        auto itemTitle = std::make_shared<Label>(
-            "Session #" + std::to_string(index + 1) + "  |  Windows 11");
-        auto itemMeta = std::make_shared<Label>(
-            "Shanghai Office  |  Review score " + std::to_string(92 - index));
-        itemMeta->setColor(theme.textSecondary);
-        auto itemHint = std::make_shared<ParagraphLabel>(
-            index % 3 == 0
-                ? "Multi-factor challenge completed successfully."
-                : "No unusual risk detected in the last 24 hours.");
-        itemHint->setColor(theme.textSecondary);
-        itemHint->setMaxLines(2);
+    workspace->addChild(accountColumn);
+    workspace->addChild(activityCard);
+    wideWorkspaceLayout->setFlex(accountColumn.get(), 0.95f, 1.0f);
+    wideWorkspaceLayout->setFlex(activityCard.get(), 1.25f, 1.0f);
+    root->addChild(workspace);
 
-        itemCard->addChild(itemTitle);
-        itemCard->addChild(itemMeta);
-        itemCard->addChild(itemHint);
-        activityList->addItem(itemCard);
-    }
-
-    root->addChild(activityList);
-
+    const std::weak_ptr<TextInput> weakEmailInput = emailInput;
     const std::weak_ptr<TextInput> weakPasswordInput = passwordInput;
+    const std::weak_ptr<TextInput> weakSearchInput = searchInput;
+    const std::weak_ptr<Label> weakStatus = status;
+    emailInput->onTrailingIconClick([weakEmailInput, weakStatus, theme] {
+        if (const auto input = weakEmailInput.lock(); input != nullptr) {
+            if (!input->text().empty()) {
+                input->setText("");
+            }
+        }
+        if (const auto label = weakStatus.lock(); label != nullptr) {
+            label->setText("Email field cleared");
+            label->setColor(theme.textSecondary);
+        }
+    });
+    passwordInput->onTrailingIconClick([weakPasswordInput, weakStatus, theme] {
+        if (const auto input = weakPasswordInput.lock(); input != nullptr) {
+            if (!input->text().empty()) {
+                input->setText("");
+            }
+        }
+        if (const auto label = weakStatus.lock(); label != nullptr) {
+            label->setText("Password field cleared");
+            label->setColor(theme.textSecondary);
+        }
+    });
+    searchInput->onTrailingIconClick([weakSearchInput] {
+        if (const auto input = weakSearchInput.lock(); input != nullptr) {
+            if (!input->text().empty()) {
+                input->setText("");
+            }
+        }
+    });
+
+    const std::weak_ptr<ListView> weakSearchActivityList = activityList;
+    const std::weak_ptr<ParagraphLabel> weakFeedBody = feedBody;
+    searchInput->onTextChanged([weakSearchActivityList, weakFeedBody, activityEntries, theme](const std::string& text) {
+        const auto list = weakSearchActivityList.lock();
+        const auto summary = weakFeedBody.lock();
+        rebuildActivityList(list, summary, *activityEntries, theme, text);
+    });
+
     const std::weak_ptr<Label> weakControlsStatus = controlsStatus;
     revealPassword->onToggle([weakPasswordInput, weakControlsStatus, theme](bool checked) {
         if (const auto input = weakPasswordInput.lock(); input != nullptr) {
@@ -295,19 +565,6 @@ std::shared_ptr<Widget> createDemoScene(Theme theme, AnimationSink& animations)
         [status, theme](float value) {
             status->setColor(lerpColor(theme.textSecondary, theme.primary, value));
         });
-
-    auto frameStart = std::make_shared<double>(animationNowSeconds());
-    auto frameLoop = std::make_shared<std::function<void(double)>>();
-    const std::weak_ptr<std::function<void(double)>> weakFrameLoop = frameLoop;
-    *frameLoop = [feedBody, frameStart, weakFrameLoop, &animations](double nowSeconds) {
-        const int dots = static_cast<int>(std::fmod((nowSeconds - *frameStart) * 2.0, 4.0));
-        feedBody->setText("Scroll to inspect recent sessions, devices, and review checks"
-            + std::string(static_cast<std::size_t>(dots), '.'));
-        if (const auto loop = weakFrameLoop.lock(); loop != nullptr) {
-            animations.requestAnimationFrame(*loop);
-        }
-    };
-    animations.requestAnimationFrame(*frameLoop);
 
     return root;
 }

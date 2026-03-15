@@ -1,7 +1,8 @@
 #include "tinalux/ui/Dropdown.h"
 
 #include <algorithm>
-#include <cmath>
+#include <cstdint>
+#include <utility>
 
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
@@ -12,9 +13,69 @@
 
 namespace tinalux::ui {
 
+namespace {
+
+constexpr float kDropdownItemHeight = 32.0f;
+constexpr float kDropdownPadding = 8.0f;
+constexpr float kDropdownIconSize = 12.0f;
+
+core::Color brighten(core::Color color, int delta)
+{
+    const auto clampChannel = [delta](core::Color::Channel channel) -> core::Color::Channel {
+        const int value = std::clamp(static_cast<int>(channel) + delta, 0, 255);
+        return static_cast<core::Color::Channel>(value);
+    };
+
+    return core::colorARGB(
+        color.alpha(),
+        clampChannel(color.red()),
+        clampChannel(color.green()),
+        clampChannel(color.blue()));
+}
+
+core::Rect indicatorBounds(float width)
+{
+    return core::Rect::MakeXYWH(
+        width - kDropdownPadding - kDropdownIconSize,
+        (kDropdownItemHeight - kDropdownIconSize) * 0.5f,
+        kDropdownIconSize,
+        kDropdownIconSize);
+}
+
+void drawChevron(
+    rendering::Canvas& canvas,
+    core::Rect bounds,
+    core::Color color,
+    bool expanded)
+{
+    const float left = bounds.left() + 2.0f;
+    const float right = bounds.right() - 2.0f;
+    const float centerX = bounds.centerX();
+    const float top = bounds.top() + 3.0f;
+    const float bottom = bounds.bottom() - 3.0f;
+
+    if (expanded) {
+        canvas.drawLine(left, bottom - 1.0f, centerX, top, color, 1.75f, true);
+        canvas.drawLine(centerX, top, right, bottom - 1.0f, color, 1.75f, true);
+        return;
+    }
+
+    canvas.drawLine(left, top, centerX, bottom, color, 1.75f, true);
+    canvas.drawLine(centerX, bottom, right, top, color, 1.75f, true);
+}
+
+}  // namespace
+
 Dropdown::Dropdown(std::vector<std::string> items)
     : items_(std::move(items))
 {
+}
+
+Dropdown::~Dropdown()
+{
+    if (indicatorIconLoadAlive_ != nullptr) {
+        *indicatorIconLoadAlive_ = false;
+    }
 }
 
 void Dropdown::setItems(const std::vector<std::string>& items)
@@ -23,6 +84,7 @@ void Dropdown::setItems(const std::vector<std::string>& items)
     if (selectedIndex_ >= static_cast<int>(items_.size())) {
         selectedIndex_ = -1;
     }
+    hoveredItem_ = -1;
     markLayoutDirty();
 }
 
@@ -31,14 +93,15 @@ void Dropdown::setSelectedIndex(int index)
     if (index < -1 || index >= static_cast<int>(items_.size())) {
         index = -1;
     }
-    
-    if (selectedIndex_ != index) {
-        selectedIndex_ = index;
-        markDirty();
-        
-        if (onSelectionChanged_) {
-            onSelectionChanged_(selectedIndex_);
-        }
+
+    if (selectedIndex_ == index) {
+        return;
+    }
+
+    selectedIndex_ = index;
+    markPaintDirty();
+    if (onSelectionChanged_) {
+        onSelectionChanged_(selectedIndex_);
     }
 }
 
@@ -47,7 +110,7 @@ std::string Dropdown::selectedItem() const
     if (selectedIndex_ >= 0 && selectedIndex_ < static_cast<int>(items_.size())) {
         return items_[selectedIndex_];
     }
-    return "";
+    return {};
 }
 
 void Dropdown::onSelectionChanged(std::function<void(int)> handler)
@@ -57,256 +120,322 @@ void Dropdown::onSelectionChanged(std::function<void(int)> handler)
 
 void Dropdown::setMaxVisibleItems(int count)
 {
-    if (maxVisibleItems_ != count) {
-        maxVisibleItems_ = std::max(1, count);
-        markLayoutDirty();
+    const int clamped = std::max(1, count);
+    if (maxVisibleItems_ == clamped) {
+        return;
     }
+
+    maxVisibleItems_ = clamped;
+    hoveredItem_ = -1;
+    markLayoutDirty();
 }
 
 void Dropdown::setPlaceholder(const std::string& placeholder)
 {
-    if (placeholder_ != placeholder) {
-        placeholder_ = placeholder;
-        markDirty();
+    if (placeholder_ == placeholder) {
+        return;
     }
+
+    placeholder_ = placeholder;
+    markLayoutDirty();
+}
+
+void Dropdown::setIndicatorIcon(rendering::Image icon)
+{
+    ++(*indicatorIconLoadGeneration_);
+    pendingIndicatorIcon_ = {};
+    indicatorIconPath_.clear();
+    indicatorIconLoading_ = false;
+    indicatorIcon_ = std::move(icon);
+    indicatorIconLoadState_ = indicatorIcon_ ? DropdownIndicatorLoadState::Ready : DropdownIndicatorLoadState::Idle;
+    markPaintDirty();
+}
+
+void Dropdown::setIndicatorIcon(IconType type, float sizeHint)
+{
+    setIndicatorIcon(IconRegistry::instance().getIcon(type, sizeHint));
+}
+
+const rendering::Image& Dropdown::indicatorIcon() const
+{
+    return indicatorIcon_;
+}
+
+void Dropdown::loadIndicatorIconAsync(const std::string& path)
+{
+    ++(*indicatorIconLoadGeneration_);
+    indicatorIconPath_ = path;
+    indicatorIcon_ = {};
+    indicatorIconLoading_ = !path.empty();
+    indicatorIconLoadState_ = indicatorIconLoading_ ? DropdownIndicatorLoadState::Loading : DropdownIndicatorLoadState::Idle;
+    pendingIndicatorIcon_ = {};
+    markPaintDirty();
+    if (path.empty()) {
+        return;
+    }
+
+    const std::uint64_t generation = *indicatorIconLoadGeneration_;
+    pendingIndicatorIcon_ = ResourceLoader::instance().loadImageAsync(path);
+    const std::shared_ptr<bool> alive = indicatorIconLoadAlive_;
+    const std::shared_ptr<std::uint64_t> loadGeneration = indicatorIconLoadGeneration_;
+    pendingIndicatorIcon_.onReady([this, alive, loadGeneration, generation](const rendering::Image& image) {
+        if (alive == nullptr || !*alive || loadGeneration == nullptr || *loadGeneration != generation) {
+            return;
+        }
+
+        indicatorIconLoading_ = false;
+        indicatorIcon_ = image;
+        indicatorIconLoadState_ = indicatorIcon_ ? DropdownIndicatorLoadState::Ready : DropdownIndicatorLoadState::Failed;
+        markPaintDirty();
+    });
+}
+
+const std::string& Dropdown::indicatorIconPath() const
+{
+    return indicatorIconPath_;
+}
+
+bool Dropdown::indicatorIconLoading() const
+{
+    return indicatorIconLoading_;
+}
+
+DropdownIndicatorLoadState Dropdown::indicatorIconLoadState() const
+{
+    return indicatorIconLoadState_;
 }
 
 core::Size Dropdown::measure(const Constraints& constraints)
 {
-    const auto& theme = currentTheme();
-    
-    // 计算最大文本宽度
+    const Theme& theme = resolvedTheme();
     float maxTextWidth = kMinWidth;
-    for (const auto& item : items_) {
-        auto metrics = measureTextMetrics(item, theme.fontSize);
+    const TextMetrics placeholderMetrics = measureTextMetrics(placeholder_, theme.fontSize);
+    maxTextWidth = std::max(maxTextWidth, placeholderMetrics.width);
+    for (const std::string& item : items_) {
+        const TextMetrics metrics = measureTextMetrics(item, theme.fontSize);
         maxTextWidth = std::max(maxTextWidth, metrics.width);
     }
-    
-    // 加上padding和图标空间
-    float width = maxTextWidth + kPadding * 2 + kIconSize + kPadding;
-    float height = kItemHeight;
-    
+
+    const float width = maxTextWidth + kPadding * 3.0f + kIconSize;
+    const int visibleCount = std::min(static_cast<int>(items_.size()), maxVisibleItems_);
+    const float height = kItemHeight + (expanded_ ? visibleCount * kItemHeight : 0.0f);
     return constraints.constrain(core::Size::Make(width, height));
 }
 
 void Dropdown::onDraw(rendering::Canvas& canvas)
 {
-    const auto& theme = currentTheme();
-    const float w = bounds().width();
-    const float h = bounds().height();
-    
-    // 绘制主按钮背景
-    core::Color bgColor = theme.surface;
-    if (focused()) {
-        bgColor = theme.primary;
-    } else if (hovered_) {
-        bgColor = core::colorARGB(255, 
-            core::colorGetR(theme.surface) + 20,
-            core::colorGetG(theme.surface) + 20,
-            core::colorGetB(theme.surface) + 20);
+    if (!canvas) {
+        return;
     }
-    
+
+    const Theme& theme = resolvedTheme();
+    const core::Rect buttonBounds = core::Rect::MakeXYWH(0.0f, 0.0f, bounds_.width(), kItemHeight);
+    const core::Color backgroundColor = focused()
+        ? theme.primary
+        : (hovered_ ? brighten(theme.surface, 20) : theme.surface);
+    const core::Color textColor = focused()
+        ? theme.onPrimary
+        : (selectedItem().empty() ? theme.textSecondary : theme.text);
+
     canvas.drawRoundRect(
-        core::Rect::MakeWH(w, h),
+        buttonBounds,
         theme.cornerRadius,
-        bgColor
-    );
-    
-    // 绘制边框
-    canvas.drawRoundRectStroke(
-        core::Rect::MakeWH(w, h),
         theme.cornerRadius,
-        1.0f,
-        theme.border
-    );
-    
-    // 绘制选中项文本或占位符
+        backgroundColor);
+    canvas.drawRoundRect(
+        buttonBounds,
+        theme.cornerRadius,
+        theme.cornerRadius,
+        theme.border,
+        rendering::PaintStyle::Stroke,
+        1.0f);
+
     std::string displayText = selectedItem();
     if (displayText.empty()) {
         displayText = placeholder_;
     }
-    
-    core::Color textColor = selectedItem().empty() ? theme.textSecondary : theme.text;
-    if (focused()) {
-        textColor = theme.onPrimary;
-    }
-    
-    auto metrics = measureTextMetrics(displayText, theme.fontSize);
-    float textX = kPadding;
-    float textY = (h - metrics.height) / 2 + metrics.ascent;
-    
+
+    const TextMetrics textMetrics = measureTextMetrics(displayText, theme.fontSize);
+    const float textY = (kItemHeight - textMetrics.height) * 0.5f + textMetrics.baseline;
     canvas.drawText(
         displayText,
-        core::Point::Make(textX, textY),
+        kPadding + textMetrics.drawX,
+        textY,
         theme.fontSize,
-        textColor
-    );
-    
-    // 绘制下拉箭头
-    float arrowX = w - kPadding - kIconSize;
-    float arrowY = (h - kIconSize) / 2;
-    
-    // 简单的三角形箭头
-    float arrowSize = kIconSize / 2;
-    float arrowCenterX = arrowX + kIconSize / 2;
-    float arrowCenterY = arrowY + kIconSize / 2;
-    
-    if (expanded_) {
-        // 向上箭头
-        canvas.drawTriangle(
-            core::Point::Make(arrowCenterX - arrowSize, arrowCenterY + arrowSize / 2),
-            core::Point::Make(arrowCenterX + arrowSize, arrowCenterY + arrowSize / 2),
-            core::Point::Make(arrowCenterX, arrowCenterY - arrowSize / 2),
-            textColor
-        );
+        textColor);
+
+    if (!expanded_ && indicatorIcon_) {
+        canvas.drawImage(indicatorIcon_, indicatorBounds(bounds_.width()));
     } else {
-        // 向下箭头
-        canvas.drawTriangle(
-            core::Point::Make(arrowCenterX - arrowSize, arrowCenterY - arrowSize / 2),
-            core::Point::Make(arrowCenterX + arrowSize, arrowCenterY - arrowSize / 2),
-            core::Point::Make(arrowCenterX, arrowCenterY + arrowSize / 2),
-            textColor
-        );
+        drawChevron(canvas, indicatorBounds(bounds_.width()), textColor, expanded_);
     }
-    
-    // 绘制下拉列表
-    if (expanded_ && !items_.empty()) {
-        auto dropdownBounds = getDropdownBounds();
-        
-        // 绘制下拉列表背景
-        canvas.drawRoundRect(
-            dropdownBounds,
-            theme.cornerRadius,
-            theme.surface
-        );
-        
-        // 绘制边框
-        canvas.drawRoundRectStroke(
-            dropdownBounds,
-            theme.cornerRadius,
-            1.0f,
-            theme.border
-        );
-        
-        // 绘制每个选项
-        int visibleCount = std::min(static_cast<int>(items_.size()), maxVisibleItems_);
-        for (int i = 0; i < visibleCount; ++i) {
-            float itemY = dropdownBounds.top() + i * kItemHeight;
-            core::Rect itemRect = core::Rect::MakeXYWH(
-                dropdownBounds.left(),
-                itemY,
-                dropdownBounds.width(),
-                kItemHeight
-            );
-            
-            // 绘制选项背景（悬停或选中）
-            if (i == hoveredItem_) {
-                canvas.drawRect(itemRect, core::colorARGB(50, 255, 255, 255));
-            } else if (i == selectedIndex_) {
-                canvas.drawRect(itemRect, core::colorARGB(30, 
-                    core::colorGetR(theme.primary),
-                    core::colorGetG(theme.primary),
-                    core::colorGetB(theme.primary)));
-            }
-            
-            // 绘制选项文本
-            auto itemMetrics = measureTextMetrics(items_[i], theme.fontSize);
-            float itemTextX = itemRect.left() + kPadding;
-            float itemTextY = itemRect.top() + (kItemHeight - itemMetrics.height) / 2 + itemMetrics.ascent;
-            
-            canvas.drawText(
-                items_[i],
-                core::Point::Make(itemTextX, itemTextY),
-                theme.fontSize,
-                theme.text
-            );
+
+    if (!expanded_ || items_.empty()) {
+        return;
+    }
+
+    const core::Rect dropdownBounds = getDropdownBounds();
+    canvas.drawRoundRect(
+        dropdownBounds,
+        theme.cornerRadius,
+        theme.cornerRadius,
+        theme.surface);
+    canvas.drawRoundRect(
+        dropdownBounds,
+        theme.cornerRadius,
+        theme.cornerRadius,
+        theme.border,
+        rendering::PaintStyle::Stroke,
+        1.0f);
+
+    const int visibleCount = std::min(static_cast<int>(items_.size()), maxVisibleItems_);
+    for (int i = 0; i < visibleCount; ++i) {
+        const float itemY = dropdownBounds.y() + static_cast<float>(i) * kItemHeight;
+        const core::Rect itemRect = core::Rect::MakeXYWH(
+            dropdownBounds.x(),
+            itemY,
+            dropdownBounds.width(),
+            kItemHeight);
+
+        if (i == hoveredItem_) {
+            canvas.drawRect(itemRect, core::colorARGB(56, 255, 255, 255));
+        } else if (i == selectedIndex_) {
+            canvas.drawRect(
+                itemRect,
+                core::colorARGB(
+                    36,
+                    theme.primary.red(),
+                    theme.primary.green(),
+                    theme.primary.blue()));
         }
+
+        const TextMetrics itemMetrics = measureTextMetrics(items_[static_cast<std::size_t>(i)], theme.fontSize);
+        const float itemTextY = itemRect.y() + (kItemHeight - itemMetrics.height) * 0.5f + itemMetrics.baseline;
+        canvas.drawText(
+            items_[static_cast<std::size_t>(i)],
+            itemRect.x() + kPadding + itemMetrics.drawX,
+            itemTextY,
+            theme.fontSize,
+            theme.text);
     }
 }
 
 bool Dropdown::onEvent(core::Event& event)
 {
-    if (auto* mouseBtn = dynamic_cast<core::MouseButtonEvent*>(&event)) {
-        if (mouseBtn->type() == core::EventType::MouseButtonPress) {
-            if (expanded_) {
-                // 检查是否点击了下拉列表中的项
-                auto dropdownBounds = getDropdownBounds();
-                float localY = mouseBtn->y() - globalBounds().top() - bounds().height();
-                int itemIndex = getItemAtY(localY);
-                
-                if (itemIndex >= 0 && itemIndex < static_cast<int>(items_.size())) {
-                    selectItem(itemIndex);
-                }
-                expanded_ = false;
-            } else {
-                toggleExpanded();
-            }
-            markDirty();
-            event.handled = true;
+    switch (event.type()) {
+    case core::EventType::MouseEnter:
+        if (!hovered_) {
+            hovered_ = true;
+            markPaintDirty();
+        }
+        return false;
+    case core::EventType::MouseLeave:
+        if (hovered_ || hoveredItem_ != -1) {
+            hovered_ = false;
+            hoveredItem_ = -1;
+            markPaintDirty();
+        }
+        return false;
+    case core::EventType::MouseMove: {
+        const auto& moveEvent = static_cast<const core::MouseMoveEvent&>(event);
+        const core::Point localPoint = globalToLocal(core::Point::Make(
+            static_cast<float>(moveEvent.x),
+            static_cast<float>(moveEvent.y)));
+        const bool insideButton = localPoint.y() >= 0.0f
+            && localPoint.y() < kItemHeight
+            && containsLocalPoint(localPoint.x(), localPoint.y());
+        const bool hoveredChanged = hovered_ != insideButton;
+        hovered_ = insideButton;
+
+        int newHoveredItem = -1;
+        if (expanded_ && getDropdownBounds().contains(localPoint.x(), localPoint.y())) {
+            newHoveredItem = getItemAtY(localPoint.y() - kItemHeight);
+        }
+
+        if (hoveredChanged || newHoveredItem != hoveredItem_) {
+            hoveredItem_ = newHoveredItem;
+            markPaintDirty();
+        }
+        return expanded_;
+    }
+    case core::EventType::MouseButtonPress: {
+        const auto& mouseEvent = static_cast<const core::MouseButtonEvent&>(event);
+        if (mouseEvent.button != core::mouse::kLeft) {
+            return false;
+        }
+
+        const core::Point localPoint = globalToLocal(core::Point::Make(
+            static_cast<float>(mouseEvent.x),
+            static_cast<float>(mouseEvent.y)));
+        if (localPoint.y() >= 0.0f && localPoint.y() < kItemHeight
+            && localPoint.x() >= 0.0f && localPoint.x() < bounds_.width()) {
+            toggleExpanded();
             return true;
         }
-    }
-    
-    if (auto* mouseMove = dynamic_cast<core::MouseMoveEvent*>(&event)) {
+
+        if (expanded_ && getDropdownBounds().contains(localPoint.x(), localPoint.y())) {
+            const int itemIndex = getItemAtY(localPoint.y() - kItemHeight);
+            if (itemIndex >= 0) {
+                selectItem(itemIndex);
+                return true;
+            }
+        }
+
         if (expanded_) {
-            auto dropdownBounds = getDropdownBounds();
-            float localY = mouseMove->y() - globalBounds().top() - bounds().height();
-            int newHoveredItem = getItemAtY(localY);
-            
-            if (newHoveredItem != hoveredItem_) {
-                hoveredItem_ = newHoveredItem;
-                markDirty();
-            }
+            expanded_ = false;
+            hoveredItem_ = -1;
+            markLayoutDirty();
+            return false;
         }
+        return false;
     }
-    
-    if (auto* key = dynamic_cast<core::KeyEvent*>(&event)) {
-        if (key->type() == core::EventType::KeyPress) {
-            if (key->key() == core::Key::Enter || key->key() == core::Key::Space) {
-                toggleExpanded();
-                markDirty();
-                event.handled = true;
-                return true;
-            } else if (key->key() == core::Key::Escape && expanded_) {
-                expanded_ = false;
-                markDirty();
-                event.handled = true;
-                return true;
-            } else if (key->key() == core::Key::Up && expanded_ && selectedIndex_ > 0) {
-                selectItem(selectedIndex_ - 1);
-                event.handled = true;
-                return true;
-            } else if (key->key() == core::Key::Down && expanded_ && 
-                       selectedIndex_ < static_cast<int>(items_.size()) - 1) {
-                selectItem(selectedIndex_ + 1);
-                event.handled = true;
-                return true;
-            }
+    case core::EventType::KeyPress: {
+        const auto& keyEvent = static_cast<const core::KeyEvent&>(event);
+        if (!focused()) {
+            return false;
         }
+
+        if (keyEvent.key == core::keys::kEnter
+            || keyEvent.key == core::keys::kKpEnter
+            || keyEvent.key == core::keys::kSpace) {
+            toggleExpanded();
+            return true;
+        }
+        if (keyEvent.key == core::keys::kEscape && expanded_) {
+            expanded_ = false;
+            hoveredItem_ = -1;
+            markLayoutDirty();
+            return true;
+        }
+        if (keyEvent.key == core::keys::kUp && expanded_) {
+            if (selectedIndex_ > 0) {
+                setSelectedIndex(selectedIndex_ - 1);
+            }
+            return true;
+        }
+        if (keyEvent.key == core::keys::kDown && expanded_) {
+            if (selectedIndex_ < static_cast<int>(items_.size()) - 1) {
+                setSelectedIndex(selectedIndex_ + 1);
+            } else if (selectedIndex_ < 0 && !items_.empty()) {
+                setSelectedIndex(0);
+            }
+            return true;
+        }
+        return false;
     }
-    
-    return Widget::onEvent(event);
+    default:
+        return false;
+    }
 }
 
 Widget* Dropdown::hitTest(float x, float y)
 {
-    // 检查主按钮区域
-    if (x >= 0 && x < bounds().width() && y >= 0 && y < bounds().height()) {
-        return this;
+    if (!visible_) {
+        return nullptr;
     }
-    
-    // 检查下拉列表区域
-    if (expanded_) {
-        auto dropdownBounds = getDropdownBounds();
-        float globalX = x + globalBounds().left();
-        float globalY = y + globalBounds().top();
-        
-        if (dropdownBounds.contains(globalX, globalY)) {
-            return this;
-        }
-    }
-    
-    return nullptr;
+
+    const core::Rect localBounds = core::Rect::MakeWH(bounds_.width(), bounds_.height());
+    return localBounds.contains(x, y) ? this : nullptr;
 }
 
 void Dropdown::toggleExpanded()
@@ -315,6 +444,7 @@ void Dropdown::toggleExpanded()
     if (!expanded_) {
         hoveredItem_ = -1;
     }
+    markLayoutDirty();
 }
 
 void Dropdown::selectItem(int index)
@@ -322,15 +452,17 @@ void Dropdown::selectItem(int index)
     setSelectedIndex(index);
     expanded_ = false;
     hoveredItem_ = -1;
+    markLayoutDirty();
 }
 
 int Dropdown::getItemAtY(float y) const
 {
-    if (y < 0) return -1;
-    
-    int index = static_cast<int>(y / kItemHeight);
-    int visibleCount = std::min(static_cast<int>(items_.size()), maxVisibleItems_);
-    
+    if (y < 0.0f) {
+        return -1;
+    }
+
+    const int index = static_cast<int>(y / kItemHeight);
+    const int visibleCount = std::min(static_cast<int>(items_.size()), maxVisibleItems_);
     if (index >= 0 && index < visibleCount) {
         return index;
     }
@@ -339,16 +471,9 @@ int Dropdown::getItemAtY(float y) const
 
 core::Rect Dropdown::getDropdownBounds() const
 {
-    int visibleCount = std::min(static_cast<int>(items_.size()), maxVisibleItems_);
-    float dropdownHeight = visibleCount * kItemHeight;
-    
-    auto gb = globalBounds();
-    return core::Rect::MakeXYWH(
-        gb.left(),
-        gb.top() + bounds().height(),
-        bounds().width(),
-        dropdownHeight
-    );
+    const int visibleCount = std::min(static_cast<int>(items_.size()), maxVisibleItems_);
+    const float dropdownHeight = static_cast<float>(visibleCount) * kItemHeight;
+    return core::Rect::MakeXYWH(0.0f, kItemHeight, bounds_.width(), dropdownHeight);
 }
 
 }  // namespace tinalux::ui

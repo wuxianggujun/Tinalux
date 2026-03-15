@@ -66,6 +66,15 @@ int main()
     expect(customSize.width() > defaultSize.width(), "custom dialog padding should enlarge measured width");
     expect(customSize.height() > defaultSize.height(), "custom dialog title spacing should enlarge measured height");
 
+    dialog.setShowCloseButton(false);
+    const core::Size hiddenCloseButtonSize = dialog.measure(ui::Constraints::loose(640.0f, 480.0f));
+    expect(!dialog.showCloseButton(), "dialog should expose hidden close button state");
+    expect(
+        hiddenCloseButtonSize.width() <= customSize.width(),
+        "hiding dialog close button should not increase measured width");
+    dialog.setShowCloseButton(true);
+    expect(dialog.showCloseButton(), "dialog should expose visible close button state");
+
     dialog.setPadding(52.0f);
     dialog.setCornerRadius(30.0f);
     dialog.setBackdropColor(core::colorARGB(200, 1, 2, 3));

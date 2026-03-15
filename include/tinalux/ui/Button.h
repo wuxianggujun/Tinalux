@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -8,6 +9,8 @@
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Animation.h"
 #include "tinalux/ui/ButtonStyle.h"
+#include "tinalux/ui/IconRegistry.h"
+#include "tinalux/ui/ResourceLoader.h"
 #include "tinalux/ui/Widget.h"
 
 namespace tinalux::ui {
@@ -17,6 +20,13 @@ enum class ButtonIconPlacement {
     End,
 };
 
+enum class ButtonIconLoadState {
+    Idle,
+    Loading,
+    Ready,
+    Failed,
+};
+
 class Button : public Widget {
 public:
     explicit Button(std::string label);
@@ -24,7 +34,12 @@ public:
 
     void setLabel(const std::string& label);
     void setIcon(rendering::Image icon);
+    void setIcon(IconType type, float sizeHint = 0.0f);
     const rendering::Image& icon() const;
+    void loadIconAsync(const std::string& path);
+    const std::string& iconPath() const;
+    bool iconLoading() const;
+    ButtonIconLoadState iconLoadState() const;
     void setIconPlacement(ButtonIconPlacement placement);
     ButtonIconPlacement iconPlacement() const;
     void setIconSize(core::Size size);
@@ -49,6 +64,12 @@ private:
 
     std::string label_;
     rendering::Image icon_;
+    ResourceHandle<rendering::Image> pendingIcon_;
+    std::shared_ptr<bool> iconLoadAlive_ = std::make_shared<bool>(true);
+    std::shared_ptr<std::uint64_t> iconLoadGeneration_ = std::make_shared<std::uint64_t>(0);
+    std::string iconPath_;
+    bool iconLoading_ = false;
+    ButtonIconLoadState iconLoadState_ = ButtonIconLoadState::Idle;
     ButtonIconPlacement iconPlacement_ = ButtonIconPlacement::Start;
     core::Size iconSize_ = core::Size::Make(0.0f, 0.0f);
     std::optional<ButtonStyle> customStyle_;

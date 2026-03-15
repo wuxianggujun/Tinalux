@@ -1,5 +1,8 @@
 #include "tinalux/ui/Radio.h"
 
+#include <algorithm>
+#include <cstdint>
+
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
 #include "tinalux/rendering/rendering.h"
@@ -10,6 +13,17 @@
 #include "../TextPrimitives.h"
 
 namespace tinalux::ui {
+
+namespace {
+
+core::Rect resolveRadioSelectionIconBounds(float indicatorY, const RadioStyle& style)
+{
+    const float side = std::max(0.0f, style.innerDotSize);
+    const float offset = (style.indicatorSize - side) * 0.5f;
+    return core::Rect::MakeXYWH(offset, indicatorY + offset, side, side);
+}
+
+}  // namespace
 
 Radio::Radio(std::string label, std::string group, bool selected)
     : label_(std::move(label))
@@ -22,6 +36,9 @@ Radio::~Radio()
 {
     if (hoverAnimationAlive_ != nullptr) {
         *hoverAnimationAlive_ = false;
+    }
+    if (selectionIconLoadAlive_ != nullptr) {
+        *selectionIconLoadAlive_ = false;
     }
 }
 
@@ -66,6 +83,71 @@ bool Radio::selected() const
 void Radio::setSelected(bool selected)
 {
     updateSelected(selected, false, true);
+}
+
+void Radio::setSelectionIcon(rendering::Image icon)
+{
+    ++(*selectionIconLoadGeneration_);
+    pendingSelectionIcon_ = {};
+    selectionIconPath_.clear();
+    selectionIconLoading_ = false;
+    selectionIcon_ = std::move(icon);
+    selectionIconLoadState_ = selectionIcon_ ? RadioIndicatorLoadState::Ready : RadioIndicatorLoadState::Idle;
+    markPaintDirty();
+}
+
+void Radio::setSelectionIcon(IconType type, float sizeHint)
+{
+    setSelectionIcon(IconRegistry::instance().getIcon(type, sizeHint));
+}
+
+const rendering::Image& Radio::selectionIcon() const
+{
+    return selectionIcon_;
+}
+
+void Radio::loadSelectionIconAsync(const std::string& path)
+{
+    ++(*selectionIconLoadGeneration_);
+    selectionIconPath_ = path;
+    selectionIcon_ = {};
+    selectionIconLoading_ = !path.empty();
+    selectionIconLoadState_ = selectionIconLoading_ ? RadioIndicatorLoadState::Loading : RadioIndicatorLoadState::Idle;
+    pendingSelectionIcon_ = {};
+    markPaintDirty();
+    if (path.empty()) {
+        return;
+    }
+
+    const std::uint64_t generation = *selectionIconLoadGeneration_;
+    pendingSelectionIcon_ = ResourceLoader::instance().loadImageAsync(path);
+    const std::shared_ptr<bool> alive = selectionIconLoadAlive_;
+    const std::shared_ptr<std::uint64_t> loadGeneration = selectionIconLoadGeneration_;
+    pendingSelectionIcon_.onReady([this, alive, loadGeneration, generation](const rendering::Image& image) {
+        if (alive == nullptr || !*alive || loadGeneration == nullptr || *loadGeneration != generation) {
+            return;
+        }
+
+        selectionIconLoading_ = false;
+        selectionIcon_ = image;
+        selectionIconLoadState_ = selectionIcon_ ? RadioIndicatorLoadState::Ready : RadioIndicatorLoadState::Failed;
+        markPaintDirty();
+    });
+}
+
+const std::string& Radio::selectionIconPath() const
+{
+    return selectionIconPath_;
+}
+
+bool Radio::selectionIconLoading() const
+{
+    return selectionIconLoading_;
+}
+
+RadioIndicatorLoadState Radio::selectionIconLoadState() const
+{
+    return selectionIconLoadState_;
 }
 
 void Radio::onChanged(std::function<void(bool)> handler)
@@ -208,11 +290,17 @@ void Radio::onDraw(rendering::Canvas& canvas)
         borderWidth);
 
     if (selected_) {
-        canvas.drawCircle(
-            style.indicatorSize * 0.5f,
-            center,
-            style.innerDotSize * 0.5f,
-            style.dotColor);
+        if (selectionIcon_) {
+            canvas.drawImage(
+                selectionIcon_,
+                resolveRadioSelectionIconBounds(indicatorY, style));
+        } else {
+            canvas.drawCircle(
+                style.indicatorSize * 0.5f,
+                center,
+                style.innerDotSize * 0.5f,
+                style.dotColor);
+        }
     }
     canvas.drawText(
         label_.c_str(),

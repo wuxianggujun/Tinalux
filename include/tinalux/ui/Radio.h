@@ -1,15 +1,26 @@
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 
+#include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Animation.h"
+#include "tinalux/ui/IconRegistry.h"
+#include "tinalux/ui/ResourceLoader.h"
 #include "tinalux/ui/SelectionControlStyle.h"
 #include "tinalux/ui/Widget.h"
 
 namespace tinalux::ui {
+
+enum class RadioIndicatorLoadState {
+    Idle,
+    Loading,
+    Ready,
+    Failed,
+};
 
 class Radio : public Widget {
 public:
@@ -24,6 +35,13 @@ public:
 
     bool selected() const;
     void setSelected(bool selected);
+    void setSelectionIcon(rendering::Image icon);
+    void setSelectionIcon(IconType type, float sizeHint = 0.0f);
+    const rendering::Image& selectionIcon() const;
+    void loadSelectionIconAsync(const std::string& path);
+    const std::string& selectionIconPath() const;
+    bool selectionIconLoading() const;
+    RadioIndicatorLoadState selectionIconLoadState() const;
     void onChanged(std::function<void(bool)> handler);
     void setStyle(const RadioStyle& style);
     void clearStyle();
@@ -46,6 +64,13 @@ private:
 
     std::string label_;
     std::string group_;
+    rendering::Image selectionIcon_;
+    ResourceHandle<rendering::Image> pendingSelectionIcon_;
+    std::shared_ptr<bool> selectionIconLoadAlive_ = std::make_shared<bool>(true);
+    std::shared_ptr<std::uint64_t> selectionIconLoadGeneration_ = std::make_shared<std::uint64_t>(0);
+    std::string selectionIconPath_;
+    bool selectionIconLoading_ = false;
+    RadioIndicatorLoadState selectionIconLoadState_ = RadioIndicatorLoadState::Idle;
     std::optional<RadioStyle> customStyle_;
     std::function<void(bool)> onChanged_;
     AnimationSink* hoverAnimationSink_ = nullptr;

@@ -1,5 +1,8 @@
 #include "tinalux/ui/Checkbox.h"
 
+#include <algorithm>
+#include <cstdint>
+
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
 #include "tinalux/rendering/rendering.h"
@@ -9,6 +12,49 @@
 #include "../TextPrimitives.h"
 
 namespace tinalux::ui {
+
+namespace {
+
+core::Rect resolveCheckmarkIconBounds(float indicatorY, float indicatorSize)
+{
+    const float inset = std::max(2.0f, indicatorSize * 0.14f);
+    return core::Rect::MakeXYWH(
+        inset,
+        indicatorY + inset,
+        std::max(0.0f, indicatorSize - inset * 2.0f),
+        std::max(0.0f, indicatorSize - inset * 2.0f));
+}
+
+void drawFallbackCheckmark(
+    rendering::Canvas& canvas,
+    float indicatorY,
+    const CheckboxStyle& style)
+{
+    const float scale = style.indicatorSize / 22.0f;
+    const float left = 5.0f * scale;
+    const float midX = 9.0f * scale;
+    const float midY = indicatorY + 15.0f * scale;
+    const float right = 17.0f * scale;
+    const float top = indicatorY + 7.0f * scale;
+    canvas.drawLine(
+        left,
+        indicatorY + 11.0f * scale,
+        midX,
+        midY,
+        style.checkmarkColor,
+        style.checkmarkStrokeWidth,
+        true);
+    canvas.drawLine(
+        midX,
+        midY,
+        right,
+        top,
+        style.checkmarkColor,
+        style.checkmarkStrokeWidth,
+        true);
+}
+
+}  // namespace
 
 Checkbox::Checkbox(std::string label, bool checked)
     : label_(std::move(label))
@@ -20,6 +66,9 @@ Checkbox::~Checkbox()
 {
     if (hoverAnimationAlive_ != nullptr) {
         *hoverAnimationAlive_ = false;
+    }
+    if (checkmarkIconLoadAlive_ != nullptr) {
+        *checkmarkIconLoadAlive_ = false;
     }
 }
 
@@ -46,6 +95,71 @@ bool Checkbox::checked() const
 void Checkbox::setChecked(bool checked)
 {
     updateChecked(checked, false);
+}
+
+void Checkbox::setCheckmarkIcon(rendering::Image icon)
+{
+    ++(*checkmarkIconLoadGeneration_);
+    pendingCheckmarkIcon_ = {};
+    checkmarkIconPath_.clear();
+    checkmarkIconLoading_ = false;
+    checkmarkIcon_ = std::move(icon);
+    checkmarkIconLoadState_ = checkmarkIcon_ ? CheckboxIconLoadState::Ready : CheckboxIconLoadState::Idle;
+    markPaintDirty();
+}
+
+void Checkbox::setCheckmarkIcon(IconType type, float sizeHint)
+{
+    setCheckmarkIcon(IconRegistry::instance().getIcon(type, sizeHint));
+}
+
+const rendering::Image& Checkbox::checkmarkIcon() const
+{
+    return checkmarkIcon_;
+}
+
+void Checkbox::loadCheckmarkIconAsync(const std::string& path)
+{
+    ++(*checkmarkIconLoadGeneration_);
+    checkmarkIconPath_ = path;
+    checkmarkIcon_ = {};
+    checkmarkIconLoading_ = !path.empty();
+    checkmarkIconLoadState_ = checkmarkIconLoading_ ? CheckboxIconLoadState::Loading : CheckboxIconLoadState::Idle;
+    pendingCheckmarkIcon_ = {};
+    markPaintDirty();
+    if (path.empty()) {
+        return;
+    }
+
+    const std::uint64_t generation = *checkmarkIconLoadGeneration_;
+    pendingCheckmarkIcon_ = ResourceLoader::instance().loadImageAsync(path);
+    const std::shared_ptr<bool> alive = checkmarkIconLoadAlive_;
+    const std::shared_ptr<std::uint64_t> loadGeneration = checkmarkIconLoadGeneration_;
+    pendingCheckmarkIcon_.onReady([this, alive, loadGeneration, generation](const rendering::Image& image) {
+        if (alive == nullptr || !*alive || loadGeneration == nullptr || *loadGeneration != generation) {
+            return;
+        }
+
+        checkmarkIconLoading_ = false;
+        checkmarkIcon_ = image;
+        checkmarkIconLoadState_ = checkmarkIcon_ ? CheckboxIconLoadState::Ready : CheckboxIconLoadState::Failed;
+        markPaintDirty();
+    });
+}
+
+const std::string& Checkbox::checkmarkIconPath() const
+{
+    return checkmarkIconPath_;
+}
+
+bool Checkbox::checkmarkIconLoading() const
+{
+    return checkmarkIconLoading_;
+}
+
+CheckboxIconLoadState Checkbox::checkmarkIconLoadState() const
+{
+    return checkmarkIconLoadState_;
 }
 
 void Checkbox::onToggle(std::function<void(bool)> handler)
@@ -203,28 +317,13 @@ void Checkbox::onDraw(rendering::Canvas& canvas)
         borderWidth);
 
     if (checked_) {
-        const float scale = style.indicatorSize / 22.0f;
-        const float left = 5.0f * scale;
-        const float midX = 9.0f * scale;
-        const float midY = indicatorY + 15.0f * scale;
-        const float right = 17.0f * scale;
-        const float top = indicatorY + 7.0f * scale;
-        canvas.drawLine(
-            left,
-            indicatorY + 11.0f * scale,
-            midX,
-            midY,
-            style.checkmarkColor,
-            style.checkmarkStrokeWidth,
-            true);
-        canvas.drawLine(
-            midX,
-            midY,
-            right,
-            top,
-            style.checkmarkColor,
-            style.checkmarkStrokeWidth,
-            true);
+        if (checkmarkIcon_) {
+            canvas.drawImage(
+                checkmarkIcon_,
+                resolveCheckmarkIconBounds(indicatorY, style.indicatorSize));
+        } else {
+            drawFallbackCheckmark(canvas, indicatorY, style);
+        }
     }
 
     canvas.drawText(

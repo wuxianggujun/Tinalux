@@ -5,6 +5,7 @@ add_library(TinaluxUI STATIC
     DemoScene.cpp
     IconRegistry.cpp
     ResourceManager.cpp
+    ResourceLoader.cpp
     Theme.cpp
     ButtonStyle.cpp
     DialogStyle.cpp
@@ -30,6 +31,7 @@ add_library(TinaluxUI STATIC
     widgets/Button.cpp
     widgets/Checkbox.cpp
     widgets/Dialog.cpp
+    widgets/Dropdown.cpp
     widgets/ImageWidget.cpp
     widgets/Panel.cpp
     widgets/Radio.cpp

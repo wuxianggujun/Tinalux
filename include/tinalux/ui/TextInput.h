@@ -1,16 +1,27 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Animation.h"
+#include "tinalux/ui/IconRegistry.h"
+#include "tinalux/ui/ResourceLoader.h"
 #include "tinalux/ui/TextInputStyle.h"
 #include "tinalux/ui/Widget.h"
 
 namespace tinalux::ui {
+
+enum class TextInputIconLoadState {
+    Idle,
+    Loading,
+    Ready,
+    Failed,
+};
 
 class TextInput : public Widget {
 public:
@@ -21,6 +32,23 @@ public:
     void setText(const std::string& text);
     void setPlaceholder(const std::string& placeholder);
     void setObscured(bool obscured);
+    void setLeadingIcon(rendering::Image icon);
+    void setLeadingIcon(IconType type, float sizeHint = 0.0f);
+    const rendering::Image& leadingIcon() const;
+    void loadLeadingIconAsync(const std::string& path);
+    const std::string& leadingIconPath() const;
+    bool leadingIconLoading() const;
+    TextInputIconLoadState leadingIconLoadState() const;
+    void onLeadingIconClick(std::function<void()> handler);
+    void setTrailingIcon(rendering::Image icon);
+    void setTrailingIcon(IconType type, float sizeHint = 0.0f);
+    const rendering::Image& trailingIcon() const;
+    void loadTrailingIconAsync(const std::string& path);
+    const std::string& trailingIconPath() const;
+    bool trailingIconLoading() const;
+    TextInputIconLoadState trailingIconLoadState() const;
+    void onTrailingIconClick(std::function<void()> handler);
+    void onTextChanged(std::function<void(const std::string&)> handler);
     std::string selectedText() const;
     void setStyle(const TextInputStyle& style);
     void clearStyle();
@@ -48,12 +76,33 @@ private:
     float prefixWidth(std::size_t cursorPos, float fontSize);
     std::size_t cursorFromLocalX(float localX, float fontSize);
     void collapseSelection(std::size_t caret);
+    float leadingIconSlotWidth(const TextInputStyle& style) const;
+    float trailingIconSlotWidth(const TextInputStyle& style) const;
+    core::Rect leadingIconBounds(const TextInputStyle& style) const;
+    core::Rect trailingIconBounds(const TextInputStyle& style) const;
 
     std::string text_;
     std::string placeholder_;
     std::string cachedDisplayText_;
     std::vector<std::size_t> cachedCaretOffsets_;
     std::vector<float> cachedCaretXs_;
+    rendering::Image leadingIcon_;
+    ResourceHandle<rendering::Image> pendingLeadingIcon_;
+    std::shared_ptr<bool> leadingIconLoadAlive_ = std::make_shared<bool>(true);
+    std::shared_ptr<std::uint64_t> leadingIconLoadGeneration_ = std::make_shared<std::uint64_t>(0);
+    std::string leadingIconPath_;
+    bool leadingIconLoading_ = false;
+    TextInputIconLoadState leadingIconLoadState_ = TextInputIconLoadState::Idle;
+    std::function<void()> onLeadingIconClick_;
+    rendering::Image trailingIcon_;
+    ResourceHandle<rendering::Image> pendingTrailingIcon_;
+    std::shared_ptr<bool> trailingIconLoadAlive_ = std::make_shared<bool>(true);
+    std::shared_ptr<std::uint64_t> trailingIconLoadGeneration_ = std::make_shared<std::uint64_t>(0);
+    std::string trailingIconPath_;
+    bool trailingIconLoading_ = false;
+    TextInputIconLoadState trailingIconLoadState_ = TextInputIconLoadState::Idle;
+    std::function<void()> onTrailingIconClick_;
+    std::function<void(const std::string&)> onTextChanged_;
     std::optional<TextInputStyle> customStyle_;
     AnimationSink* hoverAnimationSink_ = nullptr;
     AnimationHandle hoverAnimation_ = 0;
@@ -73,6 +122,8 @@ private:
     bool obscured_ = false;
     bool hovered_ = false;
     bool draggingSelection_ = false;
+    bool leadingIconPressed_ = false;
+    bool trailingIconPressed_ = false;
     bool textLayoutCacheDirty_ = true;
 };
 
