@@ -8,16 +8,12 @@
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Theme.h"
 
+#include "HoverAnimationUtils.h"
+
 namespace tinalux::ui {
 
 namespace {
 
-constexpr float kPreferredWidth = 240.0f;
-constexpr float kPreferredHeight = 32.0f;
-constexpr float kHorizontalInset = 12.0f;
-constexpr float kTrackHeight = 4.0f;
-constexpr float kThumbRadius = 10.0f;
-constexpr float kFocusedThumbRadius = 12.0f;
 constexpr float kValueTolerance = 0.0001f;
 
 bool sameValue(float lhs, float rhs)
@@ -26,6 +22,13 @@ bool sameValue(float lhs, float rhs)
 }
 
 }  // namespace
+
+Slider::~Slider()
+{
+    if (animationAlive_ != nullptr) {
+        *animationAlive_ = false;
+    }
+}
 
 void Slider::setRange(float minimum, float maximum)
 {
@@ -81,14 +84,154 @@ void Slider::onValueChanged(std::function<void(float)> handler)
     onValueChanged_ = std::move(handler);
 }
 
+void Slider::setStyle(const SliderStyle& style)
+{
+    customStyle_ = style;
+    markLayoutDirty();
+}
+
+void Slider::clearStyle()
+{
+    if (!customStyle_.has_value()) {
+        return;
+    }
+
+    customStyle_.reset();
+    markLayoutDirty();
+}
+
+const SliderStyle* Slider::style() const
+{
+    return customStyle_ ? &*customStyle_ : nullptr;
+}
+
 bool Slider::focusable() const
 {
     return true;
 }
 
+void Slider::setFocused(bool focused)
+{
+    if (Widget::focused() == focused) {
+        return;
+    }
+
+    Widget::setFocused(focused);
+    animateFocusProgress(focused ? 1.0f : 0.0f);
+}
+
+const SliderStyle& Slider::resolvedStyle() const
+{
+    return customStyle_ ? *customStyle_ : resolvedTheme().sliderStyle;
+}
+
+WidgetState Slider::currentState() const
+{
+    if (dragging_) {
+        return WidgetState::Pressed;
+    }
+    if (hovered_) {
+        return WidgetState::Hovered;
+    }
+    if (focused()) {
+        return WidgetState::Focused;
+    }
+    return WidgetState::Normal;
+}
+
+void Slider::animateHoverProgress(float targetProgress)
+{
+    AnimationSink* currentAnimationSink = &animationSink();
+    if (hoverAnimation_ != 0 && hoverAnimationSink_ == currentAnimationSink) {
+        currentAnimationSink->cancelAnimation(hoverAnimation_);
+        hoverAnimation_ = 0;
+    }
+    hoverAnimationSink_ = currentAnimationSink;
+
+    const float currentProgress = animatedHoverProgress_ != nullptr ? *animatedHoverProgress_ : 0.0f;
+    const float clampedTarget = detail::clampUnit(targetProgress);
+    if (std::abs(currentProgress - clampedTarget) <= kValueTolerance) {
+        if (animatedHoverProgress_ != nullptr) {
+            *animatedHoverProgress_ = clampedTarget;
+        }
+        return;
+    }
+
+    const std::shared_ptr<float> progress = animatedHoverProgress_;
+    const std::shared_ptr<bool> alive = animationAlive_;
+    hoverAnimation_ = currentAnimationSink->animate(
+        {
+            .from = currentProgress,
+            .to = clampedTarget,
+            .durationSeconds = detail::kHoverTransitionDurationSeconds,
+            .loop = false,
+            .alternate = false,
+            .easing = Easing::EaseInOut,
+        },
+        [progress, alive, this](float value) {
+            if (progress != nullptr) {
+                *progress = value;
+            }
+            if (alive != nullptr && *alive) {
+                markPaintDirty();
+            }
+        });
+}
+
+void Slider::animateFocusProgress(float targetProgress)
+{
+    AnimationSink* currentAnimationSink = &animationSink();
+    if (focusAnimation_ != 0 && focusAnimationSink_ == currentAnimationSink) {
+        currentAnimationSink->cancelAnimation(focusAnimation_);
+        focusAnimation_ = 0;
+    }
+    focusAnimationSink_ = currentAnimationSink;
+
+    const float currentProgress = animatedFocusProgress_ != nullptr ? *animatedFocusProgress_ : 0.0f;
+    const float clampedTarget = detail::clampUnit(targetProgress);
+    if (std::abs(currentProgress - clampedTarget) <= kValueTolerance) {
+        if (animatedFocusProgress_ != nullptr) {
+            *animatedFocusProgress_ = clampedTarget;
+        }
+        return;
+    }
+
+    const std::shared_ptr<float> progress = animatedFocusProgress_;
+    const std::shared_ptr<bool> alive = animationAlive_;
+    focusAnimation_ = currentAnimationSink->animate(
+        {
+            .from = currentProgress,
+            .to = clampedTarget,
+            .durationSeconds = detail::kHoverTransitionDurationSeconds,
+            .loop = false,
+            .alternate = false,
+            .easing = Easing::EaseInOut,
+        },
+        [progress, alive, this](float value) {
+            if (progress != nullptr) {
+                *progress = value;
+            }
+            if (alive != nullptr && *alive) {
+                markPaintDirty();
+            }
+        });
+}
+
+void Slider::updateHovered(bool hovered)
+{
+    if (hovered_ == hovered) {
+        return;
+    }
+
+    hovered_ = hovered;
+    animateHoverProgress(hovered ? 1.0f : 0.0f);
+    markPaintDirty();
+}
+
 core::Size Slider::measure(const Constraints& constraints)
 {
-    return constraints.constrain(core::Size::Make(kPreferredWidth, kPreferredHeight));
+    const SliderStyle& style = resolvedStyle();
+    return constraints.constrain(core::Size::Make(style.preferredWidth, style.preferredHeight));
 }
 
 void Slider::onDraw(rendering::Canvas& canvas)
@@ -97,71 +240,93 @@ void Slider::onDraw(rendering::Canvas& canvas)
         return;
     }
 
-    const Theme& theme = resolvedTheme();
-    const float trackLeft = kHorizontalInset;
-    const float trackWidth = std::max(1.0f, bounds_.width() - kHorizontalInset * 2.0f);
-    const float trackTop = (bounds_.height() - kTrackHeight) * 0.5f;
+    const SliderStyle& style = resolvedStyle();
+    const WidgetState state = currentState();
+    const float hoverProgress = animatedHoverProgress_ != nullptr ? *animatedHoverProgress_ : 0.0f;
+    const float focusProgress = animatedFocusProgress_ != nullptr ? *animatedFocusProgress_ : 0.0f;
+    const float trackLeft = style.horizontalInset;
+    const float trackWidth = std::max(1.0f, bounds_.width() - style.horizontalInset * 2.0f);
+    const float trackTop = (bounds_.height() - style.trackHeight) * 0.5f;
     const float fraction = maximum_ > minimum_
         ? (value_ - minimum_) / (maximum_ - minimum_)
         : 0.0f;
     const float clampedFraction = std::clamp(fraction, 0.0f, 1.0f);
     const float thumbX = trackLeft + trackWidth * clampedFraction;
-    const float thumbRadius = (focused() || dragging_) ? kFocusedThumbRadius : kThumbRadius;
+    const auto blendStateColor = [&](const StateStyle<core::Color>& stateStyle) {
+        if (dragging_) {
+            return stateStyle.resolve(WidgetState::Pressed);
+        }
+
+        const core::Color hoverColor = detail::lerpColor(
+            stateStyle.resolve(WidgetState::Normal),
+            stateStyle.resolve(WidgetState::Hovered),
+            hoverProgress);
+        return detail::lerpColor(
+            hoverColor,
+            stateStyle.resolve(WidgetState::Focused),
+            focusProgress);
+    };
+    const float thumbRadius = dragging_
+        ? style.activeThumbRadius
+        : detail::lerpFloat(style.thumbRadius, style.activeThumbRadius, focusProgress);
+    const core::Color focusHaloColor = detail::lerpColor(
+        core::colorARGB(
+            0,
+            style.focusHaloColor.red(),
+            style.focusHaloColor.green(),
+            style.focusHaloColor.blue()),
+        style.focusHaloColor,
+        focusProgress);
 
     canvas.drawRoundRect(
-        core::Rect::MakeXYWH(trackLeft, trackTop, trackWidth, kTrackHeight),
-        kTrackHeight * 0.5f,
-        kTrackHeight * 0.5f,
-        theme.surface);
+        core::Rect::MakeXYWH(trackLeft, trackTop, trackWidth, style.trackHeight),
+        style.trackHeight * 0.5f,
+        style.trackHeight * 0.5f,
+        dragging_
+            ? style.trackColor.resolve(state)
+            : detail::lerpColor(
+                style.trackColor.resolve(WidgetState::Normal),
+                style.trackColor.resolve(WidgetState::Focused),
+                focusProgress));
 
     canvas.drawRoundRect(
         core::Rect::MakeXYWH(
             trackLeft,
             trackTop,
             std::max(0.0f, thumbX - trackLeft),
-            kTrackHeight),
-        kTrackHeight * 0.5f,
-        kTrackHeight * 0.5f,
-        theme.primary);
+            style.trackHeight),
+        style.trackHeight * 0.5f,
+        style.trackHeight * 0.5f,
+        blendStateColor(style.fillColor));
 
-    if (focused()) {
+    if (focusProgress > 0.001f) {
         canvas.drawCircle(
             thumbX,
             bounds_.height() * 0.5f,
-            thumbRadius + 4.0f,
-            core::colorARGB(
-                72,
-                core::colorRed(theme.primary),
-                core::colorGreen(theme.primary),
-                core::colorBlue(theme.primary)));
+            thumbRadius + detail::lerpFloat(0.0f, style.focusHaloPadding, focusProgress),
+            focusHaloColor);
     }
 
     canvas.drawCircle(
         thumbX,
         bounds_.height() * 0.5f,
         thumbRadius,
-        dragging_ || hovered_ ? theme.primary : theme.border);
+        blendStateColor(style.thumbColor));
     canvas.drawCircle(
         thumbX,
         bounds_.height() * 0.5f,
-        std::max(4.0f, thumbRadius - 5.0f),
-        theme.onPrimary);
+        std::max(4.0f, thumbRadius - style.innerThumbInset),
+        blendStateColor(style.thumbInnerColor));
 }
 
 bool Slider::onEvent(core::Event& event)
 {
     switch (event.type()) {
     case core::EventType::MouseEnter:
-        if (!hovered_) {
-            hovered_ = true;
-            markPaintDirty();
-        }
+        updateHovered(true);
         return false;
     case core::EventType::MouseLeave:
-        if (hovered_) {
-            hovered_ = false;
-            markPaintDirty();
-        }
+        updateHovered(false);
         return false;
     case core::EventType::MouseMove: {
         const auto& moveEvent = static_cast<const core::MouseMoveEvent&>(event);
@@ -169,10 +334,7 @@ bool Slider::onEvent(core::Event& event)
         const float globalY = static_cast<float>(moveEvent.y);
         const core::Point localPoint = globalToLocal(core::Point::Make(globalX, globalY));
         const bool inside = containsLocalPoint(localPoint.x(), localPoint.y());
-        if (hovered_ != inside) {
-            hovered_ = inside;
-            markPaintDirty();
-        }
+        updateHovered(inside);
 
         if (!dragging_) {
             return false;
@@ -192,7 +354,7 @@ bool Slider::onEvent(core::Event& event)
         }
 
         dragging_ = true;
-        hovered_ = true;
+        updateHovered(true);
         setValueInternal(valueFromLocalX(localPoint.x()), true);
         markPaintDirty();
         return true;
@@ -209,7 +371,7 @@ bool Slider::onEvent(core::Event& event)
         const bool inside = containsLocalPoint(localPoint.x(), localPoint.y());
         setValueInternal(valueFromLocalX(localPoint.x()), true);
         dragging_ = false;
-        hovered_ = inside;
+        updateHovered(inside);
         markPaintDirty();
         return true;
     }
@@ -263,8 +425,10 @@ float Slider::effectiveStep() const
 
 float Slider::valueFromLocalX(float localX) const
 {
-    const float trackWidth = std::max(1.0f, bounds_.width() - kHorizontalInset * 2.0f);
-    const float normalized = std::clamp((localX - kHorizontalInset) / trackWidth, 0.0f, 1.0f);
+    const SliderStyle& style = resolvedStyle();
+    const float trackWidth = std::max(1.0f, bounds_.width() - style.horizontalInset * 2.0f);
+    const float normalized =
+        std::clamp((localX - style.horizontalInset) / trackWidth, 0.0f, 1.0f);
     return minimum_ + (maximum_ - minimum_) * normalized;
 }
 

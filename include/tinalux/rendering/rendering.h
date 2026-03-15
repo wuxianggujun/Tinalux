@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <span>
@@ -167,6 +168,16 @@ private:
     friend struct RenderAccess;
 };
 
+struct ImageCacheStats {
+    std::size_t entryCount = 0;
+    std::size_t maxEntries = 0;
+    std::size_t currentMemoryUsage = 0;
+    std::size_t maxMemoryUsage = 0;
+    std::size_t hitCount = 0;
+    std::size_t missCount = 0;
+    std::size_t evictionCount = 0;
+};
+
 void initSkia();
 void shutdownSkia();
 
@@ -178,6 +189,8 @@ Image createImageFromRGBA(
     int height,
     std::span<const std::uint8_t> rgbaPixels,
     std::size_t rowBytes = 0);
+void setImageFileCacheLimits(std::size_t maxEntries, std::size_t maxMemoryUsageBytes);
+ImageCacheStats imageFileCacheStats();
 void clearImageFileCache();
 RenderSurface createWindowSurface(const RenderContext& ctx, int framebufferWidth, int framebufferHeight);
 RenderSurface createRasterSurface(int width, int height);

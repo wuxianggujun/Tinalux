@@ -15,6 +15,7 @@ class Canvas;
 
 namespace tinalux::ui {
 
+class AnimationSink;
 class Container;
 class ScrollView;
 struct Theme;
@@ -28,6 +29,11 @@ public:
 
     virtual bool onEventCapture(core::Event& event);
     virtual bool onEvent(core::Event& event);
+    /// 命中测试。检查点(x,y)是否落在 Widget 上。
+    /// @param x 本地 X 坐标（相对于 Widget 左上角，0 为左边缘）
+    /// @param y 本地 Y 坐标（相对于 Widget 左上角，0 为上边缘）
+    /// @return 命中的 Widget 指针，未命中返回 nullptr
+    /// @note 坐标系为 Widget 本地坐标，不是全局 framebuffer 坐标
     virtual Widget* hitTest(float x, float y);
     Widget* hitTestGlobal(float x, float y);
 
@@ -58,6 +64,7 @@ protected:
     friend class Container;
     friend class ScrollView;
     const Theme& resolvedTheme() const;
+    AnimationSink& animationSink() const;
     virtual core::Point childOffsetAdjustment(const Widget& child) const;
     core::Point parentAdjustedOrigin() const;
     void markPaintDirty();

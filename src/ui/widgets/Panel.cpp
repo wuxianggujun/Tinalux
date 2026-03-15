@@ -4,16 +4,17 @@
 #include <cmath>
 
 #include "tinalux/rendering/rendering.h"
+#include "tinalux/ui/Theme.h"
 
 namespace tinalux::ui {
 
 void Panel::setBackgroundColor(core::Color color)
 {
-    if (backgroundColor_ == color) {
+    if (backgroundColorOverride_ && *backgroundColorOverride_ == color) {
         return;
     }
 
-    backgroundColor_ = color;
+    backgroundColorOverride_ = color;
     markPaintDirty();
 }
 
@@ -41,12 +42,45 @@ bool Panel::renderCacheEnabled() const
 void Panel::setCornerRadius(float radius)
 {
     const float clampedRadius = std::max(radius, 0.0f);
-    if (cornerRadius_ == clampedRadius) {
+    if (cornerRadiusOverride_ && *cornerRadiusOverride_ == clampedRadius) {
         return;
     }
 
-    cornerRadius_ = clampedRadius;
+    cornerRadiusOverride_ = clampedRadius;
     markPaintDirty();
+}
+
+void Panel::setStyle(const PanelStyle& style)
+{
+    customStyle_ = style;
+    markPaintDirty();
+}
+
+void Panel::clearStyle()
+{
+    if (!customStyle_.has_value()) {
+        return;
+    }
+
+    customStyle_.reset();
+    markPaintDirty();
+}
+
+const PanelStyle* Panel::style() const
+{
+    return customStyle_ ? &*customStyle_ : nullptr;
+}
+
+PanelStyle Panel::resolvedStyle() const
+{
+    PanelStyle style = customStyle_ ? *customStyle_ : resolvedTheme().panelStyle;
+    if (backgroundColorOverride_) {
+        style.backgroundColor = *backgroundColorOverride_;
+    }
+    if (cornerRadiusOverride_) {
+        style.cornerRadius = *cornerRadiusOverride_;
+    }
+    return style;
 }
 
 void Panel::onDraw(rendering::Canvas& canvas)
@@ -92,11 +126,12 @@ void Panel::onDraw(rendering::Canvas& canvas)
 
 void Panel::drawPanelContents(rendering::Canvas& canvas)
 {
+    const PanelStyle style = resolvedStyle();
     canvas.drawRoundRect(
         core::Rect::MakeWH(bounds_.width(), bounds_.height()),
-        cornerRadius_,
-        cornerRadius_,
-        backgroundColor_);
+        style.cornerRadius,
+        style.cornerRadius,
+        style.backgroundColor);
 
     drawChildren(canvas);
 }

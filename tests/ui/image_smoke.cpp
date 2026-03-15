@@ -86,6 +86,53 @@ int main()
     const rendering::Image fileImageAfterClear = rendering::loadImageFromFile(cachePath.string());
     expect(!fileImageAfterClear, "cleared cache should not keep deleted file alive");
 
+    const rendering::ImageCacheStats originalCacheStats = rendering::imageFileCacheStats();
+    const std::filesystem::path lruPathA =
+        std::filesystem::temp_directory_path() / "tinalux_image_cache_lru_a.png";
+    const std::filesystem::path lruPathB =
+        std::filesystem::temp_directory_path() / "tinalux_image_cache_lru_b.png";
+    {
+        std::ofstream outputA(lruPathA, std::ios::binary | std::ios::trunc);
+        std::ofstream outputB(lruPathB, std::ios::binary | std::ios::trunc);
+        expect(outputA.good() && outputB.good(), "should create temporary LRU cache test PNG files");
+        outputA.write(reinterpret_cast<const char*>(pngBytes.data()), static_cast<std::streamsize>(pngBytes.size()));
+        outputB.write(reinterpret_cast<const char*>(pngBytes.data()), static_cast<std::streamsize>(pngBytes.size()));
+        expect(outputA.good() && outputB.good(), "temporary LRU cache test PNG files should be written");
+    }
+
+    rendering::clearImageFileCache();
+    rendering::setImageFileCacheLimits(1, originalCacheStats.maxMemoryUsage);
+
+    const rendering::Image lruImageA = rendering::loadImageFromFile(lruPathA.string());
+    expect(static_cast<bool>(lruImageA), "first LRU image should load");
+    const rendering::ImageCacheStats afterFirstLoad = rendering::imageFileCacheStats();
+    expect(afterFirstLoad.entryCount == 1, "cache should contain one entry after first image load");
+
+    const rendering::Image lruImageAHit = rendering::loadImageFromFile(lruPathA.string());
+    expect(static_cast<bool>(lruImageAHit), "cached LRU image should load");
+    const rendering::ImageCacheStats afterCacheHit = rendering::imageFileCacheStats();
+    expect(afterCacheHit.hitCount > afterFirstLoad.hitCount, "cache hit count should increase on repeated load");
+
+    const rendering::Image lruImageB = rendering::loadImageFromFile(lruPathB.string());
+    expect(static_cast<bool>(lruImageB), "second LRU image should load");
+    const rendering::ImageCacheStats afterSecondLoad = rendering::imageFileCacheStats();
+    expect(afterSecondLoad.entryCount == 1, "maxEntries limit should evict least recently used image");
+    expect(afterSecondLoad.evictionCount > afterCacheHit.evictionCount, "loading beyond cache limit should evict one entry");
+
+    expect(std::filesystem::remove(lruPathA), "first LRU cache test file should be removable");
+    expect(std::filesystem::remove(lruPathB), "second LRU cache test file should be removable");
+
+    const rendering::Image lruImageAEvicted = rendering::loadImageFromFile(lruPathA.string());
+    expect(!lruImageAEvicted, "evicted image should not reload after source file is deleted");
+
+    const rendering::Image lruImageBCached = rendering::loadImageFromFile(lruPathB.string());
+    expect(static_cast<bool>(lruImageBCached), "most recent image should remain cached after source file is deleted");
+
+    rendering::clearImageFileCache();
+    rendering::setImageFileCacheLimits(
+        originalCacheStats.maxEntries,
+        originalCacheStats.maxMemoryUsage);
+
     const rendering::Image image = rendering::createImageFromRGBA(4, 2, pixels);
     expect(static_cast<bool>(image), "valid RGBA buffer should create image");
     expect(image.width() == 4 && image.height() == 2, "image dimensions should match source buffer");

@@ -1,7 +1,10 @@
 #include "tinalux/ui/ListView.h"
 
+#include <algorithm>
+
 #include "tinalux/ui/Container.h"
 #include "tinalux/ui/Layout.h"
+#include "tinalux/ui/Theme.h"
 
 namespace tinalux::ui {
 
@@ -14,10 +17,12 @@ ListView::ListView()
     layout_ = layout.get();
     items_->setLayout(std::move(layout));
     setContent(items_);
+    applyResolvedStyle();
 }
 
 void ListView::addItem(std::shared_ptr<Widget> item)
 {
+    applyResolvedStyle();
     items_->addChild(std::move(item));
 }
 
@@ -30,22 +35,84 @@ void ListView::clearItems()
 
 void ListView::setSpacing(float spacing)
 {
-    if (layout_ == nullptr || layout_->spacing == spacing) {
+    const float clampedSpacing = std::max(0.0f, spacing);
+    if (spacingOverride_ && *spacingOverride_ == clampedSpacing) {
         return;
     }
 
-    layout_->spacing = spacing;
-    items_->markLayoutDirty();
-    markLayoutDirty();
+    spacingOverride_ = clampedSpacing;
+    applyResolvedStyle();
 }
 
 void ListView::setPadding(float padding)
 {
-    if (layout_ == nullptr || layout_->padding == padding) {
+    const float clampedPadding = std::max(0.0f, padding);
+    if (paddingOverride_ && *paddingOverride_ == clampedPadding) {
         return;
     }
 
-    layout_->padding = padding;
+    paddingOverride_ = clampedPadding;
+    applyResolvedStyle();
+}
+
+void ListView::setStyle(const ListViewStyle& style)
+{
+    customStyle_ = style;
+    applyResolvedStyle();
+}
+
+void ListView::clearStyle()
+{
+    if (!customStyle_.has_value()) {
+        return;
+    }
+
+    customStyle_.reset();
+    applyResolvedStyle();
+}
+
+const ListViewStyle* ListView::style() const
+{
+    return customStyle_ ? &*customStyle_ : nullptr;
+}
+
+core::Size ListView::measure(const Constraints& constraints)
+{
+    applyResolvedStyle();
+    return ScrollView::measure(constraints);
+}
+
+void ListView::arrange(const core::Rect& bounds)
+{
+    applyResolvedStyle();
+    ScrollView::arrange(bounds);
+}
+
+ListViewStyle ListView::resolvedStyle() const
+{
+    ListViewStyle style = customStyle_ ? *customStyle_ : resolvedTheme().listViewStyle;
+    if (paddingOverride_) {
+        style.padding = *paddingOverride_;
+    }
+    if (spacingOverride_) {
+        style.spacing = *spacingOverride_;
+    }
+    return style;
+}
+
+void ListView::applyResolvedStyle()
+{
+    if (layout_ == nullptr) {
+        return;
+    }
+
+    const ListViewStyle style = resolvedStyle();
+    if (layout_->padding == style.padding && layout_->spacing == style.spacing) {
+        return;
+    }
+
+    layout_->padding = style.padding;
+    layout_->spacing = style.spacing;
     items_->markLayoutDirty();
     markLayoutDirty();
 }

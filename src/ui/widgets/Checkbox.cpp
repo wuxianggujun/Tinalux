@@ -5,24 +5,22 @@
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Theme.h"
 
+#include "HoverAnimationUtils.h"
 #include "../TextPrimitives.h"
 
 namespace tinalux::ui {
-
-namespace {
-
-constexpr float kIndicatorSize = 22.0f;
-constexpr float kIndicatorRadius = 6.0f;
-constexpr float kLabelGap = 12.0f;
-constexpr float kIndicatorStroke = 2.0f;
-constexpr float kMinimumHeight = 28.0f;
-
-}  // namespace
 
 Checkbox::Checkbox(std::string label, bool checked)
     : label_(std::move(label))
     , checked_(checked)
 {
+}
+
+Checkbox::~Checkbox()
+{
+    if (hoverAnimationAlive_ != nullptr) {
+        *hoverAnimationAlive_ = false;
+    }
 }
 
 const std::string& Checkbox::label() const
@@ -55,18 +53,108 @@ void Checkbox::onToggle(std::function<void(bool)> handler)
     onToggle_ = std::move(handler);
 }
 
+void Checkbox::setStyle(const CheckboxStyle& style)
+{
+    customStyle_ = style;
+    markLayoutDirty();
+}
+
+void Checkbox::clearStyle()
+{
+    if (!customStyle_.has_value()) {
+        return;
+    }
+
+    customStyle_.reset();
+    markLayoutDirty();
+}
+
+const CheckboxStyle* Checkbox::style() const
+{
+    return customStyle_ ? &*customStyle_ : nullptr;
+}
+
 bool Checkbox::focusable() const
 {
     return true;
 }
 
+const CheckboxStyle& Checkbox::resolvedStyle() const
+{
+    return customStyle_ ? *customStyle_ : resolvedTheme().checkboxStyle;
+}
+
+WidgetState Checkbox::currentState() const
+{
+    if (pressed_) {
+        return WidgetState::Pressed;
+    }
+    if (hovered_) {
+        return WidgetState::Hovered;
+    }
+    if (focused()) {
+        return WidgetState::Focused;
+    }
+    return WidgetState::Normal;
+}
+
+void Checkbox::animateHoverProgress(float targetProgress)
+{
+    AnimationSink* currentAnimationSink = &animationSink();
+    if (hoverAnimation_ != 0 && hoverAnimationSink_ == currentAnimationSink) {
+        currentAnimationSink->cancelAnimation(hoverAnimation_);
+        hoverAnimation_ = 0;
+    }
+    hoverAnimationSink_ = currentAnimationSink;
+
+    const float currentProgress = animatedHoverProgress_ != nullptr ? *animatedHoverProgress_ : 0.0f;
+    const float clampedTarget = detail::clampUnit(targetProgress);
+    if (std::abs(currentProgress - clampedTarget) <= 0.001f) {
+        if (animatedHoverProgress_ != nullptr) {
+            *animatedHoverProgress_ = clampedTarget;
+        }
+        return;
+    }
+
+    const std::shared_ptr<float> progress = animatedHoverProgress_;
+    const std::shared_ptr<bool> alive = hoverAnimationAlive_;
+    hoverAnimation_ = currentAnimationSink->animate(
+        {
+            .from = currentProgress,
+            .to = clampedTarget,
+            .durationSeconds = detail::kHoverTransitionDurationSeconds,
+            .loop = false,
+            .alternate = false,
+            .easing = Easing::EaseInOut,
+        },
+        [progress, alive, this](float value) {
+            if (progress != nullptr) {
+                *progress = value;
+            }
+            if (alive != nullptr && *alive) {
+                markPaintDirty();
+            }
+        });
+}
+
+void Checkbox::updateHovered(bool hovered)
+{
+    if (hovered_ == hovered) {
+        return;
+    }
+
+    hovered_ = hovered;
+    animateHoverProgress(hovered ? 1.0f : 0.0f);
+    markPaintDirty();
+}
+
 core::Size Checkbox::measure(const Constraints& constraints)
 {
-    const Theme& theme = resolvedTheme();
-    const TextMetrics metrics = measureTextMetrics(label_, theme.fontSize);
+    const CheckboxStyle& style = resolvedStyle();
+    const TextMetrics metrics = measureTextMetrics(label_, style.textStyle.fontSize);
     return constraints.constrain(core::Size::Make(
-        kIndicatorSize + kLabelGap + metrics.width,
-        std::max(kMinimumHeight, std::max(kIndicatorSize, metrics.height))));
+        style.indicatorSize + style.labelGap + metrics.width,
+        std::max(style.minHeight, std::max(style.indicatorSize, metrics.height))));
 }
 
 void Checkbox::onDraw(rendering::Canvas& canvas)
@@ -75,60 +163,86 @@ void Checkbox::onDraw(rendering::Canvas& canvas)
         return;
     }
 
-    const Theme& theme = resolvedTheme();
-    const TextMetrics metrics = measureTextMetrics(label_, theme.fontSize);
-    const float indicatorY = (bounds_.height() - kIndicatorSize) * 0.5f;
+    const CheckboxStyle& style = resolvedStyle();
+    const WidgetState state = currentState();
+    const WidgetState baseState = focused() ? WidgetState::Focused : WidgetState::Normal;
+    const float hoverProgress = animatedHoverProgress_ != nullptr ? *animatedHoverProgress_ : 0.0f;
+    const TextMetrics metrics = measureTextMetrics(label_, style.textStyle.fontSize);
+    const float indicatorY = (bounds_.height() - style.indicatorSize) * 0.5f;
     const float labelY = (bounds_.height() - metrics.height) * 0.5f + metrics.baseline;
+    const float borderWidth = style.borderWidth.resolve(state);
+    const auto& backgroundStyle = checked_ ? style.checkedBackgroundColor : style.uncheckedBackgroundColor;
+    const core::Color backgroundColor = pressed_
+        ? backgroundStyle.resolve(state)
+        : detail::lerpColor(
+            backgroundStyle.resolve(baseState),
+            backgroundStyle.resolve(WidgetState::Hovered),
+            hoverProgress);
+    const core::Color borderColor = pressed_
+        ? style.borderColor.resolve(state)
+        : detail::lerpColor(
+            style.borderColor.resolve(baseState),
+            style.borderColor.resolve(WidgetState::Hovered),
+            hoverProgress);
 
     canvas.drawRoundRect(
-        core::Rect::MakeXYWH(0.0f, indicatorY, kIndicatorSize, kIndicatorSize),
-        kIndicatorRadius,
-        kIndicatorRadius,
-        checked_ ? theme.primary : (pressed_ || hovered_ ? theme.background : theme.surface));
+        core::Rect::MakeXYWH(0.0f, indicatorY, style.indicatorSize, style.indicatorSize),
+        style.indicatorRadius,
+        style.indicatorRadius,
+        backgroundColor);
     canvas.drawRoundRect(
         core::Rect::MakeXYWH(
-            focused() ? 1.0f : 0.5f,
-            indicatorY + (focused() ? 1.0f : 0.5f),
-            kIndicatorSize - (focused() ? 2.0f : 1.0f),
-            kIndicatorSize - (focused() ? 2.0f : 1.0f)),
-        kIndicatorRadius,
-        kIndicatorRadius,
-        (focused() || hovered_) ? theme.primary : theme.border,
+            borderWidth * 0.5f,
+            indicatorY + borderWidth * 0.5f,
+        std::max(0.0f, style.indicatorSize - borderWidth),
+        std::max(0.0f, style.indicatorSize - borderWidth)),
+        style.indicatorRadius,
+        style.indicatorRadius,
+        borderColor,
         rendering::PaintStyle::Stroke,
-        focused() ? kIndicatorStroke : 1.5f);
+        borderWidth);
 
     if (checked_) {
-        const float left = 5.0f;
-        const float midX = 9.0f;
-        const float midY = indicatorY + 15.0f;
-        const float right = 17.0f;
-        const float top = indicatorY + 7.0f;
-        canvas.drawLine(left, indicatorY + 11.0f, midX, midY, theme.onPrimary, 2.5f, true);
-        canvas.drawLine(midX, midY, right, top, theme.onPrimary, 2.5f, true);
+        const float scale = style.indicatorSize / 22.0f;
+        const float left = 5.0f * scale;
+        const float midX = 9.0f * scale;
+        const float midY = indicatorY + 15.0f * scale;
+        const float right = 17.0f * scale;
+        const float top = indicatorY + 7.0f * scale;
+        canvas.drawLine(
+            left,
+            indicatorY + 11.0f * scale,
+            midX,
+            midY,
+            style.checkmarkColor,
+            style.checkmarkStrokeWidth,
+            true);
+        canvas.drawLine(
+            midX,
+            midY,
+            right,
+            top,
+            style.checkmarkColor,
+            style.checkmarkStrokeWidth,
+            true);
     }
 
     canvas.drawText(
         label_.c_str(),
-        kIndicatorSize + kLabelGap + metrics.drawX,
+        style.indicatorSize + style.labelGap + metrics.drawX,
         labelY,
-        theme.fontSize,
-        theme.text);
+        style.textStyle.fontSize,
+        style.labelColor.resolve(state));
 }
 
 bool Checkbox::onEvent(core::Event& event)
 {
     switch (event.type()) {
     case core::EventType::MouseEnter:
-        if (!hovered_) {
-            hovered_ = true;
-            markPaintDirty();
-        }
+        updateHovered(true);
         return false;
     case core::EventType::MouseLeave:
-        if (hovered_) {
-            hovered_ = false;
-            markPaintDirty();
-        }
+        updateHovered(false);
         return false;
     case core::EventType::MouseMove: {
         const auto& moveEvent = static_cast<const core::MouseMoveEvent&>(event);
@@ -136,10 +250,7 @@ bool Checkbox::onEvent(core::Event& event)
             static_cast<float>(moveEvent.x),
             static_cast<float>(moveEvent.y)));
         const bool inside = containsLocalPoint(localPoint.x(), localPoint.y());
-        if (hovered_ != inside) {
-            hovered_ = inside;
-            markPaintDirty();
-        }
+        updateHovered(inside);
         return pressed_;
     }
     case core::EventType::MouseButtonPress: {
@@ -154,7 +265,7 @@ bool Checkbox::onEvent(core::Event& event)
 
         if (!pressed_) {
             pressed_ = true;
-            hovered_ = true;
+            updateHovered(true);
             markPaintDirty();
         }
         return true;
@@ -172,7 +283,7 @@ bool Checkbox::onEvent(core::Event& event)
         const bool wasPressed = pressed_;
         if (pressed_ || hovered_ != inside) {
             pressed_ = false;
-            hovered_ = inside;
+            updateHovered(inside);
             markPaintDirty();
         }
         if (wasPressed && inside) {

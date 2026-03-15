@@ -101,6 +101,7 @@ private:
     bool perfLogConfiguredExplicitly_ = false;
     DebugHudConfig debugHudConfig_ {};
     bool debugHudConfiguredExplicitly_ = false;
+    std::uint64_t themeListenerId_ = 0;
     std::unique_ptr<ui::RuntimeState> runtimeState_;
 };
 

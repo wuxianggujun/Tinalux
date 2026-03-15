@@ -1,20 +1,16 @@
 #include "tinalux/ui/Button.h"
 
-#include <algorithm>
-
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Theme.h"
 
+#include "HoverAnimationUtils.h"
 #include "../TextPrimitives.h"
 
 namespace tinalux::ui {
 
 namespace {
-
-constexpr float kVerticalPadding = 10.0f;
-constexpr float kIconSpacing = 8.0f;
 
 core::Size resolveButtonIconSize(const rendering::Image& icon, core::Size requestedSize)
 {
@@ -50,6 +46,13 @@ core::Size resolveButtonIconSize(const rendering::Image& icon, core::Size reques
 Button::Button(std::string label)
     : label_(std::move(label))
 {
+}
+
+Button::~Button()
+{
+    if (hoverAnimationAlive_ != nullptr) {
+        *hoverAnimationAlive_ = false;
+    }
 }
 
 void Button::setLabel(const std::string& label)
@@ -106,6 +109,27 @@ core::Size Button::iconSize() const
     return iconSize_;
 }
 
+void Button::setStyle(const ButtonStyle& style)
+{
+    customStyle_ = style;
+    markLayoutDirty();
+}
+
+void Button::clearStyle()
+{
+    if (!customStyle_.has_value()) {
+        return;
+    }
+
+    customStyle_.reset();
+    markLayoutDirty();
+}
+
+const ButtonStyle* Button::style() const
+{
+    return customStyle_ ? &*customStyle_ : nullptr;
+}
+
 void Button::onClick(std::function<void()> handler)
 {
     onClick_ = std::move(handler);
@@ -116,22 +140,90 @@ bool Button::focusable() const
     return true;
 }
 
+const ButtonStyle& Button::resolvedStyle() const
+{
+    return customStyle_ ? *customStyle_ : resolvedTheme().buttonStyle;
+}
+
+WidgetState Button::currentState() const
+{
+    if (pressed_) {
+        return WidgetState::Pressed;
+    }
+    if (hovered_) {
+        return WidgetState::Hovered;
+    }
+    if (focused()) {
+        return WidgetState::Focused;
+    }
+    return WidgetState::Normal;
+}
+
+void Button::animateHoverProgress(float targetProgress)
+{
+    AnimationSink* currentAnimationSink = &animationSink();
+    if (hoverAnimation_ != 0 && hoverAnimationSink_ == currentAnimationSink) {
+        currentAnimationSink->cancelAnimation(hoverAnimation_);
+        hoverAnimation_ = 0;
+    }
+    hoverAnimationSink_ = currentAnimationSink;
+
+    const float currentProgress = animatedHoverProgress_ != nullptr ? *animatedHoverProgress_ : 0.0f;
+    const float clampedTarget = detail::clampUnit(targetProgress);
+    if (std::abs(currentProgress - clampedTarget) <= 0.001f) {
+        if (animatedHoverProgress_ != nullptr) {
+            *animatedHoverProgress_ = clampedTarget;
+        }
+        return;
+    }
+
+    const std::shared_ptr<float> progress = animatedHoverProgress_;
+    const std::shared_ptr<bool> alive = hoverAnimationAlive_;
+    hoverAnimation_ = currentAnimationSink->animate(
+        {
+            .from = currentProgress,
+            .to = clampedTarget,
+            .durationSeconds = detail::kHoverTransitionDurationSeconds,
+            .loop = false,
+            .alternate = false,
+            .easing = Easing::EaseInOut,
+        },
+        [progress, alive, this](float value) {
+            if (progress != nullptr) {
+                *progress = value;
+            }
+            if (alive != nullptr && *alive) {
+                markPaintDirty();
+            }
+        });
+}
+
+void Button::updateHovered(bool hovered)
+{
+    if (hovered_ == hovered) {
+        return;
+    }
+
+    hovered_ = hovered;
+    animateHoverProgress(hovered ? 1.0f : 0.0f);
+    markPaintDirty();
+}
+
 core::Size Button::measure(const Constraints& constraints)
 {
-    const Theme& theme = resolvedTheme();
-
-    const TextMetrics metrics = measureTextMetrics(label_, theme.fontSize);
+    const ButtonStyle& style = resolvedStyle();
+    const TextMetrics metrics = measureTextMetrics(label_, style.textStyle.fontSize);
     const core::Size resolvedIconSize = resolveButtonIconSize(icon_, iconSize_);
     const bool hasIcon = resolvedIconSize.width() > 0.0f && resolvedIconSize.height() > 0.0f;
     const bool hasLabel = !label_.empty();
     const float contentWidth = metrics.width
         + (hasIcon ? resolvedIconSize.width() : 0.0f)
-        + (hasIcon && hasLabel ? kIconSpacing : 0.0f);
+        + (hasIcon && hasLabel ? style.iconSpacing : 0.0f);
     const float contentHeight = std::max(metrics.height, resolvedIconSize.height());
 
     return constraints.constrain(core::Size::Make(
-        contentWidth + theme.padding * 2.0f,
-        contentHeight + kVerticalPadding * 2.0f));
+        std::max(style.minWidth, contentWidth + style.paddingHorizontal * 2.0f),
+        std::max(style.minHeight, contentHeight + style.paddingVertical * 2.0f)));
 }
 
 void Button::onDraw(rendering::Canvas& canvas)
@@ -140,39 +232,58 @@ void Button::onDraw(rendering::Canvas& canvas)
         return;
     }
 
-    const Theme& theme = resolvedTheme();
+    const ButtonStyle& style = resolvedStyle();
+    const WidgetState state = currentState();
+    const WidgetState baseState = focused() ? WidgetState::Focused : WidgetState::Normal;
+    const float hoverProgress = animatedHoverProgress_ != nullptr ? *animatedHoverProgress_ : 0.0f;
     const core::Color backgroundColor = pressed_
-        ? theme.primary
-        : hovered_
-            ? theme.border
-            : theme.surface;
-    const core::Color textColor = pressed_
-        ? theme.onPrimary
-        : theme.text;
+        ? style.backgroundColor.resolve(state)
+        : detail::lerpColor(
+            style.backgroundColor.resolve(baseState),
+            style.backgroundColor.resolve(WidgetState::Hovered),
+            hoverProgress);
+    const core::Color borderColor = style.borderColor.resolve(state);
+    const float borderWidth = style.borderWidth.resolve(state);
+    const core::Color textColor = style.textColor.resolve(state);
 
     canvas.drawRoundRect(
         core::Rect::MakeWH(bounds_.width(), bounds_.height()),
-        theme.cornerRadius,
-        theme.cornerRadius,
+        style.borderRadius,
+        style.borderRadius,
         backgroundColor);
 
-    if (focused()) {
+    if (borderWidth > 0.0f) {
         canvas.drawRoundRect(
-            core::Rect::MakeXYWH(1.0f, 1.0f, bounds_.width() - 2.0f, bounds_.height() - 2.0f),
-            theme.cornerRadius - 1.0f,
-            theme.cornerRadius - 1.0f,
-            theme.primary,
+            core::Rect::MakeWH(bounds_.width(), bounds_.height()),
+            style.borderRadius,
+            style.borderRadius,
+            borderColor,
             rendering::PaintStyle::Stroke,
-            2.0f);
+            borderWidth);
     }
 
-    const TextMetrics metrics = measureTextMetrics(label_, theme.fontSize);
+    if (focused()) {
+        const float inset = std::max(1.0f, style.focusRingWidth * 0.5f);
+        canvas.drawRoundRect(
+            core::Rect::MakeXYWH(
+                inset,
+                inset,
+                std::max(0.0f, bounds_.width() - inset * 2.0f),
+                std::max(0.0f, bounds_.height() - inset * 2.0f)),
+            std::max(0.0f, style.borderRadius - inset),
+            std::max(0.0f, style.borderRadius - inset),
+            style.focusRingColor,
+            rendering::PaintStyle::Stroke,
+            style.focusRingWidth);
+    }
+
+    const TextMetrics metrics = measureTextMetrics(label_, style.textStyle.fontSize);
     const core::Size resolvedIconSize = resolveButtonIconSize(icon_, iconSize_);
     const bool hasIcon = resolvedIconSize.width() > 0.0f && resolvedIconSize.height() > 0.0f;
     const bool hasLabel = !label_.empty();
     const float contentWidth = metrics.width
         + (hasIcon ? resolvedIconSize.width() : 0.0f)
-        + (hasIcon && hasLabel ? kIconSpacing : 0.0f);
+        + (hasIcon && hasLabel ? style.iconSpacing : 0.0f);
     float cursorX = (bounds_.width() - contentWidth) * 0.5f;
     const float textY = (bounds_.height() - metrics.height) * 0.5f + metrics.baseline;
     const float iconY = (bounds_.height() - resolvedIconSize.height()) * 0.5f;
@@ -183,18 +294,18 @@ void Button::onDraw(rendering::Canvas& canvas)
             core::Rect::MakeXYWH(cursorX, iconY, resolvedIconSize.width(), resolvedIconSize.height()));
         cursorX += resolvedIconSize.width();
         if (hasLabel) {
-            cursorX += kIconSpacing;
+            cursorX += style.iconSpacing;
         }
     }
 
     if (hasLabel) {
-        canvas.drawText(label_, cursorX + metrics.drawX, textY, theme.fontSize, textColor);
+        canvas.drawText(label_, cursorX + metrics.drawX, textY, style.textStyle.fontSize, textColor);
         cursorX += metrics.width;
     }
 
     if (hasIcon && iconPlacement_ == ButtonIconPlacement::End) {
         if (hasLabel) {
-            cursorX += kIconSpacing;
+            cursorX += style.iconSpacing;
         }
         canvas.drawImage(
             icon_,
@@ -206,18 +317,10 @@ bool Button::onEvent(core::Event& event)
 {
     switch (event.type()) {
     case core::EventType::MouseEnter:
-        if (!hovered_) {
-            hovered_ = true;
-            markPaintDirty();
-        }
+        updateHovered(true);
         return false;
     case core::EventType::MouseLeave:
-        if (hovered_) {
-            hovered_ = false;
-            if (!pressed_) {
-                markPaintDirty();
-            }
-        }
+        updateHovered(false);
         return false;
     case core::EventType::MouseMove: {
         const auto& moveEvent = static_cast<const core::MouseMoveEvent&>(event);
@@ -225,10 +328,7 @@ bool Button::onEvent(core::Event& event)
             static_cast<float>(moveEvent.x),
             static_cast<float>(moveEvent.y)));
         const bool inside = containsLocalPoint(localPoint.x(), localPoint.y());
-        if (hovered_ != inside) {
-            hovered_ = inside;
-            markPaintDirty();
-        }
+        updateHovered(inside);
         return false;
     }
     case core::EventType::MouseButtonPress: {
@@ -243,7 +343,7 @@ bool Button::onEvent(core::Event& event)
 
         if (!pressed_) {
             pressed_ = true;
-            hovered_ = true;
+            updateHovered(true);
             markPaintDirty();
         }
         return true;
@@ -261,7 +361,7 @@ bool Button::onEvent(core::Event& event)
         const bool shouldClick = pressed_ && inside;
         if (pressed_ || hovered_ != inside) {
             pressed_ = false;
-            hovered_ = inside;
+            updateHovered(inside);
             markPaintDirty();
         }
         if (shouldClick && onClick_) {
@@ -283,7 +383,7 @@ bool Button::onEvent(core::Event& event)
                 onClick_();
             }
             pressed_ = false;
-            hovered_ = false;
+            updateHovered(false);
             markPaintDirty();
             return true;
         }

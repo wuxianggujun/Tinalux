@@ -2,9 +2,11 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "tinalux/ui/Container.h"
+#include "tinalux/ui/DialogStyle.h"
 
 namespace tinalux::ui {
 
@@ -29,6 +31,9 @@ public:
     void setCornerRadius(float radius);
     void setPadding(float padding);
     void setMaxSize(core::Size size);
+    void setStyle(const DialogStyle& style);
+    void clearStyle();
+    const DialogStyle* style() const;
 
     bool focusable() const override;
     core::Size measure(const Constraints& constraints) override;
@@ -41,6 +46,9 @@ public:
     void removeChild(Widget*) = delete;
     void setLayout(std::unique_ptr<Layout>) = delete;
 
+protected:
+    DialogStyle resolvedStyle() const;
+
 private:
     Widget* contentWidget() const;
     void dismiss();
@@ -49,11 +57,12 @@ private:
     std::function<void()> onDismiss_;
     core::Rect cardBounds_ = core::Rect::MakeEmpty();
     core::Rect contentBounds_ = core::Rect::MakeEmpty();
-    core::Color backdropColor_ = core::colorARGB(160, 0, 0, 0);
-    core::Color backgroundColor_ = core::colorRGB(32, 35, 47);
-    float cornerRadius_ = 20.0f;
-    float padding_ = 20.0f;
-    core::Size maxSize_ = core::Size::Make(520.0f, 420.0f);
+    std::optional<DialogStyle> customStyle_;
+    std::optional<core::Color> backdropColorOverride_;
+    std::optional<core::Color> backgroundColorOverride_;
+    std::optional<float> cornerRadiusOverride_;
+    std::optional<float> paddingOverride_;
+    std::optional<core::Size> maxSizeOverride_;
     bool dismissOnBackdrop_ = true;
     bool dismissOnEscape_ = true;
     bool backdropPressed_ = false;

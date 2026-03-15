@@ -46,6 +46,7 @@ struct RuntimeState {
 };
 
 const Theme& runtimeTheme();
+AnimationSink& runtimeAnimationSink();
 
 class ScopedRuntimeState final {
 public:

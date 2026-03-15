@@ -3,7 +3,18 @@ add_library(TinaluxUI STATIC
     Widget.cpp
     Container.cpp
     DemoScene.cpp
+    IconRegistry.cpp
+    ResourceManager.cpp
     Theme.cpp
+    ButtonStyle.cpp
+    DialogStyle.cpp
+    ListViewStyle.cpp
+    PanelStyle.cpp
+    SelectionControlStyle.cpp
+    ScrollViewStyle.cpp
+    SliderStyle.cpp
+    TextInputStyle.cpp
+    ThemeManager.cpp
     Animation.cpp
     RuntimeState.cpp
     TextPrimitives.cpp
@@ -11,6 +22,9 @@ add_library(TinaluxUI STATIC
     Clipboard.cpp
     layouts/VBoxLayout.cpp
     layouts/HBoxLayout.cpp
+    layouts/FlexLayout.cpp
+    layouts/GridLayout.cpp
+    layouts/ResponsiveLayout.cpp
     widgets/Label.cpp
     widgets/ParagraphLabel.cpp
     widgets/Button.cpp

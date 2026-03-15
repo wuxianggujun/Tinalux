@@ -1,7 +1,9 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 
+#include "tinalux/ui/ScrollViewStyle.h"
 #include "tinalux/ui/Widget.h"
 
 namespace tinalux::ui {
@@ -17,6 +19,9 @@ public:
     float scrollOffset() const;
     float maxScrollOffset() const;
     float contentHeight() const;
+    void setStyle(const ScrollViewStyle& style);
+    void clearStyle();
+    const ScrollViewStyle* style() const;
 
     core::Size measure(const Constraints& constraints) override;
     void arrange(const core::Rect& bounds) override;
@@ -25,6 +30,7 @@ public:
     bool onEvent(core::Event& event) override;
 
 protected:
+    const ScrollViewStyle& resolvedStyle() const;
     core::Point childOffsetAdjustment(const Widget& child) const override;
     void clampScrollOffset();
 
@@ -37,6 +43,7 @@ protected:
     core::Size cachedContentSize_ = core::Size::Make(0.0f, 0.0f);
     std::uint64_t cachedContentLayoutVersion_ = 0;
     bool contentMeasureCacheValid_ = false;
+    std::optional<ScrollViewStyle> customStyle_;
 };
 
 }  // namespace tinalux::ui

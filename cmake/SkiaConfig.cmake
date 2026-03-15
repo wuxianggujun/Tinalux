@@ -321,6 +321,8 @@ function(tinalux_enable_skia)
         return()
     endif()
 
+    unset(_skia_public_target)
+
     if(NOT EXISTS "${SKIA_SOURCE_DIR}/BUILD.gn")
         message(FATAL_ERROR "Skia source not found at '${SKIA_SOURCE_DIR}'. Expected BUILD.gn. Run sync script or set -DSKIA_SOURCE_DIR=...")
     endif()
@@ -375,26 +377,41 @@ function(tinalux_enable_skia)
 
             if(_has_existing_debug_outputs AND _has_existing_release_outputs)
                 message(STATUS "Tinalux: Reusing existing Skia outputs under ${SKIA_BUILD_DIR}")
-            else()
-                _tinalux_define_skia_build(_skia_debug_lib "Debug" "true")
-                _tinalux_define_skia_build(_skia_release_lib "Release" "false")
             endif()
-            add_custom_target(tinalux_build_skia
-                DEPENDS
-                    "$<$<CONFIG:Debug>:${_skia_debug_lib}>"
-                    "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:${_skia_release_lib}>"
-            )
 
-            add_library(Skia::Skia STATIC IMPORTED GLOBAL)
-            add_dependencies(Skia::Skia tinalux_build_skia)
-            set_target_properties(Skia::Skia PROPERTIES
-                IMPORTED_CONFIGURATIONS "Debug;Release;RelWithDebInfo;MinSizeRel"
-                IMPORTED_LOCATION_DEBUG "${_skia_debug_lib}"
-                IMPORTED_LOCATION_RELEASE "${_skia_release_lib}"
-                IMPORTED_LOCATION_RELWITHDEBINFO "${_skia_release_lib}"
-                IMPORTED_LOCATION_MINSIZEREL "${_skia_release_lib}"
-                INTERFACE_INCLUDE_DIRECTORIES "${SKIA_SOURCE_DIR}/include;${SKIA_SOURCE_DIR}"
+            # 始终定义两套规则，确保多配置生成器在产物被删掉或过期时仍能重建。
+            _tinalux_define_skia_build(_skia_debug_lib "Debug" "true")
+            _tinalux_define_skia_build(_skia_release_lib "Release" "false")
+
+            add_custom_target(tinalux_build_skia_debug DEPENDS "${_skia_debug_lib}")
+            add_custom_target(tinalux_build_skia_release DEPENDS "${_skia_release_lib}")
+            add_custom_target(tinalux_build_skia)
+            add_dependencies(tinalux_build_skia tinalux_build_skia_debug tinalux_build_skia_release)
+
+            add_library(tinalux_skia_debug INTERFACE)
+            add_dependencies(tinalux_skia_debug tinalux_build_skia_debug)
+            target_include_directories(tinalux_skia_debug INTERFACE
+                "${SKIA_SOURCE_DIR}/include"
+                "${SKIA_SOURCE_DIR}"
             )
+            target_link_libraries(tinalux_skia_debug INTERFACE "${_skia_debug_lib}")
+
+            add_library(tinalux_skia_release INTERFACE)
+            add_dependencies(tinalux_skia_release tinalux_build_skia_release)
+            target_include_directories(tinalux_skia_release INTERFACE
+                "${SKIA_SOURCE_DIR}/include"
+                "${SKIA_SOURCE_DIR}"
+            )
+            target_link_libraries(tinalux_skia_release INTERFACE "${_skia_release_lib}")
+
+            add_library(tinalux_skia INTERFACE)
+            add_dependencies(tinalux_skia tinalux_build_skia_debug tinalux_build_skia_release)
+            target_link_libraries(tinalux_skia INTERFACE
+                "$<$<CONFIG:Debug>:tinalux_skia_debug>"
+                "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:tinalux_skia_release>"
+            )
+            add_library(Skia::Skia ALIAS tinalux_skia)
+            set(_skia_public_target tinalux_skia)
         else()
             if(SKIA_BUILD_TYPE MATCHES "^[Dd]ebug$")
                 set(_skia_is_debug "true")
@@ -409,21 +426,19 @@ function(tinalux_enable_skia)
             _tinalux_skia_outputs_exist(_has_existing_outputs "${SKIA_BUILD_DIR}/${SKIA_BUILD_TYPE}" "${_signature_file}")
             if(_has_existing_outputs)
                 message(STATUS "Tinalux: Reusing existing Skia ${SKIA_BUILD_TYPE} outputs under ${SKIA_BUILD_DIR}")
-            else()
-                _tinalux_define_skia_build(_skia_lib "${SKIA_BUILD_TYPE}" "${_skia_is_debug}")
-                add_custom_target(tinalux_build_skia DEPENDS "${_skia_lib}")
             endif()
+            _tinalux_define_skia_build(_skia_lib "${SKIA_BUILD_TYPE}" "${_skia_is_debug}")
+            add_custom_target(tinalux_build_skia DEPENDS "${_skia_lib}")
             add_library(Skia::Skia STATIC IMPORTED GLOBAL)
-            if(TARGET tinalux_build_skia)
-                add_dependencies(Skia::Skia tinalux_build_skia)
-            endif()
+            add_dependencies(Skia::Skia tinalux_build_skia)
             set_target_properties(Skia::Skia PROPERTIES
                 IMPORTED_LOCATION "${_skia_lib}"
                 INTERFACE_INCLUDE_DIRECTORIES "${SKIA_SOURCE_DIR}/include;${SKIA_SOURCE_DIR}"
             )
+            set(_skia_public_target Skia::Skia)
         endif()
         if(WIN32 AND SKIA_ENABLE_GPU)
-            set_property(TARGET Skia::Skia APPEND PROPERTY INTERFACE_LINK_LIBRARIES opengl32)
+            set_property(TARGET ${_skia_public_target} APPEND PROPERTY INTERFACE_LINK_LIBRARIES opengl32)
         endif()
     else()
         if(CMAKE_CONFIGURATION_TYPES)
@@ -445,6 +460,7 @@ function(tinalux_enable_skia)
                 IMPORTED_LOCATION_MINSIZEREL "${_skia_release_lib}"
                 INTERFACE_INCLUDE_DIRECTORIES "${SKIA_SOURCE_DIR}/include;${SKIA_SOURCE_DIR}"
             )
+            set(_skia_public_target Skia::Skia)
         else()
             add_library(Skia::Skia STATIC IMPORTED GLOBAL)
             if(NOT _skia_lib)
@@ -458,9 +474,10 @@ function(tinalux_enable_skia)
                 IMPORTED_LOCATION "${_skia_lib}"
                 INTERFACE_INCLUDE_DIRECTORIES "${SKIA_SOURCE_DIR}/include;${SKIA_SOURCE_DIR}"
             )
+            set(_skia_public_target Skia::Skia)
         endif()
         if(WIN32 AND SKIA_ENABLE_GPU)
-            set_property(TARGET Skia::Skia APPEND PROPERTY INTERFACE_LINK_LIBRARIES opengl32)
+            set_property(TARGET ${_skia_public_target} APPEND PROPERTY INTERFACE_LINK_LIBRARIES opengl32)
         endif()
     endif()
 endfunction()

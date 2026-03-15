@@ -12,12 +12,6 @@
 
 namespace tinalux::ui {
 
-namespace {
-
-constexpr float kTitleGap = 12.0f;
-
-}  // namespace
-
 Dialog::Dialog(std::string title)
     : title_(std::move(title))
 {
@@ -83,43 +77,43 @@ bool Dialog::dismissOnEscape() const
 
 void Dialog::setBackdropColor(core::Color color)
 {
-    if (backdropColor_ == color) {
+    if (backdropColorOverride_ && *backdropColorOverride_ == color) {
         return;
     }
 
-    backdropColor_ = color;
+    backdropColorOverride_ = color;
     markPaintDirty();
 }
 
 void Dialog::setBackgroundColor(core::Color color)
 {
-    if (backgroundColor_ == color) {
+    if (backgroundColorOverride_ && *backgroundColorOverride_ == color) {
         return;
     }
 
-    backgroundColor_ = color;
+    backgroundColorOverride_ = color;
     markPaintDirty();
 }
 
 void Dialog::setCornerRadius(float radius)
 {
     const float clampedRadius = std::max(radius, 0.0f);
-    if (cornerRadius_ == clampedRadius) {
+    if (cornerRadiusOverride_ && *cornerRadiusOverride_ == clampedRadius) {
         return;
     }
 
-    cornerRadius_ = clampedRadius;
+    cornerRadiusOverride_ = clampedRadius;
     markPaintDirty();
 }
 
 void Dialog::setPadding(float padding)
 {
     const float clampedPadding = std::max(padding, 0.0f);
-    if (padding_ == clampedPadding) {
+    if (paddingOverride_ && *paddingOverride_ == clampedPadding) {
         return;
     }
 
-    padding_ = clampedPadding;
+    paddingOverride_ = clampedPadding;
     markLayoutDirty();
 }
 
@@ -128,12 +122,33 @@ void Dialog::setMaxSize(core::Size size)
     const core::Size clampedSize = core::Size::Make(
         std::max(0.0f, size.width()),
         std::max(0.0f, size.height()));
-    if (maxSize_ == clampedSize) {
+    if (maxSizeOverride_ && *maxSizeOverride_ == clampedSize) {
         return;
     }
 
-    maxSize_ = clampedSize;
+    maxSizeOverride_ = clampedSize;
     markLayoutDirty();
+}
+
+void Dialog::setStyle(const DialogStyle& style)
+{
+    customStyle_ = style;
+    markLayoutDirty();
+}
+
+void Dialog::clearStyle()
+{
+    if (!customStyle_.has_value()) {
+        return;
+    }
+
+    customStyle_.reset();
+    markLayoutDirty();
+}
+
+const DialogStyle* Dialog::style() const
+{
+    return customStyle_ ? &*customStyle_ : nullptr;
 }
 
 bool Dialog::focusable() const
@@ -141,34 +156,56 @@ bool Dialog::focusable() const
     return children_.empty();
 }
 
+DialogStyle Dialog::resolvedStyle() const
+{
+    DialogStyle style = customStyle_ ? *customStyle_ : resolvedTheme().dialogStyle;
+    if (backdropColorOverride_) {
+        style.backdropColor = *backdropColorOverride_;
+    }
+    if (backgroundColorOverride_) {
+        style.backgroundColor = *backgroundColorOverride_;
+    }
+    if (cornerRadiusOverride_) {
+        style.cornerRadius = *cornerRadiusOverride_;
+    }
+    if (paddingOverride_) {
+        style.padding = *paddingOverride_;
+    }
+    if (maxSizeOverride_) {
+        style.maxSize = *maxSizeOverride_;
+    }
+    return style;
+}
+
 core::Size Dialog::measure(const Constraints& constraints)
 {
-    const Theme& theme = resolvedTheme();
-    const float titleFontSize = theme.fontSizeLarge;
+    const DialogStyle style = resolvedStyle();
+    const float titleFontSize = style.titleTextStyle.fontSize;
     const TextMetrics titleMetrics = title_.empty()
         ? TextMetrics {}
         : measureTextMetrics(title_, titleFontSize);
     const float titleHeight = title_.empty() ? 0.0f : titleMetrics.height;
     const float availableCardWidth = std::isfinite(constraints.maxWidth)
-        ? std::min(maxSize_.width() > 0.0f ? maxSize_.width() : constraints.maxWidth, constraints.maxWidth)
-        : maxSize_.width();
+        ? std::min(style.maxSize.width() > 0.0f ? style.maxSize.width() : constraints.maxWidth, constraints.maxWidth)
+        : style.maxSize.width();
     const float availableCardHeight = std::isfinite(constraints.maxHeight)
-        ? std::min(maxSize_.height() > 0.0f ? maxSize_.height() : constraints.maxHeight, constraints.maxHeight)
-        : maxSize_.height();
-    const float maxContentWidth = std::max(0.0f, availableCardWidth - padding_ * 2.0f);
+        ? std::min(style.maxSize.height() > 0.0f ? style.maxSize.height() : constraints.maxHeight, constraints.maxHeight)
+        : style.maxSize.height();
+    const float maxContentWidth = std::max(0.0f, availableCardWidth - style.padding * 2.0f);
     const float maxContentHeight = std::max(
         0.0f,
-        availableCardHeight - padding_ * 2.0f - titleHeight - (title_.empty() ? 0.0f : kTitleGap));
+        availableCardHeight - style.padding * 2.0f - titleHeight
+            - (title_.empty() ? 0.0f : style.titleGap));
 
     Widget* contentWidgetPtr = contentWidget();
     const core::Size contentSize = contentWidgetPtr != nullptr
         ? contentWidgetPtr->measure(Constraints::loose(maxContentWidth, maxContentHeight))
         : core::Size::Make(0.0f, 0.0f);
 
-    const float cardWidth = std::max(titleMetrics.width, contentSize.width()) + padding_ * 2.0f;
-    const float cardHeight = padding_ * 2.0f
+    const float cardWidth = std::max(titleMetrics.width, contentSize.width()) + style.padding * 2.0f;
+    const float cardHeight = style.padding * 2.0f
         + titleHeight
-        + (contentWidgetPtr != nullptr && !title_.empty() ? kTitleGap : 0.0f)
+        + (contentWidgetPtr != nullptr && !title_.empty() ? style.titleGap : 0.0f)
         + contentSize.height();
 
     return constraints.constrain(core::Size::Make(cardWidth, cardHeight));
@@ -178,36 +215,37 @@ void Dialog::arrange(const core::Rect& bounds)
 {
     Widget::arrange(bounds);
 
-    const Theme& theme = resolvedTheme();
-    const float titleFontSize = theme.fontSizeLarge;
+    const DialogStyle style = resolvedStyle();
+    const float titleFontSize = style.titleTextStyle.fontSize;
     const TextMetrics titleMetrics = title_.empty()
         ? TextMetrics {}
         : measureTextMetrics(title_, titleFontSize);
     const float titleHeight = title_.empty() ? 0.0f : titleMetrics.height;
     const float maxCardWidth = std::min(
         bounds.width() * 0.9f,
-        maxSize_.width() > 0.0f ? maxSize_.width() : bounds.width());
+        style.maxSize.width() > 0.0f ? style.maxSize.width() : bounds.width());
     const float maxCardHeight = std::min(
         bounds.height() * 0.9f,
-        maxSize_.height() > 0.0f ? maxSize_.height() : bounds.height());
+        style.maxSize.height() > 0.0f ? style.maxSize.height() : bounds.height());
 
     core::Size contentSize = core::Size::Make(0.0f, 0.0f);
     if (Widget* contentWidgetPtr = contentWidget(); contentWidgetPtr != nullptr) {
-        const float maxContentWidth = std::max(0.0f, maxCardWidth - padding_ * 2.0f);
+        const float maxContentWidth = std::max(0.0f, maxCardWidth - style.padding * 2.0f);
         const float maxContentHeight = std::max(
             0.0f,
-            maxCardHeight - padding_ * 2.0f - titleHeight - (title_.empty() ? 0.0f : kTitleGap));
+            maxCardHeight - style.padding * 2.0f - titleHeight
+                - (title_.empty() ? 0.0f : style.titleGap));
         contentSize = contentWidgetPtr->measure(Constraints::loose(maxContentWidth, maxContentHeight));
     }
 
     const float cardWidth = std::min(
         maxCardWidth,
-        std::max(titleMetrics.width, contentSize.width()) + padding_ * 2.0f);
+        std::max(titleMetrics.width, contentSize.width()) + style.padding * 2.0f);
     const float cardHeight = std::min(
         maxCardHeight,
-        padding_ * 2.0f
+        style.padding * 2.0f
             + titleHeight
-            + (contentWidget() != nullptr && !title_.empty() ? kTitleGap : 0.0f)
+            + (contentWidget() != nullptr && !title_.empty() ? style.titleGap : 0.0f)
             + contentSize.height());
 
     cardBounds_ = core::Rect::MakeXYWH(
@@ -217,12 +255,12 @@ void Dialog::arrange(const core::Rect& bounds)
         cardHeight);
 
     if (Widget* contentWidgetPtr = contentWidget(); contentWidgetPtr != nullptr) {
-        const float contentY = cardBounds_.y() + padding_ + titleHeight
-            + (!title_.empty() ? kTitleGap : 0.0f);
+        const float contentY = cardBounds_.y() + style.padding + titleHeight
+            + (!title_.empty() ? style.titleGap : 0.0f);
         contentBounds_ = core::Rect::MakeXYWH(
-            cardBounds_.x() + padding_,
+            cardBounds_.x() + style.padding,
             contentY,
-            std::max(0.0f, cardBounds_.width() - padding_ * 2.0f),
+            std::max(0.0f, cardBounds_.width() - style.padding * 2.0f),
             contentSize.height());
         contentWidgetPtr->arrange(contentBounds_);
     } else {
@@ -236,28 +274,28 @@ void Dialog::onDraw(rendering::Canvas& canvas)
         return;
     }
 
-    const Theme& theme = resolvedTheme();
-    const float titleFontSize = theme.fontSizeLarge;
+    const DialogStyle style = resolvedStyle();
+    const float titleFontSize = style.titleTextStyle.fontSize;
     const TextMetrics titleMetrics = title_.empty()
         ? TextMetrics {}
         : measureTextMetrics(title_, titleFontSize);
 
     canvas.drawRect(
         core::Rect::MakeWH(bounds_.width(), bounds_.height()),
-        backdropColor_);
+        style.backdropColor);
     canvas.drawRoundRect(
         cardBounds_,
-        cornerRadius_,
-        cornerRadius_,
-        backgroundColor_);
+        style.cornerRadius,
+        style.cornerRadius,
+        style.backgroundColor);
 
     if (!title_.empty()) {
         canvas.drawText(
             title_,
-            cardBounds_.x() + padding_ + titleMetrics.drawX,
-            cardBounds_.y() + padding_ + titleMetrics.baseline,
+            cardBounds_.x() + style.padding + titleMetrics.drawX,
+            cardBounds_.y() + style.padding + titleMetrics.baseline,
             titleFontSize,
-            theme.text);
+            style.titleColor);
     }
 
     drawChildren(canvas);

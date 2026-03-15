@@ -3,10 +3,10 @@
 #include <algorithm>
 #include <utility>
 
+#include "FontCache.h"
 #include "../core/SkiaGeometry.h"
 #include "include/core/SkBlendMode.h"
 #include "include/core/SkCanvas.h"
-#include "include/core/SkFont.h"
 #include "include/core/SkGraphics.h"
 #include "include/core/SkSamplingOptions.h"
 #include "include/core/SkPaint.h"
@@ -159,8 +159,7 @@ void Canvas::drawText(
     core::Color color)
 {
     if (auto* skia = RenderAccess::skiaCanvas(*this); skia != nullptr) {
-        SkFont font;
-        font.setSize(fontSize);
+        const SkFont& font = cachedFont(fontSize);
         SkPaint paint = makePaint(color, PaintStyle::Fill, 1.0f);
         skia->drawString(text.data(), x, y, font, paint);
     }
@@ -298,6 +297,7 @@ void initSkia()
 
 void shutdownSkia()
 {
+    clearCachedFonts();
     SkGraphics::PurgeAllCaches();
     core::logDebugCat("render", "Skia runtime caches purged");
 }

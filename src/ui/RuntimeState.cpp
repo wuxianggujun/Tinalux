@@ -55,6 +55,11 @@ const Theme& runtimeTheme()
     return activeRuntimeState().theme;
 }
 
+AnimationSink& runtimeAnimationSink()
+{
+    return activeRuntimeState().animationScheduler;
+}
+
 ScopedRuntimeState::ScopedRuntimeState(RuntimeState& runtimeState)
     : previous_(gBoundRuntimeState)
 {

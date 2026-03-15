@@ -5,25 +5,22 @@
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Theme.h"
 
+#include "HoverAnimationUtils.h"
 #include "../TextPrimitives.h"
 
 namespace tinalux::ui {
-
-namespace {
-
-constexpr float kTrackWidth = 44.0f;
-constexpr float kTrackHeight = 24.0f;
-constexpr float kThumbRadius = 9.0f;
-constexpr float kThumbInset = 3.0f;
-constexpr float kLabelGap = 12.0f;
-constexpr float kMinimumHeight = 30.0f;
-
-}  // namespace
 
 Toggle::Toggle(std::string label, bool on)
     : label_(std::move(label))
     , on_(on)
 {
+}
+
+Toggle::~Toggle()
+{
+    if (hoverAnimationAlive_ != nullptr) {
+        *hoverAnimationAlive_ = false;
+    }
 }
 
 const std::string& Toggle::label() const
@@ -56,18 +53,108 @@ void Toggle::onToggle(std::function<void(bool)> handler)
     onToggle_ = std::move(handler);
 }
 
+void Toggle::setStyle(const ToggleStyle& style)
+{
+    customStyle_ = style;
+    markLayoutDirty();
+}
+
+void Toggle::clearStyle()
+{
+    if (!customStyle_.has_value()) {
+        return;
+    }
+
+    customStyle_.reset();
+    markLayoutDirty();
+}
+
+const ToggleStyle* Toggle::style() const
+{
+    return customStyle_ ? &*customStyle_ : nullptr;
+}
+
 bool Toggle::focusable() const
 {
     return true;
 }
 
+const ToggleStyle& Toggle::resolvedStyle() const
+{
+    return customStyle_ ? *customStyle_ : resolvedTheme().toggleStyle;
+}
+
+WidgetState Toggle::currentState() const
+{
+    if (pressed_) {
+        return WidgetState::Pressed;
+    }
+    if (hovered_) {
+        return WidgetState::Hovered;
+    }
+    if (focused()) {
+        return WidgetState::Focused;
+    }
+    return WidgetState::Normal;
+}
+
+void Toggle::animateHoverProgress(float targetProgress)
+{
+    AnimationSink* currentAnimationSink = &animationSink();
+    if (hoverAnimation_ != 0 && hoverAnimationSink_ == currentAnimationSink) {
+        currentAnimationSink->cancelAnimation(hoverAnimation_);
+        hoverAnimation_ = 0;
+    }
+    hoverAnimationSink_ = currentAnimationSink;
+
+    const float currentProgress = animatedHoverProgress_ != nullptr ? *animatedHoverProgress_ : 0.0f;
+    const float clampedTarget = detail::clampUnit(targetProgress);
+    if (std::abs(currentProgress - clampedTarget) <= 0.001f) {
+        if (animatedHoverProgress_ != nullptr) {
+            *animatedHoverProgress_ = clampedTarget;
+        }
+        return;
+    }
+
+    const std::shared_ptr<float> progress = animatedHoverProgress_;
+    const std::shared_ptr<bool> alive = hoverAnimationAlive_;
+    hoverAnimation_ = currentAnimationSink->animate(
+        {
+            .from = currentProgress,
+            .to = clampedTarget,
+            .durationSeconds = detail::kHoverTransitionDurationSeconds,
+            .loop = false,
+            .alternate = false,
+            .easing = Easing::EaseInOut,
+        },
+        [progress, alive, this](float value) {
+            if (progress != nullptr) {
+                *progress = value;
+            }
+            if (alive != nullptr && *alive) {
+                markPaintDirty();
+            }
+        });
+}
+
+void Toggle::updateHovered(bool hovered)
+{
+    if (hovered_ == hovered) {
+        return;
+    }
+
+    hovered_ = hovered;
+    animateHoverProgress(hovered ? 1.0f : 0.0f);
+    markPaintDirty();
+}
+
 core::Size Toggle::measure(const Constraints& constraints)
 {
-    const Theme& theme = resolvedTheme();
-    const TextMetrics metrics = measureTextMetrics(label_, theme.fontSize);
+    const ToggleStyle& style = resolvedStyle();
+    const TextMetrics metrics = measureTextMetrics(label_, style.textStyle.fontSize);
     return constraints.constrain(core::Size::Make(
-        metrics.width + kLabelGap + kTrackWidth,
-        std::max(kMinimumHeight, std::max(metrics.height, kTrackHeight))));
+        metrics.width + style.labelGap + style.trackWidth,
+        std::max(style.minHeight, std::max(metrics.height, style.trackHeight))));
 }
 
 void Toggle::onDraw(rendering::Canvas& canvas)
@@ -76,52 +163,72 @@ void Toggle::onDraw(rendering::Canvas& canvas)
         return;
     }
 
-    const Theme& theme = resolvedTheme();
-    const TextMetrics metrics = measureTextMetrics(label_, theme.fontSize);
-    const float trackY = (bounds_.height() - kTrackHeight) * 0.5f;
+    const ToggleStyle& style = resolvedStyle();
+    const WidgetState state = currentState();
+    const WidgetState baseState = focused() ? WidgetState::Focused : WidgetState::Normal;
+    const float hoverProgress = animatedHoverProgress_ != nullptr ? *animatedHoverProgress_ : 0.0f;
+    const TextMetrics metrics = measureTextMetrics(label_, style.textStyle.fontSize);
+    const float trackY = (bounds_.height() - style.trackHeight) * 0.5f;
     const float thumbCenterY = bounds_.height() * 0.5f;
     const float thumbCenterX = on_
-        ? (kTrackWidth - kThumbInset - kThumbRadius)
-        : (kThumbInset + kThumbRadius);
+        ? (style.trackWidth - style.thumbInset - style.thumbRadius)
+        : (style.thumbInset + style.thumbRadius);
+    const float trackBorderWidth = style.trackBorderWidth.resolve(state);
+    const auto& trackColorStyle = on_ ? style.onTrackColor : style.offTrackColor;
+    const auto& thumbColorStyle = on_ ? style.onThumbColor : style.offThumbColor;
+    const core::Color trackColor = pressed_
+        ? trackColorStyle.resolve(state)
+        : detail::lerpColor(
+            trackColorStyle.resolve(baseState),
+            trackColorStyle.resolve(WidgetState::Hovered),
+            hoverProgress);
+    const core::Color thumbColor = pressed_
+        ? thumbColorStyle.resolve(state)
+        : detail::lerpColor(
+            thumbColorStyle.resolve(baseState),
+            thumbColorStyle.resolve(WidgetState::Hovered),
+            hoverProgress);
 
     canvas.drawRoundRect(
-        core::Rect::MakeXYWH(0.0f, trackY, kTrackWidth, kTrackHeight),
-        kTrackHeight * 0.5f,
-        kTrackHeight * 0.5f,
-        on_ ? theme.primary : (pressed_ || hovered_ ? theme.background : theme.surface));
+        core::Rect::MakeXYWH(0.0f, trackY, style.trackWidth, style.trackHeight),
+        style.trackHeight * 0.5f,
+        style.trackHeight * 0.5f,
+        trackColor);
 
-    if (focused()) {
+    if (trackBorderWidth > 0.0f) {
         canvas.drawRoundRect(
-            core::Rect::MakeXYWH(1.0f, trackY + 1.0f, kTrackWidth - 2.0f, kTrackHeight - 2.0f),
-            kTrackHeight * 0.5f,
-            kTrackHeight * 0.5f,
-            theme.primary,
+            core::Rect::MakeXYWH(
+                trackBorderWidth * 0.5f,
+                trackY + trackBorderWidth * 0.5f,
+                std::max(0.0f, style.trackWidth - trackBorderWidth),
+                std::max(0.0f, style.trackHeight - trackBorderWidth)),
+            style.trackHeight * 0.5f,
+            style.trackHeight * 0.5f,
+            style.trackBorderColor.resolve(state),
             rendering::PaintStyle::Stroke,
-            2.0f);
+            trackBorderWidth);
     }
-    canvas.drawCircle(thumbCenterX, thumbCenterY, kThumbRadius, on_ ? theme.onPrimary : theme.text);
+    canvas.drawCircle(
+        thumbCenterX,
+        thumbCenterY,
+        style.thumbRadius,
+        thumbColor);
     canvas.drawText(
         label_.c_str(),
-        kTrackWidth + kLabelGap + metrics.drawX,
+        style.trackWidth + style.labelGap + metrics.drawX,
         (bounds_.height() - metrics.height) * 0.5f + metrics.baseline,
-        theme.fontSize,
-        theme.text);
+        style.textStyle.fontSize,
+        style.labelColor.resolve(state));
 }
 
 bool Toggle::onEvent(core::Event& event)
 {
     switch (event.type()) {
     case core::EventType::MouseEnter:
-        if (!hovered_) {
-            hovered_ = true;
-            markPaintDirty();
-        }
+        updateHovered(true);
         return false;
     case core::EventType::MouseLeave:
-        if (hovered_) {
-            hovered_ = false;
-            markPaintDirty();
-        }
+        updateHovered(false);
         return false;
     case core::EventType::MouseMove: {
         const auto& moveEvent = static_cast<const core::MouseMoveEvent&>(event);
@@ -129,10 +236,7 @@ bool Toggle::onEvent(core::Event& event)
             static_cast<float>(moveEvent.x),
             static_cast<float>(moveEvent.y)));
         const bool inside = containsLocalPoint(localPoint.x(), localPoint.y());
-        if (hovered_ != inside) {
-            hovered_ = inside;
-            markPaintDirty();
-        }
+        updateHovered(inside);
         return pressed_;
     }
     case core::EventType::MouseButtonPress: {
@@ -147,7 +251,7 @@ bool Toggle::onEvent(core::Event& event)
 
         if (!pressed_) {
             pressed_ = true;
-            hovered_ = true;
+            updateHovered(true);
             markPaintDirty();
         }
         return true;
@@ -165,7 +269,7 @@ bool Toggle::onEvent(core::Event& event)
         const bool wasPressed = pressed_;
         if (pressed_ || hovered_ != inside) {
             pressed_ = false;
-            hovered_ = inside;
+            updateHovered(inside);
             markPaintDirty();
         }
         if (wasPressed && inside) {

@@ -4,9 +4,12 @@
 #include <cmath>
 #include <limits>
 
+#include "LayoutUtils.h"
 #include "tinalux/ui/Widget.h"
 
 namespace tinalux::ui {
+
+using namespace tinalux::ui::layout_utils;
 
 namespace {
 
@@ -58,14 +61,6 @@ bool sameChildLayoutVersions(
         }
     }
     return true;
-}
-
-float innerExtent(float extent, float padding)
-{
-    if (std::isinf(extent)) {
-        return extent;
-    }
-    return std::max(0.0f, extent - padding * 2.0f);
 }
 
 Constraints makeHBoxChildConstraints(float maxHeight)
@@ -132,8 +127,9 @@ void HBoxLayout::arrange(
     const core::Rect& bounds,
     std::vector<std::shared_ptr<Widget>>& children)
 {
-    const float maxChildHeight = std::max(0.0f, bounds.height() - padding * 2.0f);
-    float cursorX = padding;
+    const core::Rect contentBounds = innerExtent(bounds, padding);
+    const float maxChildHeight = contentBounds.height();
+    float cursorX = contentBounds.x();
     const bool canReuseMeasuredChildren = measureCacheValid_
         && nearlyEqual(cachedPadding_, padding)
         && nearlyEqual(cachedSpacing_, spacing)
@@ -155,7 +151,7 @@ void HBoxLayout::arrange(
             : arrangedChildSizes[index];
         child->arrange(core::Rect::MakeXYWH(
             cursorX,
-            padding,
+            contentBounds.y(),
             childSize.width(),
             std::min(childSize.height(), maxChildHeight)));
         cursorX += childSize.width() + spacing;

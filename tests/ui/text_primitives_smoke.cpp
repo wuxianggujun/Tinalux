@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <iostream>
 
+#include "../../src/rendering/FontCache.h"
 #include "../../src/ui/TextPrimitives.h"
 
 namespace {
@@ -20,15 +21,20 @@ int main()
 {
     using namespace tinalux::ui;
 
+    tinalux::rendering::clearCachedFonts();
+    expect(tinalux::rendering::cachedFontCount() == 0, "font cache should start empty after clear");
+
     const TextMetrics emptyMetrics = measureTextMetrics("", 16.0f);
     expect(emptyMetrics.width >= 0.0f, "empty text width should stay non-negative");
     expect(emptyMetrics.height >= 0.0f, "empty text height should stay non-negative");
     expect(emptyMetrics.baseline >= 0.0f, "baseline should stay non-negative");
+    expect(tinalux::rendering::cachedFontCount() == 1, "measuring text should populate one cached font");
 
     const TextMetrics asciiMetrics = measureTextMetrics("Build", 18.0f);
     const TextMetrics utf8Metrics = measureTextMetrics("你好，Tinalux", 18.0f);
     expect(asciiMetrics.width > 0.0f, "ASCII text should produce positive width");
     expect(utf8Metrics.width > 0.0f, "UTF-8 text should produce positive width");
+    expect(tinalux::rendering::cachedFontCount() == 2, "same font size should reuse cached font entry");
 
     const TextMetrics cachedAgain = measureTextMetrics("Build", 18.0f);
     expect(
@@ -37,6 +43,7 @@ int main()
             && std::abs(asciiMetrics.baseline - cachedAgain.baseline) < 0.001f
             && std::abs(asciiMetrics.drawX - cachedAgain.drawX) < 0.001f,
         "repeated text measurement should stay stable");
+    expect(tinalux::rendering::cachedFontCount() == 2, "repeated measurement should not add duplicate font entries");
 
     return 0;
 }

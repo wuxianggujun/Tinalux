@@ -26,6 +26,11 @@ const Theme& Widget::resolvedTheme() const
     return runtimeTheme();
 }
 
+AnimationSink& Widget::animationSink() const
+{
+    return runtimeAnimationSink();
+}
+
 core::Point Widget::childOffsetAdjustment(const Widget&) const
 {
     return core::Point::Make(0.0f, 0.0f);

@@ -3,11 +3,10 @@
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
-#include <mutex>
 #include <string>
-#include <unordered_map>
 #include <utility>
 
+#include "ImageCache.h"
 #include "include/core/SkData.h"
 #include "include/core/SkImage.h"
 #include "include/core/SkImageInfo.h"
@@ -17,8 +16,6 @@
 namespace tinalux::rendering {
 
 namespace {
-
-using ImageCache = std::unordered_map<std::string, Image>;
 
 std::size_t normalizedRowBytes(int width, std::size_t rowBytes)
 {
@@ -66,18 +63,6 @@ std::string normalizeImagePath(std::string_view path)
     });
 #endif
     return key;
-}
-
-ImageCache& imageFileCache()
-{
-    static ImageCache cache;
-    return cache;
-}
-
-std::mutex& imageFileCacheMutex()
-{
-    static std::mutex mutex;
-    return mutex;
 }
 
 Image decodeEncodedImage(sk_sp<SkData> encoded, std::string_view sourceLabel)
@@ -139,12 +124,10 @@ Image loadImageFromFile(std::string_view path)
     }
 
     const std::string normalizedPath = normalizeImagePath(path);
-    {
-        std::lock_guard<std::mutex> lock(imageFileCacheMutex());
-        if (const auto it = imageFileCache().find(normalizedPath); it != imageFileCache().end()) {
-            core::logDebugCat("render", "Image cache hit '{}'", normalizedPath);
-            return Image(it->second);
-        }
+    if (const auto cachedImage = ImageCache::instance().find(normalizedPath);
+        cachedImage.has_value()) {
+        core::logDebugCat("render", "Image cache hit '{}'", normalizedPath);
+        return *cachedImage;
     }
 
     sk_sp<SkData> encoded = SkData::MakeFromFileName(normalizedPath.c_str());
@@ -157,10 +140,7 @@ Image loadImageFromFile(std::string_view path)
     if (!loadedImage) {
         return {};
     }
-    {
-        std::lock_guard<std::mutex> lock(imageFileCacheMutex());
-        imageFileCache()[normalizedPath] = loadedImage;
-    }
+    ImageCache::instance().insert(normalizedPath, loadedImage);
 
     core::logDebugCat(
         "render",
@@ -213,14 +193,6 @@ Image createImageFromRGBA(
 
     core::logDebugCat("render", "Created RGBA image {}x{}", width, height);
     return RenderAccess::makeImage(std::move(image));
-}
-
-void clearImageFileCache()
-{
-    std::lock_guard<std::mutex> lock(imageFileCacheMutex());
-    const std::size_t entryCount = imageFileCache().size();
-    imageFileCache().clear();
-    core::logDebugCat("render", "Cleared image file cache (entries={})", entryCount);
 }
 
 }  // namespace tinalux::rendering

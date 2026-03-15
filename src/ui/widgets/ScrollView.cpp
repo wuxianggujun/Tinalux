@@ -10,15 +10,6 @@
 
 namespace tinalux::ui {
 
-namespace {
-
-constexpr float kScrollStep = 48.0f;
-constexpr float kScrollbarMargin = 6.0f;
-constexpr float kScrollbarWidth = 6.0f;
-constexpr float kMinThumbHeight = 24.0f;
-
-}  // namespace
-
 void ScrollView::setContent(std::shared_ptr<Widget> content)
 {
     if (content_ == content) {
@@ -76,6 +67,32 @@ float ScrollView::maxScrollOffset() const
 float ScrollView::contentHeight() const
 {
     return contentHeight_;
+}
+
+void ScrollView::setStyle(const ScrollViewStyle& style)
+{
+    customStyle_ = style;
+    markPaintDirty();
+}
+
+void ScrollView::clearStyle()
+{
+    if (!customStyle_.has_value()) {
+        return;
+    }
+
+    customStyle_.reset();
+    markPaintDirty();
+}
+
+const ScrollViewStyle* ScrollView::style() const
+{
+    return customStyle_ ? &*customStyle_ : nullptr;
+}
+
+const ScrollViewStyle& ScrollView::resolvedStyle() const
+{
+    return customStyle_ ? *customStyle_ : resolvedTheme().scrollViewStyle;
 }
 
 core::Size ScrollView::measure(const Constraints& constraints)
@@ -158,6 +175,8 @@ void ScrollView::onDraw(rendering::Canvas& canvas)
         return;
     }
 
+    const ScrollViewStyle& style = resolvedStyle();
+
     canvas.save();
     canvas.translate(0.0f, -scrollOffset_);
     content_->draw(canvas);
@@ -168,29 +187,42 @@ void ScrollView::onDraw(rendering::Canvas& canvas)
         return;
     }
 
-    const Theme& theme = resolvedTheme();
-    const float trackHeight = std::max(0.0f, bounds_.height() - kScrollbarMargin * 2.0f);
+    const float trackHeight =
+        std::max(0.0f, bounds_.height() - style.scrollbarMargin * 2.0f);
     const float thumbHeight = std::clamp(
         bounds_.height() * (bounds_.height() / std::max(bounds_.height(), contentHeight_)),
-        kMinThumbHeight,
+        style.minThumbHeight,
         trackHeight);
     const float thumbTravel = std::max(0.0f, trackHeight - thumbHeight);
-    const float thumbY = kScrollbarMargin
+    const float thumbY = style.scrollbarMargin
         + (thumbTravel * (scrollOffset_ / std::max(1.0f, maxOffset)));
+
+    const float scrollbarX = std::max(
+        0.0f,
+        bounds_.width() - style.scrollbarMargin - style.scrollbarWidth);
+    const float scrollbarRadius = style.scrollbarWidth * 0.5f;
+
+    if (style.scrollbarTrackColor.alpha() > 0) {
+        canvas.drawRoundRect(
+            core::Rect::MakeXYWH(
+                scrollbarX,
+                style.scrollbarMargin,
+                style.scrollbarWidth,
+                trackHeight),
+            scrollbarRadius,
+            scrollbarRadius,
+            style.scrollbarTrackColor);
+    }
 
     canvas.drawRoundRect(
         core::Rect::MakeXYWH(
-            std::max(0.0f, bounds_.width() - kScrollbarMargin - kScrollbarWidth),
+            scrollbarX,
             thumbY,
-            kScrollbarWidth,
+            style.scrollbarWidth,
             thumbHeight),
-        kScrollbarWidth * 0.5f,
-        kScrollbarWidth * 0.5f,
-        core::colorARGB(
-            120,
-            core::colorRed(theme.textSecondary),
-            core::colorGreen(theme.textSecondary),
-            core::colorBlue(theme.textSecondary)));
+        scrollbarRadius,
+        scrollbarRadius,
+        style.scrollbarThumbColor);
 }
 
 Widget* ScrollView::hitTest(float x, float y)
@@ -222,8 +254,9 @@ bool ScrollView::onEvent(core::Event& event)
     }
 
     const auto& scrollEvent = static_cast<const core::MouseScrollEvent&>(event);
+    const ScrollViewStyle& style = resolvedStyle();
     const float nextOffset = std::clamp(
-        scrollOffset_ - static_cast<float>(scrollEvent.yOffset) * kScrollStep,
+        scrollOffset_ - static_cast<float>(scrollEvent.yOffset) * style.scrollStep,
         0.0f,
         maxScrollOffset());
     if (std::abs(nextOffset - scrollOffset_) <= 0.001f) {

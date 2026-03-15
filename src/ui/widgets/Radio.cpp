@@ -6,24 +6,23 @@
 #include "tinalux/ui/Container.h"
 #include "tinalux/ui/Theme.h"
 
+#include "HoverAnimationUtils.h"
 #include "../TextPrimitives.h"
 
 namespace tinalux::ui {
-
-namespace {
-
-constexpr float kIndicatorSize = 22.0f;
-constexpr float kInnerDotSize = 10.0f;
-constexpr float kLabelGap = 12.0f;
-constexpr float kMinimumHeight = 28.0f;
-
-}  // namespace
 
 Radio::Radio(std::string label, std::string group, bool selected)
     : label_(std::move(label))
     , group_(std::move(group))
     , selected_(selected)
 {
+}
+
+Radio::~Radio()
+{
+    if (hoverAnimationAlive_ != nullptr) {
+        *hoverAnimationAlive_ = false;
+    }
 }
 
 const std::string& Radio::label() const
@@ -74,18 +73,108 @@ void Radio::onChanged(std::function<void(bool)> handler)
     onChanged_ = std::move(handler);
 }
 
+void Radio::setStyle(const RadioStyle& style)
+{
+    customStyle_ = style;
+    markLayoutDirty();
+}
+
+void Radio::clearStyle()
+{
+    if (!customStyle_.has_value()) {
+        return;
+    }
+
+    customStyle_.reset();
+    markLayoutDirty();
+}
+
+const RadioStyle* Radio::style() const
+{
+    return customStyle_ ? &*customStyle_ : nullptr;
+}
+
 bool Radio::focusable() const
 {
     return true;
 }
 
+const RadioStyle& Radio::resolvedStyle() const
+{
+    return customStyle_ ? *customStyle_ : resolvedTheme().radioStyle;
+}
+
+WidgetState Radio::currentState() const
+{
+    if (pressed_) {
+        return WidgetState::Pressed;
+    }
+    if (hovered_) {
+        return WidgetState::Hovered;
+    }
+    if (focused()) {
+        return WidgetState::Focused;
+    }
+    return WidgetState::Normal;
+}
+
+void Radio::animateHoverProgress(float targetProgress)
+{
+    AnimationSink* currentAnimationSink = &animationSink();
+    if (hoverAnimation_ != 0 && hoverAnimationSink_ == currentAnimationSink) {
+        currentAnimationSink->cancelAnimation(hoverAnimation_);
+        hoverAnimation_ = 0;
+    }
+    hoverAnimationSink_ = currentAnimationSink;
+
+    const float currentProgress = animatedHoverProgress_ != nullptr ? *animatedHoverProgress_ : 0.0f;
+    const float clampedTarget = detail::clampUnit(targetProgress);
+    if (std::abs(currentProgress - clampedTarget) <= 0.001f) {
+        if (animatedHoverProgress_ != nullptr) {
+            *animatedHoverProgress_ = clampedTarget;
+        }
+        return;
+    }
+
+    const std::shared_ptr<float> progress = animatedHoverProgress_;
+    const std::shared_ptr<bool> alive = hoverAnimationAlive_;
+    hoverAnimation_ = currentAnimationSink->animate(
+        {
+            .from = currentProgress,
+            .to = clampedTarget,
+            .durationSeconds = detail::kHoverTransitionDurationSeconds,
+            .loop = false,
+            .alternate = false,
+            .easing = Easing::EaseInOut,
+        },
+        [progress, alive, this](float value) {
+            if (progress != nullptr) {
+                *progress = value;
+            }
+            if (alive != nullptr && *alive) {
+                markPaintDirty();
+            }
+        });
+}
+
+void Radio::updateHovered(bool hovered)
+{
+    if (hovered_ == hovered) {
+        return;
+    }
+
+    hovered_ = hovered;
+    animateHoverProgress(hovered ? 1.0f : 0.0f);
+    markPaintDirty();
+}
+
 core::Size Radio::measure(const Constraints& constraints)
 {
-    const Theme& theme = resolvedTheme();
-    const TextMetrics metrics = measureTextMetrics(label_, theme.fontSize);
+    const RadioStyle& style = resolvedStyle();
+    const TextMetrics metrics = measureTextMetrics(label_, style.textStyle.fontSize);
     return constraints.constrain(core::Size::Make(
-        kIndicatorSize + kLabelGap + metrics.width,
-        std::max(kMinimumHeight, std::max(kIndicatorSize, metrics.height))));
+        style.indicatorSize + style.labelGap + metrics.width,
+        std::max(style.minHeight, std::max(style.indicatorSize, metrics.height))));
 }
 
 void Radio::onDraw(rendering::Canvas& canvas)
@@ -94,48 +183,53 @@ void Radio::onDraw(rendering::Canvas& canvas)
         return;
     }
 
-    const Theme& theme = resolvedTheme();
-    const TextMetrics metrics = measureTextMetrics(label_, theme.fontSize);
-    const float indicatorY = (bounds_.height() - kIndicatorSize) * 0.5f;
-    const float center = indicatorY + kIndicatorSize * 0.5f;
+    const RadioStyle& style = resolvedStyle();
+    const WidgetState state = currentState();
+    const WidgetState baseState = focused() ? WidgetState::Focused : WidgetState::Normal;
+    const float hoverProgress = animatedHoverProgress_ != nullptr ? *animatedHoverProgress_ : 0.0f;
+    const TextMetrics metrics = measureTextMetrics(label_, style.textStyle.fontSize);
+    const float indicatorY = (bounds_.height() - style.indicatorSize) * 0.5f;
+    const float center = indicatorY + style.indicatorSize * 0.5f;
+    const float borderWidth = style.borderWidth.resolve(state);
+    const auto& borderColorStyle = selected_ ? style.selectedBorderColor : style.unselectedBorderColor;
+    const core::Color borderColor = pressed_
+        ? borderColorStyle.resolve(state)
+        : detail::lerpColor(
+            borderColorStyle.resolve(baseState),
+            borderColorStyle.resolve(WidgetState::Hovered),
+            hoverProgress);
 
     canvas.drawCircle(
-        kIndicatorSize * 0.5f,
+        style.indicatorSize * 0.5f,
         center,
-        kIndicatorSize * 0.5f - 1.5f,
-        (focused() || hovered_ || selected_) ? theme.primary : theme.border,
+        style.indicatorSize * 0.5f - borderWidth * 0.5f,
+        borderColor,
         rendering::PaintStyle::Stroke,
-        focused() ? 2.0f : 1.5f);
+        borderWidth);
 
     if (selected_) {
         canvas.drawCircle(
-            kIndicatorSize * 0.5f,
+            style.indicatorSize * 0.5f,
             center,
-            kInnerDotSize * 0.5f,
-            theme.primary);
+            style.innerDotSize * 0.5f,
+            style.dotColor);
     }
     canvas.drawText(
         label_.c_str(),
-        kIndicatorSize + kLabelGap + metrics.drawX,
+        style.indicatorSize + style.labelGap + metrics.drawX,
         (bounds_.height() - metrics.height) * 0.5f + metrics.baseline,
-        theme.fontSize,
-        theme.text);
+        style.textStyle.fontSize,
+        style.labelColor.resolve(state));
 }
 
 bool Radio::onEvent(core::Event& event)
 {
     switch (event.type()) {
     case core::EventType::MouseEnter:
-        if (!hovered_) {
-            hovered_ = true;
-            markPaintDirty();
-        }
+        updateHovered(true);
         return false;
     case core::EventType::MouseLeave:
-        if (hovered_) {
-            hovered_ = false;
-            markPaintDirty();
-        }
+        updateHovered(false);
         return false;
     case core::EventType::MouseMove: {
         const auto& moveEvent = static_cast<const core::MouseMoveEvent&>(event);
@@ -143,10 +237,7 @@ bool Radio::onEvent(core::Event& event)
             static_cast<float>(moveEvent.x),
             static_cast<float>(moveEvent.y)));
         const bool inside = containsLocalPoint(localPoint.x(), localPoint.y());
-        if (hovered_ != inside) {
-            hovered_ = inside;
-            markPaintDirty();
-        }
+        updateHovered(inside);
         return pressed_;
     }
     case core::EventType::MouseButtonPress: {
@@ -161,7 +252,7 @@ bool Radio::onEvent(core::Event& event)
 
         if (!pressed_) {
             pressed_ = true;
-            hovered_ = true;
+            updateHovered(true);
             markPaintDirty();
         }
         return true;
@@ -179,7 +270,7 @@ bool Radio::onEvent(core::Event& event)
         const bool wasPressed = pressed_;
         if (pressed_ || hovered_ != inside) {
             pressed_ = false;
-            hovered_ = inside;
+            updateHovered(inside);
             markPaintDirty();
         }
         if (wasPressed && inside) {

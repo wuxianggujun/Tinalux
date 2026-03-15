@@ -16,6 +16,7 @@
 #include "tinalux/ui/Clipboard.h"
 #include "tinalux/ui/Container.h"
 #include "tinalux/ui/Constraints.h"
+#include "tinalux/ui/ThemeManager.h"
 #include "tinalux/ui/Widget.h"
 
 namespace tinalux::app {
@@ -226,10 +227,27 @@ DebugHudConfig applyDebugHudEnvironmentOverrides(DebugHudConfig config)
 UIContext::UIContext()
     : runtimeState_(std::make_unique<ui::RuntimeState>())
 {
-    runtimeState_->theme = ui::Theme::dark();
+    ui::ThemeManager& themeManager = ui::ThemeManager::instance();
+    runtimeState_->theme = themeManager.currentTheme();
+    themeListenerId_ = themeManager.addThemeChangeListener([this](const ui::Theme& theme) {
+        if (runtimeState_ == nullptr) {
+            return;
+        }
+
+        runtimeState_->theme = theme;
+        needsRedraw_ = true;
+    });
+    themeManager.setAnimationSink(&runtimeState_->animationScheduler);
+    themeManager.setInvalidateCallback([this] { needsRedraw_ = true; });
 }
 
-UIContext::~UIContext() = default;
+UIContext::~UIContext()
+{
+    ui::ThemeManager& themeManager = ui::ThemeManager::instance();
+    themeManager.removeThemeChangeListener(themeListenerId_);
+    themeManager.setAnimationSink(nullptr);
+    themeManager.setInvalidateCallback({});
+}
 
 void UIContext::initializeFromEnvironment()
 {
@@ -243,6 +261,11 @@ void UIContext::initializeFromEnvironment()
         debugHudConfig_ = applyDebugHudEnvironmentOverrides(debugHudConfig_);
     } else {
         debugHudConfig_ = sanitizeDebugHudConfig(debugHudConfig_);
+    }
+
+    ui::ThemeManager& themeManager = ui::ThemeManager::instance();
+    if (const std::string savedTheme = themeManager.loadThemePreference(); !savedTheme.empty()) {
+        themeManager.switchTheme(savedTheme, false);
     }
 }
 
@@ -424,12 +447,7 @@ void UIContext::resetFrameStats()
 
 void UIContext::setTheme(ui::Theme theme)
 {
-    if (runtimeState_ == nullptr) {
-        return;
-    }
-
-    runtimeState_->theme = theme;
-    needsRedraw_ = true;
+    ui::ThemeManager::instance().setTheme(theme, false);
     core::logInfoCat(
         "app",
         "Theme updated background=#{:08x} primary=#{:08x}",
@@ -439,7 +457,9 @@ void UIContext::setTheme(ui::Theme theme)
 
 ui::Theme UIContext::theme() const
 {
-    return runtimeState_ != nullptr ? runtimeState_->theme : ui::Theme::dark();
+    return runtimeState_ != nullptr
+        ? runtimeState_->theme
+        : ui::ThemeManager::instance().currentTheme();
 }
 
 void UIContext::setPerfLogConfig(PerfLogConfig config)

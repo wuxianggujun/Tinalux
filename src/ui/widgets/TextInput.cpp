@@ -12,14 +12,12 @@
 #include "tinalux/ui/Clipboard.h"
 #include "tinalux/ui/Theme.h"
 
+#include "HoverAnimationUtils.h"
 #include "../TextPrimitives.h"
 
 namespace tinalux::ui {
 
 namespace {
-constexpr float kInputMinWidth = 260.0f;
-constexpr float kVerticalInset = 12.0f;
-
 std::size_t nextUtf8Offset(const std::string& text, std::size_t offset)
 {
     if (offset >= text.size()) {
@@ -88,6 +86,13 @@ TextInput::TextInput(std::string placeholder)
 {
 }
 
+TextInput::~TextInput()
+{
+    if (animationAlive_ != nullptr) {
+        *animationAlive_ = false;
+    }
+}
+
 std::string TextInput::text() const
 {
     return text_;
@@ -137,6 +142,29 @@ std::string TextInput::selectedText() const
     return text_.substr(selectionStart(), selectionEnd() - selectionStart());
 }
 
+void TextInput::setStyle(const TextInputStyle& style)
+{
+    customStyle_ = style;
+    invalidateTextLayoutCache();
+    markLayoutDirty();
+}
+
+void TextInput::clearStyle()
+{
+    if (!customStyle_.has_value()) {
+        return;
+    }
+
+    customStyle_.reset();
+    invalidateTextLayoutCache();
+    markLayoutDirty();
+}
+
+const TextInputStyle* TextInput::style() const
+{
+    return customStyle_ ? &*customStyle_ : nullptr;
+}
+
 bool TextInput::focusable() const
 {
     return true;
@@ -144,20 +172,130 @@ bool TextInput::focusable() const
 
 void TextInput::setFocused(bool focused)
 {
+    if (Widget::focused() == focused) {
+        return;
+    }
+
     if (!focused) {
         draggingSelection_ = false;
     }
 
     Widget::setFocused(focused);
+    animateFocusProgress(focused ? 1.0f : 0.0f);
+}
+
+const TextInputStyle& TextInput::resolvedStyle() const
+{
+    return customStyle_ ? *customStyle_ : resolvedTheme().textInputStyle;
+}
+
+WidgetState TextInput::currentState() const
+{
+    if (focused()) {
+        return WidgetState::Focused;
+    }
+    if (hovered_) {
+        return WidgetState::Hovered;
+    }
+    return WidgetState::Normal;
+}
+
+void TextInput::animateHoverProgress(float targetProgress)
+{
+    AnimationSink* currentAnimationSink = &animationSink();
+    if (hoverAnimation_ != 0 && hoverAnimationSink_ == currentAnimationSink) {
+        currentAnimationSink->cancelAnimation(hoverAnimation_);
+        hoverAnimation_ = 0;
+    }
+    hoverAnimationSink_ = currentAnimationSink;
+
+    const float currentProgress = animatedHoverProgress_ != nullptr ? *animatedHoverProgress_ : 0.0f;
+    const float clampedTarget = detail::clampUnit(targetProgress);
+    if (std::abs(currentProgress - clampedTarget) <= 0.001f) {
+        if (animatedHoverProgress_ != nullptr) {
+            *animatedHoverProgress_ = clampedTarget;
+        }
+        return;
+    }
+
+    const std::shared_ptr<float> progress = animatedHoverProgress_;
+    const std::shared_ptr<bool> alive = animationAlive_;
+    hoverAnimation_ = currentAnimationSink->animate(
+        {
+            .from = currentProgress,
+            .to = clampedTarget,
+            .durationSeconds = detail::kHoverTransitionDurationSeconds,
+            .loop = false,
+            .alternate = false,
+            .easing = Easing::EaseInOut,
+        },
+        [progress, alive, this](float value) {
+            if (progress != nullptr) {
+                *progress = value;
+            }
+            if (alive != nullptr && *alive) {
+                markPaintDirty();
+            }
+        });
+}
+
+void TextInput::animateFocusProgress(float targetProgress)
+{
+    AnimationSink* currentAnimationSink = &animationSink();
+    if (focusAnimation_ != 0 && focusAnimationSink_ == currentAnimationSink) {
+        currentAnimationSink->cancelAnimation(focusAnimation_);
+        focusAnimation_ = 0;
+    }
+    focusAnimationSink_ = currentAnimationSink;
+
+    const float currentProgress = animatedFocusProgress_ != nullptr ? *animatedFocusProgress_ : 0.0f;
+    const float clampedTarget = detail::clampUnit(targetProgress);
+    if (std::abs(currentProgress - clampedTarget) <= 0.001f) {
+        if (animatedFocusProgress_ != nullptr) {
+            *animatedFocusProgress_ = clampedTarget;
+        }
+        return;
+    }
+
+    const std::shared_ptr<float> progress = animatedFocusProgress_;
+    const std::shared_ptr<bool> alive = animationAlive_;
+    focusAnimation_ = currentAnimationSink->animate(
+        {
+            .from = currentProgress,
+            .to = clampedTarget,
+            .durationSeconds = detail::kHoverTransitionDurationSeconds,
+            .loop = false,
+            .alternate = false,
+            .easing = Easing::EaseInOut,
+        },
+        [progress, alive, this](float value) {
+            if (progress != nullptr) {
+                *progress = value;
+            }
+            if (alive != nullptr && *alive) {
+                markPaintDirty();
+            }
+        });
+}
+
+void TextInput::updateHovered(bool hovered)
+{
+    if (hovered_ == hovered) {
+        return;
+    }
+
+    hovered_ = hovered;
+    animateHoverProgress(hovered ? 1.0f : 0.0f);
+    markPaintDirty();
 }
 
 core::Size TextInput::measure(const Constraints& constraints)
 {
-    const Theme& theme = resolvedTheme();
-    ensureTextLayout(theme.fontSize);
+    const TextInputStyle& style = resolvedStyle();
+    ensureTextLayout(style.textStyle.fontSize);
     return constraints.constrain(core::Size::Make(
-        std::max(kInputMinWidth, cachedTextWidth_ + theme.padding * 2.0f),
-        cachedTextHeight_ + kVerticalInset * 2.0f));
+        std::max(style.minWidth, cachedTextWidth_ + style.paddingHorizontal * 2.0f),
+        std::max(style.minHeight, cachedTextHeight_ + style.paddingVertical * 2.0f)));
 }
 
 void TextInput::onDraw(rendering::Canvas& canvas)
@@ -166,34 +304,60 @@ void TextInput::onDraw(rendering::Canvas& canvas)
         return;
     }
 
-    const Theme& theme = resolvedTheme();
-    ensureTextLayout(theme.fontSize);
+    const TextInputStyle& style = resolvedStyle();
+    const float hoverProgress = animatedHoverProgress_ != nullptr ? *animatedHoverProgress_ : 0.0f;
+    const float focusProgress = animatedFocusProgress_ != nullptr ? *animatedFocusProgress_ : 0.0f;
+    ensureTextLayout(style.textStyle.fontSize);
     const std::string& display = cachedDisplayText_;
+    const core::Color backgroundColor = detail::lerpColor(
+        detail::lerpColor(
+            style.backgroundColor.resolve(WidgetState::Normal),
+            style.backgroundColor.resolve(WidgetState::Hovered),
+            hoverProgress),
+        style.backgroundColor.resolve(WidgetState::Focused),
+        focusProgress);
+    const core::Color borderColor = detail::lerpColor(
+        detail::lerpColor(
+            style.borderColor.resolve(WidgetState::Normal),
+            style.borderColor.resolve(WidgetState::Hovered),
+            hoverProgress),
+        style.borderColor.resolve(WidgetState::Focused),
+        focusProgress);
+    const float borderWidth = detail::lerpFloat(
+        detail::lerpFloat(
+            style.borderWidth.resolve(WidgetState::Normal),
+            style.borderWidth.resolve(WidgetState::Hovered),
+            hoverProgress),
+        style.borderWidth.resolve(WidgetState::Focused),
+        focusProgress);
+    const float inset = borderWidth * 0.5f;
 
     canvas.drawRoundRect(
         core::Rect::MakeWH(bounds_.width(), bounds_.height()),
-        theme.cornerRadius,
-        theme.cornerRadius,
-        theme.surface);
+        style.borderRadius,
+        style.borderRadius,
+        backgroundColor);
     canvas.drawRoundRect(
         core::Rect::MakeXYWH(
-            focused() ? 1.0f : 0.5f,
-            focused() ? 1.0f : 0.5f,
-            bounds_.width() - (focused() ? 2.0f : 1.0f),
-            bounds_.height() - (focused() ? 2.0f : 1.0f)),
-        theme.cornerRadius,
-        theme.cornerRadius,
-        focused() ? theme.primary : theme.border,
+            inset,
+            inset,
+            std::max(0.0f, bounds_.width() - borderWidth),
+            std::max(0.0f, bounds_.height() - borderWidth)),
+        style.borderRadius,
+        style.borderRadius,
+        borderColor,
         rendering::PaintStyle::Stroke,
-        focused() ? 2.0f : 1.0f);
+        borderWidth);
 
-    const float textX = theme.padding + cachedDrawX_;
+    const float textX = style.paddingHorizontal + cachedDrawX_;
     const float textTop = (bounds_.height() - cachedTextHeight_) * 0.5f;
     const float textY = (bounds_.height() - cachedTextHeight_) * 0.5f + cachedBaseline_;
 
     if (focused() && hasSelection() && !text_.empty()) {
-        const float selectionLeft = theme.padding + prefixWidth(selectionStart(), theme.fontSize);
-        const float selectionRight = theme.padding + prefixWidth(selectionEnd(), theme.fontSize);
+        const float selectionLeft =
+            style.paddingHorizontal + prefixWidth(selectionStart(), style.textStyle.fontSize);
+        const float selectionRight =
+            style.paddingHorizontal + prefixWidth(selectionEnd(), style.textStyle.fontSize);
 
         canvas.drawRoundRect(
             core::Rect::MakeXYWH(
@@ -201,33 +365,41 @@ void TextInput::onDraw(rendering::Canvas& canvas)
                 textTop + 2.0f,
                 std::max(1.0f, selectionRight - selectionLeft),
                 std::max(1.0f, cachedTextHeight_ - 4.0f)),
-            6.0f,
-            6.0f,
-            core::colorARGB(
-                96,
-                core::colorRed(theme.primary),
-                core::colorGreen(theme.primary),
-                core::colorBlue(theme.primary)));
+            style.selectionCornerRadius,
+            style.selectionCornerRadius,
+            style.selectionColor);
     }
 
-    canvas.drawText(display, textX, textY, theme.fontSize, text_.empty() ? theme.textSecondary : theme.text);
+    canvas.drawText(
+        display,
+        textX,
+        textY,
+        style.textStyle.fontSize,
+        text_.empty() ? style.placeholderColor : style.textColor);
 
     if (focused()) {
-        const float caretX = theme.padding + prefixWidth(cursorPos_, theme.fontSize);
+        const float caretX =
+            style.paddingHorizontal + prefixWidth(cursorPos_, style.textStyle.fontSize);
         canvas.drawLine(
             caretX,
-            kVerticalInset,
+            style.paddingVertical,
             caretX,
-            bounds_.height() - kVerticalInset,
-            theme.primary,
+            bounds_.height() - style.paddingVertical,
+            style.caretColor,
             1.5f);
     }
 }
 
 bool TextInput::onEvent(core::Event& event)
 {
-    const Theme& theme = resolvedTheme();
+    const TextInputStyle& style = resolvedStyle();
     switch (event.type()) {
+    case core::EventType::MouseEnter:
+        updateHovered(true);
+        return false;
+    case core::EventType::MouseLeave:
+        updateHovered(false);
+        return false;
     case core::EventType::MouseButtonPress: {
         const auto& mouseEvent = static_cast<const core::MouseButtonEvent&>(event);
         const core::Point localPoint = globalToLocal(core::Point::Make(
@@ -238,29 +410,33 @@ bool TextInput::onEvent(core::Event& event)
             return false;
         }
 
-        const float localX = localPoint.x() - theme.padding;
-        const std::size_t hitCursor = cursorFromLocalX(std::max(0.0f, localX), theme.fontSize);
+        const float localX = localPoint.x() - style.paddingHorizontal;
+        const std::size_t hitCursor =
+            cursorFromLocalX(std::max(0.0f, localX), style.textStyle.fontSize);
         if ((mouseEvent.mods & core::mods::kShift) != 0 && focused()) {
             selectionExtent_ = hitCursor;
             cursorPos_ = hitCursor;
         } else {
             collapseSelection(hitCursor);
         }
+        updateHovered(true);
         draggingSelection_ = true;
         markPaintDirty();
         return true;
     }
     case core::EventType::MouseMove: {
-        if (!draggingSelection_) {
-            return false;
-        }
-
         const auto& mouseEvent = static_cast<const core::MouseMoveEvent&>(event);
         const core::Point localPoint = globalToLocal(core::Point::Make(
             static_cast<float>(mouseEvent.x),
             static_cast<float>(mouseEvent.y)));
-        const float localX = localPoint.x() - theme.padding;
-        const std::size_t hitCursor = cursorFromLocalX(std::max(0.0f, localX), theme.fontSize);
+        updateHovered(containsLocalPoint(localPoint.x(), localPoint.y()));
+        if (!draggingSelection_) {
+            return false;
+        }
+
+        const float localX = localPoint.x() - style.paddingHorizontal;
+        const std::size_t hitCursor =
+            cursorFromLocalX(std::max(0.0f, localX), style.textStyle.fontSize);
         if (cursorPos_ != hitCursor || selectionExtent_ != hitCursor) {
             cursorPos_ = hitCursor;
             selectionExtent_ = hitCursor;
@@ -271,6 +447,13 @@ bool TextInput::onEvent(core::Event& event)
     case core::EventType::MouseButtonRelease:
         if (static_cast<const core::MouseButtonEvent&>(event).button != core::mouse::kLeft) {
             return false;
+        }
+        {
+            const auto& mouseEvent = static_cast<const core::MouseButtonEvent&>(event);
+            const core::Point localPoint = globalToLocal(core::Point::Make(
+                static_cast<float>(mouseEvent.x),
+                static_cast<float>(mouseEvent.y)));
+            updateHovered(containsLocalPoint(localPoint.x(), localPoint.y()));
         }
         draggingSelection_ = false;
         return focused();

@@ -1,5 +1,8 @@
 #pragma once
 
+// 注意：此文件当前未被使用，保留用于未来的事件分发重构。
+// 当前事件分发路径仍以 Application / UIContext 中的直接分发为主。
+
 #include <type_traits>
 #include <utility>
 

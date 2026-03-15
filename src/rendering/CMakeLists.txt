@@ -1,6 +1,9 @@
 add_library(TinaluxRendering STATIC
+    FontCache.cpp
+    TextBackend.cpp
     rendering.cpp
     Image.cpp
+    ImageCache.cpp
     ParagraphPainter.cpp
     RasterSurface.cpp
     GLContext.cpp

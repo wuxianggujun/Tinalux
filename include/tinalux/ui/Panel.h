@@ -1,7 +1,10 @@
 #pragma once
 
+#include <optional>
+
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Container.h"
+#include "tinalux/ui/PanelStyle.h"
 
 namespace tinalux::ui {
 
@@ -11,14 +14,21 @@ public:
     void setCornerRadius(float radius);
     void setRenderCacheEnabled(bool enabled);
     bool renderCacheEnabled() const;
+    void setStyle(const PanelStyle& style);
+    void clearStyle();
+    const PanelStyle* style() const;
 
     void onDraw(rendering::Canvas& canvas) override;
+
+protected:
+    PanelStyle resolvedStyle() const;
 
 private:
     void drawPanelContents(rendering::Canvas& canvas);
 
-    core::Color backgroundColor_ = core::colorRGB(32, 35, 47);
-    float cornerRadius_ = 18.0f;
+    std::optional<PanelStyle> customStyle_;
+    std::optional<core::Color> backgroundColorOverride_;
+    std::optional<float> cornerRadiusOverride_;
     bool renderCacheEnabled_ = false;
     rendering::RenderSurface cachedSurface_ {};
     rendering::Image cachedImage_ {};
