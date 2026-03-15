@@ -4,7 +4,7 @@
 #include <cmath>
 #include <limits>
 
-#include "include/core/SkCanvas.h"
+#include "../../rendering/ParagraphPainter.h"
 #include "include/core/SkFontMgr.h"
 #include "include/core/SkFontStyle.h"
 #include "include/core/SkString.h"
@@ -21,8 +21,6 @@
 #include "modules/skparagraph/include/ParagraphStyle.h"
 #include "modules/skparagraph/include/TextStyle.h"
 #include "modules/skunicode/include/SkUnicode_icu.h"
-#include "tinalux/ui/Theme.h"
-
 namespace tinalux::ui {
 
 namespace {
@@ -60,7 +58,7 @@ sk_sp<SkUnicode> paragraphUnicode()
 std::unique_ptr<skia::textlayout::Paragraph> makeParagraph(
     const std::string& text,
     float fontSize,
-    SkColor color,
+    core::Color color,
     std::size_t maxLines,
     float layoutWidth)
 {
@@ -95,10 +93,10 @@ std::unique_ptr<skia::textlayout::Paragraph> makeParagraph(
 
 ParagraphLabel::ParagraphLabel(std::string text)
     : text_(std::move(text))
-    , fontSize_(currentTheme().fontSize)
-    , color_(currentTheme().text)
 {
 }
+
+ParagraphLabel::~ParagraphLabel() = default;
 
 void ParagraphLabel::setText(const std::string& text)
 {
@@ -107,7 +105,8 @@ void ParagraphLabel::setText(const std::string& text)
     }
 
     text_ = text;
-    markDirty();
+    invalidateParagraphCache();
+    markLayoutDirty();
 }
 
 void ParagraphLabel::setFontSize(float size)
@@ -118,17 +117,19 @@ void ParagraphLabel::setFontSize(float size)
     }
 
     fontSize_ = clampedSize;
-    markDirty();
+    invalidateParagraphCache();
+    markLayoutDirty();
 }
 
-void ParagraphLabel::setColor(SkColor color)
+void ParagraphLabel::setColor(core::Color color)
 {
     if (color_ == color) {
         return;
     }
 
     color_ = color;
-    markDirty();
+    invalidateParagraphCache();
+    markPaintDirty();
 }
 
 void ParagraphLabel::setMaxLines(std::size_t maxLines)
@@ -138,36 +139,58 @@ void ParagraphLabel::setMaxLines(std::size_t maxLines)
     }
 
     maxLines_ = maxLines;
-    markDirty();
+    invalidateParagraphCache();
+    markLayoutDirty();
 }
 
-SkSize ParagraphLabel::measure(const Constraints& constraints)
+core::Size ParagraphLabel::measure(const Constraints& constraints)
 {
     const float layoutWidth = std::isinf(constraints.maxWidth)
         ? 4096.0f
         : std::max(1.0f, constraints.maxWidth);
-    auto paragraph = makeParagraph(text_, fontSize_, color_, maxLines_, layoutWidth);
+    auto* paragraph = ensureParagraph(layoutWidth);
     const float measuredWidth = std::isinf(constraints.maxWidth)
         ? paragraph->getLongestLine()
         : std::min(layoutWidth, paragraph->getLongestLine());
-    return constraints.constrain(SkSize::Make(
+    return constraints.constrain(core::Size::Make(
         std::max(0.0f, measuredWidth),
         std::max(fontSize_, paragraph->getHeight())));
 }
 
-void ParagraphLabel::onDraw(SkCanvas* canvas)
+void ParagraphLabel::onDraw(rendering::Canvas& canvas)
 {
-    if (canvas == nullptr || text_.empty()) {
+    if (text_.empty()) {
         return;
     }
 
-    auto paragraph = makeParagraph(
-        text_,
-        fontSize_,
-        color_,
-        maxLines_,
-        std::max(1.0f, bounds_.width()));
-    paragraph->paint(canvas, 0.0f, 0.0f);
+    rendering::drawParagraph(
+        canvas,
+        *ensureParagraph(std::max(1.0f, bounds_.width())),
+        0.0f,
+        0.0f);
+}
+
+skia::textlayout::Paragraph* ParagraphLabel::ensureParagraph(float layoutWidth)
+{
+    const float clampedWidth = std::max(layoutWidth, 1.0f);
+    if (!cachedParagraph_ || paragraphCacheDirty_) {
+        cachedParagraph_ = makeParagraph(text_, fontSize_, color_, maxLines_, clampedWidth);
+        cachedLayoutWidth_ = clampedWidth;
+        paragraphCacheDirty_ = false;
+        return cachedParagraph_.get();
+    }
+
+    if (std::abs(cachedLayoutWidth_ - clampedWidth) > 0.001f) {
+        cachedParagraph_->layout(clampedWidth);
+        cachedLayoutWidth_ = clampedWidth;
+    }
+
+    return cachedParagraph_.get();
+}
+
+void ParagraphLabel::invalidateParagraphCache()
+{
+    paragraphCacheDirty_ = true;
 }
 
 }  // namespace tinalux::ui

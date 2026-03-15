@@ -3,6 +3,7 @@
 #include <mutex>
 #include <string>
 
+#include "tinalux/core/Log.h"
 #include "tinalux/core/events/Event.h"
 
 #define GLFW_INCLUDE_NONE
@@ -45,7 +46,14 @@ public:
     bool ok() const { return initialized(); }
 
 private:
-    static void onError(int, const char*) {}
+    static void onError(int code, const char* description)
+    {
+        tinalux::core::logErrorCat(
+            "platform",
+            "GLFW error {}: {}",
+            code,
+            description != nullptr ? description : "unknown");
+    }
 
     static std::mutex& mutex()
     {
@@ -83,6 +91,7 @@ GLFWWindow::GLFWWindow(const WindowConfig& config)
 {
     static LibraryState state;
     if (!state.library.ok()) {
+        core::logErrorCat("platform", "GLFW library initialization failed");
         return;
     }
 
@@ -97,6 +106,12 @@ GLFWWindow::GLFWWindow(const WindowConfig& config)
     std::string titleStorage(config.title ? config.title : "Tinalux");
     window_ = glfwCreateWindow(config.width, config.height, titleStorage.c_str(), nullptr, nullptr);
     if (window_ == nullptr) {
+        core::logErrorCat(
+            "platform",
+            "glfwCreateWindow failed for title='{}' size={}x{}",
+            titleStorage,
+            config.width,
+            config.height);
         return;
     }
 
@@ -120,6 +135,7 @@ GLFWWindow::GLFWWindow(const WindowConfig& config)
 GLFWWindow::~GLFWWindow()
 {
     if (window_ != nullptr) {
+        core::logDebugCat("platform", "Destroying GLFW window");
         glfwDestroyWindow(window_);
         window_ = nullptr;
     }
@@ -141,6 +157,16 @@ void GLFWWindow::pollEvents()
     updateWindowMetrics();
 }
 
+void GLFWWindow::waitEventsTimeout(double timeoutSeconds)
+{
+    if (window_ == nullptr) {
+        return;
+    }
+
+    glfwWaitEventsTimeout(timeoutSeconds > 0.0 ? timeoutSeconds : 0.0);
+    updateWindowMetrics();
+}
+
 void GLFWWindow::swapBuffers()
 {
     if (window_ != nullptr) {
@@ -151,6 +177,7 @@ void GLFWWindow::swapBuffers()
 void GLFWWindow::requestClose()
 {
     if (window_ != nullptr) {
+        core::logInfoCat("platform", "Window close requested");
         glfwSetWindowShouldClose(window_, GLFW_TRUE);
     }
 }
@@ -235,6 +262,14 @@ void GLFWWindow::onFramebufferResize(GLFWwindow* w, int width, int height)
 {
     if (GLFWWindow* self = selfFromWindow(w); self != nullptr) {
         self->updateWindowMetrics();
+        core::logDebugCat(
+            "platform",
+            "Window framebuffer resized to {}x{} (window={}x{}, dpi_scale={:.2f})",
+            self->framebufferWidth(),
+            self->framebufferHeight(),
+            self->width(),
+            self->height(),
+            self->dpiScale());
         if (self->eventCallback_) {
             core::WindowResizeEvent event(width, height);
             self->eventCallback_(event);
@@ -245,6 +280,7 @@ void GLFWWindow::onFramebufferResize(GLFWwindow* w, int width, int height)
 void GLFWWindow::onWindowClose(GLFWwindow* w)
 {
     if (GLFWWindow* self = selfFromWindow(w); self != nullptr) {
+        core::logInfoCat("platform", "Received GLFW window close callback");
         if (self->eventCallback_) {
             core::WindowCloseEvent event;
             self->eventCallback_(event);
@@ -255,6 +291,7 @@ void GLFWWindow::onWindowClose(GLFWwindow* w)
 void GLFWWindow::onWindowFocus(GLFWwindow* w, int focused)
 {
     if (GLFWWindow* self = selfFromWindow(w); self != nullptr) {
+        core::logDebugCat("platform", "Window focus changed: {}", focused == GLFW_TRUE);
         if (self->eventCallback_) {
             core::WindowFocusEvent event(focused == GLFW_TRUE);
             self->eventCallback_(event);

@@ -25,16 +25,18 @@ struct TweenOptions {
     Easing easing = Easing::EaseInOut;
 };
 
-double animationNowSeconds();
+class AnimationSink {
+public:
+    virtual ~AnimationSink() = default;
 
-AnimationHandle requestAnimationFrame(FrameCallback callback);
-AnimationHandle animate(
-    const TweenOptions& options,
-    AnimationCallback onUpdate,
-    CompletionCallback onComplete = {});
-void cancelAnimation(AnimationHandle handle);
-void clearAnimations();
-bool hasActiveAnimations();
-bool tickAnimations(double nowSeconds);
+    virtual AnimationHandle requestAnimationFrame(FrameCallback callback) = 0;
+    virtual AnimationHandle animate(
+        const TweenOptions& options,
+        AnimationCallback onUpdate,
+        CompletionCallback onComplete = {}) = 0;
+    virtual void cancelAnimation(AnimationHandle handle) = 0;
+};
+
+double animationNowSeconds();
 
 }  // namespace tinalux::ui

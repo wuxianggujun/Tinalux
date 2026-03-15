@@ -2,18 +2,15 @@
 #include <iostream>
 #include <memory>
 
-#include "include/core/SkColor.h"
-#include "include/core/SkImageInfo.h"
-#include "include/core/SkSurface.h"
 #include "tinalux/app/Application.h"
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
+#include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Clipboard.h"
 #include "tinalux/ui/Constraints.h"
 #include "tinalux/ui/ParagraphLabel.h"
 #include "tinalux/ui/Panel.h"
 #include "tinalux/ui/TextInput.h"
-#include "tinalux/ui/Theme.h"
 
 namespace {
 
@@ -31,20 +28,19 @@ int main()
 {
     using namespace tinalux;
 
-    ui::setTheme(ui::Theme::dark());
-
     auto paragraph = std::make_shared<ui::ParagraphLabel>(
         "This is a long paragraph used to validate SkParagraph based wrapping.");
     paragraph->setMaxLines(3);
 
-    const SkSize narrow = paragraph->measure(ui::Constraints::loose(120.0f, 600.0f));
-    const SkSize wide = paragraph->measure(ui::Constraints::loose(360.0f, 600.0f));
+    const core::Size narrow = paragraph->measure(ui::Constraints::loose(120.0f, 600.0f));
+    const core::Size wide = paragraph->measure(ui::Constraints::loose(360.0f, 600.0f));
     expect(narrow.height() > wide.height(), "paragraph should wrap into more lines in narrow width");
 
-    paragraph->arrange(SkRect::MakeXYWH(0.0f, 0.0f, 140.0f, narrow.height()));
-    auto surface = SkSurfaces::Raster(SkImageInfo::MakeN32Premul(240, 200));
-    expect(surface != nullptr, "failed to create raster surface");
-    paragraph->draw(surface->getCanvas());
+    paragraph->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 140.0f, narrow.height()));
+    auto surface = rendering::createRasterSurface(240, 200);
+    auto canvas = surface.canvas();
+    expect(static_cast<bool>(surface), "failed to create raster surface");
+    paragraph->draw(canvas);
 
     std::string clipboard;
     ui::setClipboardHandlers(
@@ -54,8 +50,8 @@ int main()
     auto root = std::make_shared<ui::Panel>();
     auto input = std::make_shared<ui::TextInput>("paste here");
     root->addChild(input);
-    root->arrange(SkRect::MakeXYWH(0.0f, 0.0f, 320.0f, 160.0f));
-    input->arrange(SkRect::MakeXYWH(12.0f, 12.0f, 280.0f, 48.0f));
+    root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 320.0f, 160.0f));
+    input->arrange(core::Rect::MakeXYWH(12.0f, 12.0f, 280.0f, 48.0f));
 
     app::Application app;
     app.setRootWidget(root);

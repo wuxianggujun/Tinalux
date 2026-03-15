@@ -3,10 +3,9 @@
 #include <algorithm>
 #include <cmath>
 
-#include "include/core/SkCanvas.h"
-#include "include/core/SkPaint.h"
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
+#include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Theme.h"
 
 namespace tinalux::ui {
@@ -38,7 +37,7 @@ void Slider::setRange(float minimum, float maximum)
     minimum_ = nextMinimum;
     maximum_ = nextMaximum;
     setValueInternal(value_, false);
-    markDirty();
+    markPaintDirty();
 }
 
 float Slider::minimum() const
@@ -87,18 +86,18 @@ bool Slider::focusable() const
     return true;
 }
 
-SkSize Slider::measure(const Constraints& constraints)
+core::Size Slider::measure(const Constraints& constraints)
 {
-    return constraints.constrain(SkSize::Make(kPreferredWidth, kPreferredHeight));
+    return constraints.constrain(core::Size::Make(kPreferredWidth, kPreferredHeight));
 }
 
-void Slider::onDraw(SkCanvas* canvas)
+void Slider::onDraw(rendering::Canvas& canvas)
 {
-    if (canvas == nullptr) {
+    if (!canvas) {
         return;
     }
 
-    const Theme& theme = currentTheme();
+    const Theme& theme = resolvedTheme();
     const float trackLeft = kHorizontalInset;
     const float trackWidth = std::max(1.0f, bounds_.width() - kHorizontalInset * 2.0f);
     const float trackTop = (bounds_.height() - kTrackHeight) * 0.5f;
@@ -109,44 +108,44 @@ void Slider::onDraw(SkCanvas* canvas)
     const float thumbX = trackLeft + trackWidth * clampedFraction;
     const float thumbRadius = (focused() || dragging_) ? kFocusedThumbRadius : kThumbRadius;
 
-    SkPaint trackPaint;
-    trackPaint.setAntiAlias(true);
-    trackPaint.setColor(theme.surface);
-    canvas->drawRoundRect(
-        SkRect::MakeXYWH(trackLeft, trackTop, trackWidth, kTrackHeight),
+    canvas.drawRoundRect(
+        core::Rect::MakeXYWH(trackLeft, trackTop, trackWidth, kTrackHeight),
         kTrackHeight * 0.5f,
         kTrackHeight * 0.5f,
-        trackPaint);
+        theme.surface);
 
-    SkPaint activeTrackPaint;
-    activeTrackPaint.setAntiAlias(true);
-    activeTrackPaint.setColor(theme.primary);
-    canvas->drawRoundRect(
-        SkRect::MakeXYWH(trackLeft, trackTop, std::max(0.0f, thumbX - trackLeft), kTrackHeight),
+    canvas.drawRoundRect(
+        core::Rect::MakeXYWH(
+            trackLeft,
+            trackTop,
+            std::max(0.0f, thumbX - trackLeft),
+            kTrackHeight),
         kTrackHeight * 0.5f,
         kTrackHeight * 0.5f,
-        activeTrackPaint);
+        theme.primary);
 
     if (focused()) {
-        SkPaint haloPaint;
-        haloPaint.setAntiAlias(true);
-        haloPaint.setColor(SkColorSetARGB(
-            72,
-            SkColorGetR(theme.primary),
-            SkColorGetG(theme.primary),
-            SkColorGetB(theme.primary)));
-        canvas->drawCircle(thumbX, bounds_.height() * 0.5f, thumbRadius + 4.0f, haloPaint);
+        canvas.drawCircle(
+            thumbX,
+            bounds_.height() * 0.5f,
+            thumbRadius + 4.0f,
+            core::colorARGB(
+                72,
+                core::colorRed(theme.primary),
+                core::colorGreen(theme.primary),
+                core::colorBlue(theme.primary)));
     }
 
-    SkPaint thumbPaint;
-    thumbPaint.setAntiAlias(true);
-    thumbPaint.setColor(dragging_ || hovered_ ? theme.primary : theme.border);
-    canvas->drawCircle(thumbX, bounds_.height() * 0.5f, thumbRadius, thumbPaint);
-
-    SkPaint thumbCorePaint;
-    thumbCorePaint.setAntiAlias(true);
-    thumbCorePaint.setColor(theme.onPrimary);
-    canvas->drawCircle(thumbX, bounds_.height() * 0.5f, std::max(4.0f, thumbRadius - 5.0f), thumbCorePaint);
+    canvas.drawCircle(
+        thumbX,
+        bounds_.height() * 0.5f,
+        thumbRadius,
+        dragging_ || hovered_ ? theme.primary : theme.border);
+    canvas.drawCircle(
+        thumbX,
+        bounds_.height() * 0.5f,
+        std::max(4.0f, thumbRadius - 5.0f),
+        theme.onPrimary);
 }
 
 bool Slider::onEvent(core::Event& event)
@@ -155,44 +154,47 @@ bool Slider::onEvent(core::Event& event)
     case core::EventType::MouseEnter:
         if (!hovered_) {
             hovered_ = true;
-            markDirty();
+            markPaintDirty();
         }
         return false;
     case core::EventType::MouseLeave:
         if (hovered_) {
             hovered_ = false;
-            markDirty();
+            markPaintDirty();
         }
         return false;
     case core::EventType::MouseMove: {
         const auto& moveEvent = static_cast<const core::MouseMoveEvent&>(event);
         const float globalX = static_cast<float>(moveEvent.x);
         const float globalY = static_cast<float>(moveEvent.y);
-        const bool inside = containsGlobalPoint(globalX, globalY);
+        const core::Point localPoint = globalToLocal(core::Point::Make(globalX, globalY));
+        const bool inside = containsLocalPoint(localPoint.x(), localPoint.y());
         if (hovered_ != inside) {
             hovered_ = inside;
-            markDirty();
+            markPaintDirty();
         }
 
         if (!dragging_) {
             return false;
         }
 
-        const float localX = globalX - globalBounds().x();
-        setValueInternal(valueFromLocalX(localX), true);
+        setValueInternal(valueFromLocalX(localPoint.x()), true);
         return true;
     }
     case core::EventType::MouseButtonPress: {
         const auto& mouseEvent = static_cast<const core::MouseButtonEvent&>(event);
+        const core::Point localPoint = globalToLocal(core::Point::Make(
+            static_cast<float>(mouseEvent.x),
+            static_cast<float>(mouseEvent.y)));
         if (mouseEvent.button != core::mouse::kLeft
-            || !containsGlobalPoint(static_cast<float>(mouseEvent.x), static_cast<float>(mouseEvent.y))) {
+            || !containsLocalPoint(localPoint.x(), localPoint.y())) {
             return false;
         }
 
         dragging_ = true;
         hovered_ = true;
-        setValueInternal(valueFromLocalX(static_cast<float>(mouseEvent.x) - globalBounds().x()), true);
-        markDirty();
+        setValueInternal(valueFromLocalX(localPoint.x()), true);
+        markPaintDirty();
         return true;
     }
     case core::EventType::MouseButtonRelease: {
@@ -201,13 +203,14 @@ bool Slider::onEvent(core::Event& event)
             return false;
         }
 
-        const bool inside = containsGlobalPoint(
+        const core::Point localPoint = globalToLocal(core::Point::Make(
             static_cast<float>(mouseEvent.x),
-            static_cast<float>(mouseEvent.y));
-        setValueInternal(valueFromLocalX(static_cast<float>(mouseEvent.x) - globalBounds().x()), true);
+            static_cast<float>(mouseEvent.y)));
+        const bool inside = containsLocalPoint(localPoint.x(), localPoint.y());
+        setValueInternal(valueFromLocalX(localPoint.x()), true);
         dragging_ = false;
         hovered_ = inside;
-        markDirty();
+        markPaintDirty();
         return true;
     }
     case core::EventType::KeyPress:
@@ -280,7 +283,7 @@ void Slider::setValueInternal(float value, bool emitCallback)
     }
 
     value_ = clamped;
-    markDirty();
+    markPaintDirty();
     if (emitCallback && onValueChanged_) {
         onValueChanged_(value_);
     }

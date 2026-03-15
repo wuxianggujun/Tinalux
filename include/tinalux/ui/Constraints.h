@@ -2,7 +2,7 @@
 
 #include <limits>
 
-#include "include/core/SkSize.h"
+#include "tinalux/core/Geometry.h"
 
 namespace tinalux::ui {
 
@@ -19,7 +19,7 @@ struct Constraints {
     Constraints withMaxWidth(float width) const;
     Constraints withMaxHeight(float height) const;
 
-    SkSize constrain(SkSize size) const;
+    core::Size constrain(core::Size size) const;
     bool isTight() const;
 };
 

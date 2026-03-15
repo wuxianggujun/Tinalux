@@ -9,6 +9,17 @@ target_link_libraries(TinaluxCoreSmoke
 
 add_test(NAME TinaluxCoreSmoke COMMAND TinaluxCoreSmoke)
 
+add_executable(TinaluxCoreLogSmoke
+    core/log_smoke.cpp
+)
+
+target_link_libraries(TinaluxCoreLogSmoke
+    PRIVATE
+        Tinalux::Core
+)
+
+add_test(NAME TinaluxCoreLogSmoke COMMAND TinaluxCoreLogSmoke)
+
 add_executable(TinaluxUILayoutSmoke
     ui/layout_smoke.cpp
 )
@@ -42,6 +53,17 @@ target_link_libraries(TinaluxUITextInputSmoke
 
 add_test(NAME TinaluxUITextInputSmoke COMMAND TinaluxUITextInputSmoke)
 
+add_executable(TinaluxUITextPrimitivesSmoke
+    ui/text_primitives_smoke.cpp
+)
+
+target_link_libraries(TinaluxUITextPrimitivesSmoke
+    PRIVATE
+        Tinalux::UI
+)
+
+add_test(NAME TinaluxUITextPrimitivesSmoke COMMAND TinaluxUITextPrimitivesSmoke)
+
 add_executable(TinaluxUIScrollSmoke
     ui/scroll_smoke.cpp
 )
@@ -52,6 +74,17 @@ target_link_libraries(TinaluxUIScrollSmoke
 )
 
 add_test(NAME TinaluxUIScrollSmoke COMMAND TinaluxUIScrollSmoke)
+
+add_executable(TinaluxUIRenderCacheSmoke
+    ui/render_cache_smoke.cpp
+)
+
+target_link_libraries(TinaluxUIRenderCacheSmoke
+    PRIVATE
+        Tinalux::UI
+)
+
+add_test(NAME TinaluxUIRenderCacheSmoke COMMAND TinaluxUIRenderCacheSmoke)
 
 add_executable(TinaluxUIControlsSmoke
     ui/controls_smoke.cpp
@@ -78,6 +111,28 @@ target_link_libraries(TinaluxUIAnimationSmoke
 )
 
 add_test(NAME TinaluxUIAnimationSmoke COMMAND TinaluxUIAnimationSmoke)
+
+add_executable(TinaluxUIDialogSmoke
+    ui/dialog_smoke.cpp
+)
+
+target_link_libraries(TinaluxUIDialogSmoke
+    PRIVATE
+        Tinalux::App
+)
+
+add_test(NAME TinaluxUIDialogSmoke COMMAND TinaluxUIDialogSmoke)
+
+add_executable(TinaluxUIImageSmoke
+    ui/image_smoke.cpp
+)
+
+target_link_libraries(TinaluxUIImageSmoke
+    PRIVATE
+        Tinalux::UI
+)
+
+add_test(NAME TinaluxUIImageSmoke COMMAND TinaluxUIImageSmoke)
 
 add_executable(TinaluxUIParagraphClipboardSmoke
     ui/paragraph_clipboard_smoke.cpp

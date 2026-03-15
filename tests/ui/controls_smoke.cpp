@@ -11,7 +11,6 @@
 #include "tinalux/ui/Panel.h"
 #include "tinalux/ui/Radio.h"
 #include "tinalux/ui/Slider.h"
-#include "tinalux/ui/Theme.h"
 #include "tinalux/ui/Toggle.h"
 
 namespace {
@@ -29,8 +28,6 @@ void expect(bool condition, const char* message)
 int main()
 {
     using namespace tinalux;
-
-    ui::setTheme(ui::Theme::dark());
 
     auto root = std::make_shared<ui::Panel>();
     auto layout = std::make_unique<ui::VBoxLayout>();
@@ -88,7 +85,7 @@ int main()
     root->addChild(standardMode);
     root->addChild(strictMode);
     root->measure(ui::Constraints::tight(360.0f, 240.0f));
-    root->arrange(SkRect::MakeXYWH(0.0f, 0.0f, 360.0f, 240.0f));
+    root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 360.0f, 240.0f));
 
     core::KeyEvent checkboxToggleKey(core::keys::kSpace, 0, 0, core::EventType::KeyPress);
     checkbox->setFocused(true);
@@ -117,7 +114,7 @@ int main()
     expect(!standardMode->selected(), "radio selection should deselect sibling in same group");
     expect(selectedMode == 1, "radio callback should track selected mode");
 
-    const SkRect checkboxBounds = checkbox->globalBounds();
+    const core::Rect checkboxBounds = checkbox->globalBounds();
     core::MouseMoveEvent moveToCheckbox(checkboxBounds.centerX(), checkboxBounds.centerY());
     checkbox->onEvent(moveToCheckbox);
     core::MouseButtonEvent checkboxPress(
@@ -138,7 +135,7 @@ int main()
     expect(!rememberChecked, "checkbox callback should receive checked=false after mouse toggle");
     expect(checkboxChangeCount == 2, "checkbox callback should fire again after mouse toggle");
 
-    const SkRect toggleBounds = toggle->globalBounds();
+    const core::Rect toggleBounds = toggle->globalBounds();
     core::MouseMoveEvent moveToToggle(toggleBounds.centerX(), toggleBounds.centerY());
     toggle->onEvent(moveToToggle);
     core::MouseButtonEvent togglePress(
@@ -159,7 +156,7 @@ int main()
     expect(!autoRefreshEnabled, "toggle callback should receive on=false after mouse click");
     expect(toggleChangeCount == 2, "toggle callback should fire again after mouse toggle");
 
-    const SkRect sliderBounds = slider->globalBounds();
+    const core::Rect sliderBounds = slider->globalBounds();
     const double dragStartX = sliderBounds.x() + 16.0;
     const double dragEndX = sliderBounds.right() - 16.0;
     const double dragY = sliderBounds.centerY();
@@ -185,7 +182,7 @@ int main()
     expect(observedValue >= 90.0f, "slider callback should receive drag-updated value");
     expect(sliderChangeCount >= 2, "slider callback should fire for keyboard and drag updates");
 
-    const SkRect standardModeBounds = standardMode->globalBounds();
+    const core::Rect standardModeBounds = standardMode->globalBounds();
     core::MouseMoveEvent moveToStandardMode(standardModeBounds.centerX(), standardModeBounds.centerY());
     standardMode->onEvent(moveToStandardMode);
     core::MouseButtonEvent radioPress(

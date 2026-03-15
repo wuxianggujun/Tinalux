@@ -73,9 +73,9 @@ Constraints Constraints::withMaxHeight(float height) const
     return updated;
 }
 
-SkSize Constraints::constrain(SkSize size) const
+core::Size Constraints::constrain(core::Size size) const
 {
-    return SkSize::Make(
+    return core::Size::Make(
         clampDimension(size.width(), minWidth, maxWidth),
         clampDimension(size.height(), minHeight, maxHeight));
 }

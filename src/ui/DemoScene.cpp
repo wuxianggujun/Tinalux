@@ -2,10 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <memory>
 #include <string>
-
-#include "include/core/SkColor.h"
 
 #include "tinalux/ui/Animation.h"
 #include "tinalux/ui/Button.h"
@@ -25,27 +24,25 @@ namespace tinalux::ui {
 
 namespace {
 
-SkColor lerpColor(SkColor from, SkColor to, float progress)
+core::Color lerpColor(core::Color from, core::Color to, float progress)
 {
     const float t = std::clamp(progress, 0.0f, 1.0f);
-    const auto lerpChannel = [t](U8CPU a, U8CPU b) -> U8CPU {
-        return static_cast<U8CPU>(static_cast<float>(a) + (static_cast<float>(b) - static_cast<float>(a)) * t);
+    const auto lerpChannel = [t](std::uint8_t a, std::uint8_t b) -> std::uint8_t {
+        return static_cast<std::uint8_t>(
+            static_cast<float>(a) + (static_cast<float>(b) - static_cast<float>(a)) * t);
     };
 
-    return SkColorSetARGB(
-        lerpChannel(SkColorGetA(from), SkColorGetA(to)),
-        lerpChannel(SkColorGetR(from), SkColorGetR(to)),
-        lerpChannel(SkColorGetG(from), SkColorGetG(to)),
-        lerpChannel(SkColorGetB(from), SkColorGetB(to)));
+    return core::colorARGB(
+        lerpChannel(core::colorAlpha(from), core::colorAlpha(to)),
+        lerpChannel(core::colorRed(from), core::colorRed(to)),
+        lerpChannel(core::colorGreen(from), core::colorGreen(to)),
+        lerpChannel(core::colorBlue(from), core::colorBlue(to)));
 }
 
 }  // namespace
 
-std::shared_ptr<Widget> createDemoScene()
+std::shared_ptr<Widget> createDemoScene(Theme theme, AnimationSink& animations)
 {
-    setTheme(Theme::dark());
-    const Theme& theme = currentTheme();
-
     auto root = std::make_shared<Panel>();
     root->setBackgroundColor(theme.background);
     root->setCornerRadius(0.0f);
@@ -116,7 +113,7 @@ std::shared_ptr<Widget> createDemoScene()
     loginButton->onClick([emailInput, passwordInput, status, theme] {
         if (emailInput->text().empty() || passwordInput->text().empty()) {
             status->setText("Please enter both email and password.");
-            status->setColor(SkColorSetRGB(250, 179, 135));
+            status->setColor(core::colorRGB(250, 179, 135));
             return;
         }
 
@@ -286,7 +283,7 @@ std::shared_ptr<Widget> createDemoScene()
         }
     });
 
-    animate(
+    animations.animate(
         {
             .from = 0.0f,
             .to = 1.0f,
@@ -302,15 +299,15 @@ std::shared_ptr<Widget> createDemoScene()
     auto frameStart = std::make_shared<double>(animationNowSeconds());
     auto frameLoop = std::make_shared<std::function<void(double)>>();
     const std::weak_ptr<std::function<void(double)>> weakFrameLoop = frameLoop;
-    *frameLoop = [feedBody, frameStart, weakFrameLoop](double nowSeconds) {
+    *frameLoop = [feedBody, frameStart, weakFrameLoop, &animations](double nowSeconds) {
         const int dots = static_cast<int>(std::fmod((nowSeconds - *frameStart) * 2.0, 4.0));
         feedBody->setText("Scroll to inspect recent sessions, devices, and review checks"
             + std::string(static_cast<std::size_t>(dots), '.'));
         if (const auto loop = weakFrameLoop.lock(); loop != nullptr) {
-            requestAnimationFrame(*loop);
+            animations.requestAnimationFrame(*loop);
         }
     };
-    requestAnimationFrame(*frameLoop);
+    animations.requestAnimationFrame(*frameLoop);
 
     return root;
 }

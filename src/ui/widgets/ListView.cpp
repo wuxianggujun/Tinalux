@@ -35,8 +35,8 @@ void ListView::setSpacing(float spacing)
     }
 
     layout_->spacing = spacing;
-    items_->markDirty();
-    markDirty();
+    items_->markLayoutDirty();
+    markLayoutDirty();
 }
 
 void ListView::setPadding(float padding)
@@ -46,8 +46,8 @@ void ListView::setPadding(float padding)
     }
 
     layout_->padding = padding;
-    items_->markDirty();
-    markDirty();
+    items_->markLayoutDirty();
+    markLayoutDirty();
 }
 
 }  // namespace tinalux::ui

@@ -1,5 +1,8 @@
 add_library(TinaluxRendering STATIC
     rendering.cpp
+    Image.cpp
+    ParagraphPainter.cpp
+    RasterSurface.cpp
     GLContext.cpp
     WindowSurface.cpp
 )

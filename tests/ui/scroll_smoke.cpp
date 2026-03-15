@@ -12,7 +12,6 @@
 #include "tinalux/ui/Layout.h"
 #include "tinalux/ui/ListView.h"
 #include "tinalux/ui/Panel.h"
-#include "tinalux/ui/Theme.h"
 
 namespace {
 
@@ -29,8 +28,6 @@ void expect(bool condition, const char* message)
 int main()
 {
     using namespace tinalux;
-
-    ui::setTheme(ui::Theme::dark());
 
     auto root = std::make_shared<ui::Panel>();
     auto rootLayout = std::make_unique<ui::VBoxLayout>();
@@ -54,12 +51,16 @@ int main()
 
     root->addChild(listView);
     root->measure(ui::Constraints::tight(260.0f, 180.0f));
-    root->arrange(SkRect::MakeXYWH(0.0f, 0.0f, 260.0f, 180.0f));
+    root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 260.0f, 180.0f));
 
     app::Application app;
     app.setRootWidget(root);
 
-    const SkRect listBounds = listView->globalBounds();
+    const core::Rect listBounds = listView->globalBounds();
+    const core::Rect firstButtonBoundsBeforeScroll = buttons.front()->globalBounds();
+    const core::Point firstButtonCenterBeforeScroll = buttons.front()->localToGlobal(core::Point::Make(
+        buttons.front()->bounds().width() * 0.5f,
+        buttons.front()->bounds().height() * 0.5f));
     core::MouseMoveEvent hoverList(listBounds.x() + 24.0, listBounds.y() + 24.0);
     app.handleEvent(hoverList);
 
@@ -67,11 +68,30 @@ int main()
     app.handleEvent(scrollDown);
     expect(listView->scrollOffset() > 0.0f, "scroll wheel should advance list offset");
     expect(listView->maxScrollOffset() > 0.0f, "list should have scrollable overflow");
+    const core::Rect firstButtonBoundsAfterScroll = buttons.front()->globalBounds();
+    expect(
+        std::abs(
+            firstButtonBoundsAfterScroll.y()
+            - (firstButtonBoundsBeforeScroll.y() - listView->scrollOffset())) <= 0.001f,
+        "scroll offset should participate in child global bounds");
+    const core::Point firstButtonCenterAfterScroll = buttons.front()->localToGlobal(core::Point::Make(
+        buttons.front()->bounds().width() * 0.5f,
+        buttons.front()->bounds().height() * 0.5f));
+    expect(
+        std::abs(
+            firstButtonCenterAfterScroll.y()
+            - (firstButtonCenterBeforeScroll.y() - listView->scrollOffset())) <= 0.001f,
+        "localToGlobal should honor scroll offset");
+    const core::Point buttonLocalCenter = buttons.front()->globalToLocal(firstButtonCenterAfterScroll);
+    expect(
+        std::abs(buttonLocalCenter.x() - buttons.front()->bounds().width() * 0.5f) <= 0.001f
+            && std::abs(buttonLocalCenter.y() - buttons.front()->bounds().height() * 0.5f) <= 0.001f,
+        "globalToLocal should invert localToGlobal");
 
     std::shared_ptr<ui::Button> targetButton;
-    SkRect targetBounds = SkRect::MakeEmpty();
+    core::Rect targetBounds = core::Rect::MakeEmpty();
     for (std::size_t index = 0; index < buttons.size(); ++index) {
-        const SkRect bounds = buttons[index]->globalBounds();
+        const core::Rect bounds = buttons[index]->globalBounds();
         if (bounds.centerY() > listBounds.y() && bounds.centerY() < listBounds.bottom()) {
             targetButton = buttons[index];
             targetBounds = bounds;

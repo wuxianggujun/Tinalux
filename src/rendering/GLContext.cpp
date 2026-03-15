@@ -3,6 +3,8 @@
 #include "include/gpu/ganesh/gl/GrGLAssembleInterface.h"
 #include "include/gpu/ganesh/gl/GrGLDirectContext.h"
 #include "include/gpu/ganesh/gl/GrGLInterface.h"
+#include "RenderHandles.h"
+#include "tinalux/core/Log.h"
 
 namespace {
 
@@ -25,20 +27,29 @@ GrGLFuncPtr getProcAddress(void* ctx, const char name[])
 
 namespace tinalux::rendering {
 
-sk_sp<GrDirectContext> createGLContext(GLGetProcFn getProc)
+RenderContext createGLContext(GLGetProcFn getProc)
 {
     if (getProc == nullptr) {
-        return nullptr;
+        core::logErrorCat("render", "Cannot create GL context: getProc callback is null");
+        return {};
     }
 
     ProcContext context{ getProc };
     sk_sp<const GrGLInterface> interface =
         GrGLMakeAssembledGLInterface(&context, &getProcAddress);
     if (!interface) {
-        return nullptr;
+        core::logErrorCat("render", "Failed to assemble OpenGL interface for Skia");
+        return {};
     }
 
-    return GrDirectContexts::MakeGL(interface);
+    sk_sp<GrDirectContext> directContext = GrDirectContexts::MakeGL(interface);
+    if (!directContext) {
+        core::logErrorCat("render", "Failed to create Skia Ganesh GL direct context");
+        return {};
+    }
+
+    core::logInfoCat("render", "Created Skia Ganesh GL direct context");
+    return RenderAccess::makeContext(std::move(directContext));
 }
 
 }  // namespace tinalux::rendering

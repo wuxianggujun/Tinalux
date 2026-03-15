@@ -4,9 +4,7 @@
 #include <cmath>
 #include <limits>
 
-#include "include/core/SkCanvas.h"
-#include "include/core/SkPaint.h"
-#include "include/core/SkRRect.h"
+#include "tinalux/rendering/rendering.h"
 #include "tinalux/core/events/Event.h"
 #include "tinalux/ui/Theme.h"
 
@@ -38,7 +36,10 @@ void ScrollView::setContent(std::shared_ptr<Widget> content)
 
     scrollOffset_ = 0.0f;
     contentHeight_ = 0.0f;
-    markDirty();
+    cachedContentWidget_ = nullptr;
+    cachedContentLayoutVersion_ = 0;
+    contentMeasureCacheValid_ = false;
+    markLayoutDirty();
 }
 
 Widget* ScrollView::content() const
@@ -54,7 +55,7 @@ void ScrollView::setPreferredHeight(float height)
     }
 
     preferredHeight_ = clampedHeight;
-    markDirty();
+    markLayoutDirty();
 }
 
 float ScrollView::preferredHeight() const
@@ -77,23 +78,39 @@ float ScrollView::contentHeight() const
     return contentHeight_;
 }
 
-SkSize ScrollView::measure(const Constraints& constraints)
+core::Size ScrollView::measure(const Constraints& constraints)
 {
     if (content_ == nullptr) {
-        return constraints.constrain(SkSize::Make(0.0f, preferredHeight_));
+        return constraints.constrain(core::Size::Make(0.0f, preferredHeight_));
     }
 
     Constraints contentConstraints = constraints.withMaxHeight(std::numeric_limits<float>::infinity());
-    const SkSize contentSize = content_->measure(contentConstraints);
+    const bool canReuseContentMeasure = contentMeasureCacheValid_
+        && cachedContentWidget_ == content_.get()
+        && cachedContentLayoutVersion_ == content_->layoutVersion()
+        && cachedContentConstraints_.minWidth == contentConstraints.minWidth
+        && cachedContentConstraints_.maxWidth == contentConstraints.maxWidth
+        && cachedContentConstraints_.minHeight == contentConstraints.minHeight
+        && cachedContentConstraints_.maxHeight == contentConstraints.maxHeight;
+    const core::Size contentSize = canReuseContentMeasure
+        ? cachedContentSize_
+        : content_->measure(contentConstraints);
+    if (!canReuseContentMeasure) {
+        cachedContentWidget_ = content_.get();
+        cachedContentConstraints_ = contentConstraints;
+        cachedContentSize_ = contentSize;
+        cachedContentLayoutVersion_ = content_->layoutVersion();
+        contentMeasureCacheValid_ = true;
+    }
     contentHeight_ = contentSize.height();
 
     const float desiredHeight = preferredHeight_ > 0.0f
         ? std::min(preferredHeight_, contentHeight_)
         : contentHeight_;
-    return constraints.constrain(SkSize::Make(contentSize.width(), desiredHeight));
+    return constraints.constrain(core::Size::Make(contentSize.width(), desiredHeight));
 }
 
-void ScrollView::arrange(const SkRect& bounds)
+void ScrollView::arrange(const core::Rect& bounds)
 {
     Widget::arrange(bounds);
 
@@ -109,9 +126,25 @@ void ScrollView::arrange(const SkRect& bounds)
         .minHeight = 0.0f,
         .maxHeight = std::numeric_limits<float>::infinity(),
     };
-    const SkSize contentSize = content_->measure(contentConstraints);
+    const bool canReuseContentMeasure = contentMeasureCacheValid_
+        && cachedContentWidget_ == content_.get()
+        && cachedContentLayoutVersion_ == content_->layoutVersion()
+        && cachedContentConstraints_.minWidth == contentConstraints.minWidth
+        && cachedContentConstraints_.maxWidth == contentConstraints.maxWidth
+        && cachedContentConstraints_.minHeight == contentConstraints.minHeight
+        && cachedContentConstraints_.maxHeight == contentConstraints.maxHeight;
+    const core::Size contentSize = canReuseContentMeasure
+        ? cachedContentSize_
+        : content_->measure(contentConstraints);
+    if (!canReuseContentMeasure) {
+        cachedContentWidget_ = content_.get();
+        cachedContentConstraints_ = contentConstraints;
+        cachedContentSize_ = contentSize;
+        cachedContentLayoutVersion_ = content_->layoutVersion();
+        contentMeasureCacheValid_ = true;
+    }
     contentHeight_ = contentSize.height();
-    content_->arrange(SkRect::MakeXYWH(
+    content_->arrange(core::Rect::MakeXYWH(
         0.0f,
         0.0f,
         std::max(bounds.width(), contentSize.width()),
@@ -119,23 +152,23 @@ void ScrollView::arrange(const SkRect& bounds)
     clampScrollOffset();
 }
 
-void ScrollView::onDraw(SkCanvas* canvas)
+void ScrollView::onDraw(rendering::Canvas& canvas)
 {
-    if (canvas == nullptr || content_ == nullptr) {
+    if (!canvas || content_ == nullptr) {
         return;
     }
 
-    canvas->save();
-    canvas->translate(0.0f, -scrollOffset_);
+    canvas.save();
+    canvas.translate(0.0f, -scrollOffset_);
     content_->draw(canvas);
-    canvas->restore();
+    canvas.restore();
 
     const float maxOffset = maxScrollOffset();
     if (maxOffset <= 0.0f || bounds_.height() <= 0.0f) {
         return;
     }
 
-    const Theme& theme = currentTheme();
+    const Theme& theme = resolvedTheme();
     const float trackHeight = std::max(0.0f, bounds_.height() - kScrollbarMargin * 2.0f);
     const float thumbHeight = std::clamp(
         bounds_.height() * (bounds_.height() / std::max(bounds_.height(), contentHeight_)),
@@ -145,23 +178,19 @@ void ScrollView::onDraw(SkCanvas* canvas)
     const float thumbY = kScrollbarMargin
         + (thumbTravel * (scrollOffset_ / std::max(1.0f, maxOffset)));
 
-    SkPaint thumbPaint;
-    thumbPaint.setAntiAlias(true);
-    thumbPaint.setColor(SkColorSetARGB(
-        120,
-        SkColorGetR(theme.textSecondary),
-        SkColorGetG(theme.textSecondary),
-        SkColorGetB(theme.textSecondary)));
-    canvas->drawRRect(
-        SkRRect::MakeRectXY(
-            SkRect::MakeXYWH(
-                std::max(0.0f, bounds_.width() - kScrollbarMargin - kScrollbarWidth),
-                thumbY,
-                kScrollbarWidth,
-                thumbHeight),
-            kScrollbarWidth * 0.5f,
-            kScrollbarWidth * 0.5f),
-        thumbPaint);
+    canvas.drawRoundRect(
+        core::Rect::MakeXYWH(
+            std::max(0.0f, bounds_.width() - kScrollbarMargin - kScrollbarWidth),
+            thumbY,
+            kScrollbarWidth,
+            thumbHeight),
+        kScrollbarWidth * 0.5f,
+        kScrollbarWidth * 0.5f,
+        core::colorARGB(
+            120,
+            core::colorRed(theme.textSecondary),
+            core::colorGreen(theme.textSecondary),
+            core::colorBlue(theme.textSecondary)));
 }
 
 Widget* ScrollView::hitTest(float x, float y)
@@ -170,13 +199,15 @@ Widget* ScrollView::hitTest(float x, float y)
         return nullptr;
     }
 
-    const SkRect localBounds = SkRect::MakeWH(bounds_.width(), bounds_.height());
+    const core::Rect localBounds = core::Rect::MakeWH(bounds_.width(), bounds_.height());
     if (!localBounds.contains(x, y)) {
         return nullptr;
     }
 
     if (content_ != nullptr) {
-        if (Widget* target = content_->hitTest(x, y + scrollOffset_); target != nullptr) {
+        const core::Point contentOrigin = content_->parentAdjustedOrigin();
+        if (Widget* target = content_->hitTest(x - contentOrigin.x(), y - contentOrigin.y());
+            target != nullptr) {
             return target;
         }
     }
@@ -200,13 +231,21 @@ bool ScrollView::onEvent(core::Event& event)
     }
 
     scrollOffset_ = nextOffset;
-    markDirty();
+    markPaintDirty();
     return true;
 }
 
 void ScrollView::clampScrollOffset()
 {
     scrollOffset_ = std::clamp(scrollOffset_, 0.0f, maxScrollOffset());
+}
+
+core::Point ScrollView::childOffsetAdjustment(const Widget& child) const
+{
+    if (content_ != nullptr && &child == content_.get()) {
+        return core::Point::Make(0.0f, -scrollOffset_);
+    }
+    return Widget::childOffsetAdjustment(child);
 }
 
 }  // namespace tinalux::ui

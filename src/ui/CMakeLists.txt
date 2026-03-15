@@ -5,6 +5,9 @@ add_library(TinaluxUI STATIC
     DemoScene.cpp
     Theme.cpp
     Animation.cpp
+    RuntimeState.cpp
+    TextPrimitives.cpp
+    TextMetricsBackend.cpp
     Clipboard.cpp
     layouts/VBoxLayout.cpp
     layouts/HBoxLayout.cpp
@@ -12,6 +15,8 @@ add_library(TinaluxUI STATIC
     widgets/ParagraphLabel.cpp
     widgets/Button.cpp
     widgets/Checkbox.cpp
+    widgets/Dialog.cpp
+    widgets/ImageWidget.cpp
     widgets/Panel.cpp
     widgets/Radio.cpp
     widgets/ScrollView.cpp
@@ -36,6 +41,7 @@ if(CMAKE_CONFIGURATION_TYPES)
     target_link_libraries(TinaluxUI
         PUBLIC
             Tinalux::Core
+            Tinalux::Rendering
             Skia::Skia
             "$<$<CONFIG:Debug>:${SKIA_BUILD_DIR}/Debug/skparagraph.lib>"
             "$<$<CONFIG:Debug>:${SKIA_BUILD_DIR}/Debug/skshaper.lib>"
@@ -50,6 +56,7 @@ else()
     target_link_libraries(TinaluxUI
         PUBLIC
             Tinalux::Core
+            Tinalux::Rendering
             Skia::Skia
             "${SKIA_BUILD_DIR}/${SKIA_BUILD_TYPE}/skparagraph.lib"
             "${SKIA_BUILD_DIR}/${SKIA_BUILD_TYPE}/skshaper.lib"

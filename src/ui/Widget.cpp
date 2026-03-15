@@ -2,14 +2,15 @@
 
 #include <cmath>
 
-#include "include/core/SkCanvas.h"
+#include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/ScrollView.h"
+#include "RuntimeState.h"
 
 namespace tinalux::ui {
 
 namespace {
 
-bool sameRect(const SkRect& lhs, const SkRect& rhs)
+bool sameRect(const core::Rect& lhs, const core::Rect& rhs)
 {
     constexpr float kTolerance = 0.001f;
     return std::abs(lhs.left() - rhs.left()) <= kTolerance
@@ -20,15 +21,39 @@ bool sameRect(const SkRect& lhs, const SkRect& rhs)
 
 }  // namespace
 
-void Widget::arrange(const SkRect& bounds)
+const Theme& Widget::resolvedTheme() const
+{
+    return runtimeTheme();
+}
+
+core::Point Widget::childOffsetAdjustment(const Widget&) const
+{
+    return core::Point::Make(0.0f, 0.0f);
+}
+
+core::Point Widget::parentAdjustedOrigin() const
+{
+    core::Point origin = core::Point::Make(bounds_.x(), bounds_.y());
+    if (parent_ != nullptr) {
+        const core::Point adjustment = parent_->childOffsetAdjustment(*this);
+        origin.offset(adjustment.x(), adjustment.y());
+    }
+    return origin;
+}
+
+void Widget::arrange(const core::Rect& bounds)
 {
     if (!sameRect(bounds_, bounds)) {
+        const core::Rect previousGlobalBounds = globalBounds();
+        markDirtyRect(previousGlobalBounds);
         bounds_ = bounds;
-        markDirty();
+        markPaintDirty();
+        layoutDirty_ = false;
         return;
     }
 
     bounds_ = bounds;
+    layoutDirty_ = false;
 }
 
 bool Widget::onEventCapture(core::Event&)
@@ -47,44 +72,76 @@ Widget* Widget::hitTest(float x, float y)
         return nullptr;
     }
 
-    const SkRect localBounds = SkRect::MakeWH(bounds_.width(), bounds_.height());
+    const core::Rect localBounds = core::Rect::MakeWH(bounds_.width(), bounds_.height());
     return localBounds.contains(x, y) ? this : nullptr;
 }
 
-void Widget::draw(SkCanvas* canvas)
+Widget* Widget::hitTestGlobal(float x, float y)
 {
-    if (canvas == nullptr || !visible_ || bounds_.isEmpty()) {
+    const core::Point localPoint = globalToLocal(core::Point::Make(x, y));
+    return hitTest(localPoint.x(), localPoint.y());
+}
+
+void Widget::draw(rendering::Canvas& canvas)
+{
+    if (!canvas || !visible_ || bounds_.isEmpty()) {
         return;
     }
 
-    canvas->save();
-    canvas->translate(bounds_.x(), bounds_.y());
-    canvas->clipRect(SkRect::MakeWH(bounds_.width(), bounds_.height()));
+    if (canvas.quickReject(bounds_)) {
+        return;
+    }
+
+    canvas.save();
+    canvas.translate(bounds_.x(), bounds_.y());
+    canvas.clipRect(core::Rect::MakeWH(bounds_.width(), bounds_.height()));
     onDraw(canvas);
-    canvas->restore();
+    canvas.restore();
     dirty_ = false;
+    dirtyRegion_ = core::Rect::MakeEmpty();
 }
 
-SkRect Widget::bounds() const
+core::Rect Widget::bounds() const
 {
     return bounds_;
 }
 
-SkRect Widget::globalBounds() const
+core::Point Widget::localToGlobal(core::Point point) const
 {
-    SkRect result = bounds_;
-    for (const Widget* current = parent_; current != nullptr; current = current->parent_) {
-        result.offset(current->bounds_.x(), current->bounds_.y());
-        if (const auto* scrollView = dynamic_cast<const ScrollView*>(current); scrollView != nullptr) {
-            result.offset(0.0f, -scrollView->scrollOffset());
-        }
+    for (const Widget* current = this; current != nullptr; current = current->parent_) {
+        const core::Point origin = current->parentAdjustedOrigin();
+        point.offset(origin.x(), origin.y());
     }
-    return result;
+    return point;
+}
+
+core::Point Widget::globalToLocal(core::Point point) const
+{
+    const core::Point globalOrigin = localToGlobal();
+    point.offset(-globalOrigin.x(), -globalOrigin.y());
+    return point;
+}
+
+core::Rect Widget::globalBounds() const
+{
+    const core::Point origin = localToGlobal();
+    return core::Rect::MakeXYWH(origin.x(), origin.y(), bounds_.width(), bounds_.height());
+}
+
+bool Widget::containsLocalPoint(float x, float y) const
+{
+    if (!visible_) {
+        return false;
+    }
+
+    const core::Rect localBounds = core::Rect::MakeWH(bounds_.width(), bounds_.height());
+    return localBounds.contains(x, y);
 }
 
 bool Widget::containsGlobalPoint(float x, float y) const
 {
-    return visible_ && globalBounds().contains(x, y);
+    const core::Point localPoint = globalToLocal(core::Point::Make(x, y));
+    return containsLocalPoint(localPoint.x(), localPoint.y());
 }
 
 bool Widget::visible() const
@@ -99,7 +156,7 @@ void Widget::setVisible(bool visible)
     }
 
     visible_ = visible;
-    markDirty();
+    markLayoutDirty();
 }
 
 bool Widget::focused() const
@@ -114,7 +171,7 @@ void Widget::setFocused(bool focused)
     }
 
     focused_ = focused;
-    markDirty();
+    markPaintDirty();
 }
 
 bool Widget::focusable() const
@@ -122,15 +179,30 @@ bool Widget::focusable() const
     return false;
 }
 
-void Widget::markDirty()
+void Widget::markLayoutDirty()
 {
-    if (dirty_) {
+    const bool alreadyDirty = dirty_;
+    const bool alreadyLayoutDirty = layoutDirty_;
+    dirty_ = true;
+    layoutDirty_ = true;
+    ++layoutVersion_;
+    markDirtyRect(globalBounds());
+
+    if (alreadyDirty && alreadyLayoutDirty) {
         return;
     }
 
+    if (parent_ != nullptr) {
+        parent_->markLayoutDirty();
+    }
+}
+
+void Widget::markPaintDirty()
+{
+    markDirtyRect(globalBounds());
     dirty_ = true;
     if (parent_ != nullptr) {
-        parent_->markDirty();
+        parent_->markPaintDirty();
     }
 }
 
@@ -139,9 +211,46 @@ bool Widget::isDirty() const
     return dirty_;
 }
 
+bool Widget::isLayoutDirty() const
+{
+    return layoutDirty_;
+}
+
+std::uint64_t Widget::layoutVersion() const
+{
+    return layoutVersion_;
+}
+
+bool Widget::hasDirtyRegion() const
+{
+    return !dirtyRegion_.isEmpty();
+}
+
+core::Rect Widget::dirtyRegion() const
+{
+    return dirtyRegion_;
+}
+
 Widget* Widget::parent() const
 {
     return parent_;
+}
+
+void Widget::markDirtyRect(const core::Rect& rect)
+{
+    if (rect.isEmpty()) {
+        return;
+    }
+
+    if (dirtyRegion_.isEmpty()) {
+        dirtyRegion_ = rect;
+    } else {
+        dirtyRegion_.join(rect);
+    }
+
+    if (parent_ != nullptr) {
+        parent_->markDirtyRect(rect);
+    }
 }
 
 void Widget::setParent(Widget* parent)

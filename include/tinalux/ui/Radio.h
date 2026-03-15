@@ -22,8 +22,8 @@ public:
     void onChanged(std::function<void(bool)> handler);
 
     bool focusable() const override;
-    SkSize measure(const Constraints& constraints) override;
-    void onDraw(SkCanvas* canvas) override;
+    core::Size measure(const Constraints& constraints) override;
+    void onDraw(rendering::Canvas& canvas) override;
     bool onEvent(core::Event& event) override;
 
 private:

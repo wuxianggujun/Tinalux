@@ -1,17 +1,17 @@
 #pragma once
 
-#include "include/core/SkColor.h"
+#include "tinalux/core/Geometry.h"
 
 namespace tinalux::ui {
 
 struct Theme {
-    SkColor background = SkColorSetRGB(18, 20, 28);
-    SkColor surface = SkColorSetRGB(32, 35, 47);
-    SkColor primary = SkColorSetRGB(137, 180, 250);
-    SkColor onPrimary = SkColorSetRGB(15, 18, 28);
-    SkColor text = SkColorSetRGB(235, 239, 248);
-    SkColor textSecondary = SkColorSetRGB(166, 173, 200);
-    SkColor border = SkColorSetRGB(88, 126, 196);
+    core::Color background = core::colorRGB(18, 20, 28);
+    core::Color surface = core::colorRGB(32, 35, 47);
+    core::Color primary = core::colorRGB(137, 180, 250);
+    core::Color onPrimary = core::colorRGB(15, 18, 28);
+    core::Color text = core::colorRGB(235, 239, 248);
+    core::Color textSecondary = core::colorRGB(166, 173, 200);
+    core::Color border = core::colorRGB(88, 126, 196);
     float cornerRadius = 16.0f;
     float fontSize = 16.0f;
     float fontSizeLarge = 28.0f;
@@ -21,8 +21,5 @@ struct Theme {
     static Theme dark();
     static Theme light();
 };
-
-const Theme& currentTheme();
-void setTheme(Theme theme);
 
 }  // namespace tinalux::ui

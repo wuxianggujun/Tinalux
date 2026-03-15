@@ -1,5 +1,6 @@
 add_library(TinaluxApp STATIC
     Application.cpp
+    UIContext.cpp
 )
 
 add_library(Tinalux::App ALIAS TinaluxApp)

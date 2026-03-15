@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Layout.h"
 
 namespace tinalux::ui {
@@ -16,7 +17,7 @@ void Container::addChild(std::shared_ptr<Widget> child)
 
     child->setParent(this);
     children_.push_back(std::move(child));
-    markDirty();
+    markLayoutDirty();
 }
 
 void Container::removeChild(Widget* child)
@@ -35,17 +36,17 @@ void Container::removeChild(Widget* child)
     if (it != children_.end()) {
         (*it)->setParent(nullptr);
         children_.erase(it);
-        markDirty();
+        markLayoutDirty();
     }
 }
 
 void Container::setLayout(std::unique_ptr<Layout> layout)
 {
     layout_ = std::move(layout);
-    markDirty();
+    markLayoutDirty();
 }
 
-SkSize Container::measure(const Constraints& constraints)
+core::Size Container::measure(const Constraints& constraints)
 {
     if (layout_ != nullptr) {
         return layout_->measure(constraints, children_);
@@ -55,15 +56,15 @@ SkSize Container::measure(const Constraints& constraints)
         return children_.front()->measure(constraints);
     }
 
-    return constraints.constrain(SkSize::Make(0.0f, 0.0f));
+    return constraints.constrain(core::Size::Make(0.0f, 0.0f));
 }
 
-void Container::arrange(const SkRect& bounds)
+void Container::arrange(const core::Rect& bounds)
 {
     Widget::arrange(bounds);
 
     // 子组件布局使用容器本地坐标，避免重复叠加父组件偏移。
-    const SkRect contentBounds = SkRect::MakeWH(bounds.width(), bounds.height());
+    const core::Rect contentBounds = core::Rect::MakeWH(bounds.width(), bounds.height());
     if (layout_ != nullptr) {
         layout_->arrange(contentBounds, children_);
         return;
@@ -74,7 +75,7 @@ void Container::arrange(const SkRect& bounds)
     }
 }
 
-void Container::onDraw(SkCanvas* canvas)
+void Container::onDraw(rendering::Canvas& canvas)
 {
     drawChildren(canvas);
 }
@@ -85,15 +86,15 @@ Widget* Container::hitTest(float x, float y)
         return nullptr;
     }
 
-    const SkRect localBounds = SkRect::MakeWH(bounds_.width(), bounds_.height());
+    const core::Rect localBounds = core::Rect::MakeWH(bounds_.width(), bounds_.height());
     if (!localBounds.contains(x, y)) {
         return nullptr;
     }
 
     for (auto it = children_.rbegin(); it != children_.rend(); ++it) {
         Widget* child = it->get();
-        const SkRect childBounds = child->bounds();
-        Widget* target = child->hitTest(x - childBounds.x(), y - childBounds.y());
+        const core::Point childOrigin = child->parentAdjustedOrigin();
+        Widget* target = child->hitTest(x - childOrigin.x(), y - childOrigin.y());
         if (target != nullptr) {
             return target;
         }
@@ -107,7 +108,7 @@ const std::vector<std::shared_ptr<Widget>>& Container::children() const
     return children_;
 }
 
-void Container::drawChildren(SkCanvas* canvas)
+void Container::drawChildren(rendering::Canvas& canvas)
 {
     for (const auto& child : children_) {
         child->draw(canvas);

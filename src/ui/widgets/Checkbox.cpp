@@ -1,11 +1,8 @@
 #include "tinalux/ui/Checkbox.h"
 
-#include "include/core/SkCanvas.h"
-#include "include/core/SkFont.h"
-#include "include/core/SkPaint.h"
-#include "include/core/SkRRect.h"
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
+#include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Theme.h"
 
 #include "../TextPrimitives.h"
@@ -40,7 +37,7 @@ void Checkbox::setLabel(const std::string& label)
     }
 
     label_ = label;
-    markDirty();
+    markLayoutDirty();
 }
 
 bool Checkbox::checked() const
@@ -63,83 +60,59 @@ bool Checkbox::focusable() const
     return true;
 }
 
-SkSize Checkbox::measure(const Constraints& constraints)
+core::Size Checkbox::measure(const Constraints& constraints)
 {
-    const Theme& theme = currentTheme();
+    const Theme& theme = resolvedTheme();
     const TextMetrics metrics = measureTextMetrics(label_, theme.fontSize);
-    return constraints.constrain(SkSize::Make(
+    return constraints.constrain(core::Size::Make(
         kIndicatorSize + kLabelGap + metrics.width,
         std::max(kMinimumHeight, std::max(kIndicatorSize, metrics.height))));
 }
 
-void Checkbox::onDraw(SkCanvas* canvas)
+void Checkbox::onDraw(rendering::Canvas& canvas)
 {
-    if (canvas == nullptr) {
+    if (!canvas) {
         return;
     }
 
-    const Theme& theme = currentTheme();
+    const Theme& theme = resolvedTheme();
     const TextMetrics metrics = measureTextMetrics(label_, theme.fontSize);
     const float indicatorY = (bounds_.height() - kIndicatorSize) * 0.5f;
     const float labelY = (bounds_.height() - metrics.height) * 0.5f + metrics.baseline;
 
-    SkPaint indicatorFill;
-    indicatorFill.setAntiAlias(true);
-    indicatorFill.setColor(
-        checked_
-            ? theme.primary
-            : (pressed_ || hovered_ ? theme.background : theme.surface));
-    canvas->drawRRect(
-        SkRRect::MakeRectXY(
-            SkRect::MakeXYWH(0.0f, indicatorY, kIndicatorSize, kIndicatorSize),
-            kIndicatorRadius,
-            kIndicatorRadius),
-        indicatorFill);
-
-    SkPaint indicatorStroke;
-    indicatorStroke.setAntiAlias(true);
-    indicatorStroke.setStyle(SkPaint::kStroke_Style);
-    indicatorStroke.setStrokeWidth(focused() ? kIndicatorStroke : 1.5f);
-    indicatorStroke.setColor((focused() || hovered_) ? theme.primary : theme.border);
-    canvas->drawRRect(
-        SkRRect::MakeRectXY(
-            SkRect::MakeXYWH(
-                focused() ? 1.0f : 0.5f,
-                indicatorY + (focused() ? 1.0f : 0.5f),
-                kIndicatorSize - (focused() ? 2.0f : 1.0f),
-                kIndicatorSize - (focused() ? 2.0f : 1.0f)),
-            kIndicatorRadius,
-            kIndicatorRadius),
-        indicatorStroke);
+    canvas.drawRoundRect(
+        core::Rect::MakeXYWH(0.0f, indicatorY, kIndicatorSize, kIndicatorSize),
+        kIndicatorRadius,
+        kIndicatorRadius,
+        checked_ ? theme.primary : (pressed_ || hovered_ ? theme.background : theme.surface));
+    canvas.drawRoundRect(
+        core::Rect::MakeXYWH(
+            focused() ? 1.0f : 0.5f,
+            indicatorY + (focused() ? 1.0f : 0.5f),
+            kIndicatorSize - (focused() ? 2.0f : 1.0f),
+            kIndicatorSize - (focused() ? 2.0f : 1.0f)),
+        kIndicatorRadius,
+        kIndicatorRadius,
+        (focused() || hovered_) ? theme.primary : theme.border,
+        rendering::PaintStyle::Stroke,
+        focused() ? kIndicatorStroke : 1.5f);
 
     if (checked_) {
-        SkPaint checkPaint;
-        checkPaint.setAntiAlias(true);
-        checkPaint.setColor(theme.onPrimary);
-        checkPaint.setStrokeWidth(2.5f);
-        checkPaint.setStrokeCap(SkPaint::kRound_Cap);
-
         const float left = 5.0f;
         const float midX = 9.0f;
         const float midY = indicatorY + 15.0f;
         const float right = 17.0f;
         const float top = indicatorY + 7.0f;
-        canvas->drawLine(left, indicatorY + 11.0f, midX, midY, checkPaint);
-        canvas->drawLine(midX, midY, right, top, checkPaint);
+        canvas.drawLine(left, indicatorY + 11.0f, midX, midY, theme.onPrimary, 2.5f, true);
+        canvas.drawLine(midX, midY, right, top, theme.onPrimary, 2.5f, true);
     }
 
-    SkFont font;
-    font.setSize(theme.fontSize);
-
-    SkPaint textPaint;
-    textPaint.setAntiAlias(true);
-    textPaint.setColor(theme.text);
-    canvas->drawString(
+    canvas.drawText(
         label_.c_str(),
         kIndicatorSize + kLabelGap + metrics.drawX,
         labelY,
-        font,
-        textPaint);
+        theme.fontSize,
+        theme.text);
 }
 
 bool Checkbox::onEvent(core::Event& event)
@@ -148,37 +121,41 @@ bool Checkbox::onEvent(core::Event& event)
     case core::EventType::MouseEnter:
         if (!hovered_) {
             hovered_ = true;
-            markDirty();
+            markPaintDirty();
         }
         return false;
     case core::EventType::MouseLeave:
         if (hovered_) {
             hovered_ = false;
-            markDirty();
+            markPaintDirty();
         }
         return false;
     case core::EventType::MouseMove: {
         const auto& moveEvent = static_cast<const core::MouseMoveEvent&>(event);
-        const bool inside = containsGlobalPoint(
+        const core::Point localPoint = globalToLocal(core::Point::Make(
             static_cast<float>(moveEvent.x),
-            static_cast<float>(moveEvent.y));
+            static_cast<float>(moveEvent.y)));
+        const bool inside = containsLocalPoint(localPoint.x(), localPoint.y());
         if (hovered_ != inside) {
             hovered_ = inside;
-            markDirty();
+            markPaintDirty();
         }
         return pressed_;
     }
     case core::EventType::MouseButtonPress: {
         const auto& mouseEvent = static_cast<const core::MouseButtonEvent&>(event);
+        const core::Point localPoint = globalToLocal(core::Point::Make(
+            static_cast<float>(mouseEvent.x),
+            static_cast<float>(mouseEvent.y)));
         if (mouseEvent.button != core::mouse::kLeft
-            || !containsGlobalPoint(static_cast<float>(mouseEvent.x), static_cast<float>(mouseEvent.y))) {
+            || !containsLocalPoint(localPoint.x(), localPoint.y())) {
             return false;
         }
 
         if (!pressed_) {
             pressed_ = true;
             hovered_ = true;
-            markDirty();
+            markPaintDirty();
         }
         return true;
     }
@@ -188,14 +165,15 @@ bool Checkbox::onEvent(core::Event& event)
             return false;
         }
 
-        const bool inside = containsGlobalPoint(
+        const core::Point localPoint = globalToLocal(core::Point::Make(
             static_cast<float>(mouseEvent.x),
-            static_cast<float>(mouseEvent.y));
+            static_cast<float>(mouseEvent.y)));
+        const bool inside = containsLocalPoint(localPoint.x(), localPoint.y());
         const bool wasPressed = pressed_;
         if (pressed_ || hovered_ != inside) {
             pressed_ = false;
             hovered_ = inside;
-            markDirty();
+            markPaintDirty();
         }
         if (wasPressed && inside) {
             updateChecked(!checked_, true);
@@ -229,7 +207,7 @@ void Checkbox::updateChecked(bool checked, bool emitCallback)
     }
 
     checked_ = checked;
-    markDirty();
+    markPaintDirty();
     if (emitCallback && onToggle_) {
         onToggle_(checked_);
     }

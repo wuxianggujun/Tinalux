@@ -1,3 +1,4 @@
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -13,7 +14,6 @@
 #include "tinalux/ui/Layout.h"
 #include "tinalux/ui/Panel.h"
 #include "tinalux/ui/TextInput.h"
-#include "tinalux/ui/Theme.h"
 
 namespace {
 
@@ -27,58 +27,64 @@ void expect(bool condition, const char* message)
 
 class TraceContainer final : public tinalux::ui::Container {
 public:
-    explicit TraceContainer(std::vector<std::string>* trace)
+    explicit TraceContainer(std::vector<std::string>* trace, std::string prefix = "root")
         : trace_(trace)
+        , prefix_(std::move(prefix))
     {
     }
 
-    SkSize measure(const tinalux::ui::Constraints& constraints) override
+    tinalux::core::Size measure(const tinalux::ui::Constraints& constraints) override
     {
-        return constraints.constrain(SkSize::Make(200.0f, 120.0f));
+        return constraints.constrain(tinalux::core::Size::Make(200.0f, 120.0f));
     }
 
     bool onEventCapture(tinalux::core::Event&) override
     {
-        trace_->push_back("root-capture");
+        trace_->push_back(prefix_ + "-capture");
         return false;
     }
 
     bool onEvent(tinalux::core::Event&) override
     {
-        trace_->push_back("root-bubble");
+        trace_->push_back(prefix_ + "-bubble");
         return false;
     }
 
-    void onDraw(SkCanvas*) override {}
+    void onDraw(tinalux::rendering::Canvas&) override {}
 
 private:
     std::vector<std::string>* trace_;
+    std::string prefix_;
 };
 
 class TraceLeaf final : public tinalux::ui::Widget {
 public:
-    explicit TraceLeaf(std::vector<std::string>* trace, bool focusable = false)
+    explicit TraceLeaf(
+        std::vector<std::string>* trace,
+        bool focusable = false,
+        std::string prefix = "leaf")
         : trace_(trace)
         , focusable_(focusable)
+        , prefix_(std::move(prefix))
     {
     }
 
-    SkSize measure(const tinalux::ui::Constraints& constraints) override
+    tinalux::core::Size measure(const tinalux::ui::Constraints& constraints) override
     {
-        return constraints.constrain(SkSize::Make(90.0f, 40.0f));
+        return constraints.constrain(tinalux::core::Size::Make(90.0f, 40.0f));
     }
 
     bool onEvent(tinalux::core::Event& event) override
     {
         switch (event.type()) {
         case tinalux::core::EventType::MouseEnter:
-            trace_->push_back("leaf-enter");
+            trace_->push_back(prefix_ + "-enter");
             return false;
         case tinalux::core::EventType::MouseLeave:
-            trace_->push_back("leaf-leave");
+            trace_->push_back(prefix_ + "-leave");
             return false;
         default:
-            trace_->push_back("leaf-target");
+            trace_->push_back(prefix_ + "-target");
             return false;
         }
     }
@@ -88,26 +94,51 @@ public:
         return focusable_;
     }
 
-    void onDraw(SkCanvas*) override {}
+    void onDraw(tinalux::rendering::Canvas&) override {}
 
 private:
     std::vector<std::string>* trace_;
     bool focusable_ = false;
+    std::string prefix_;
 };
 
 }  // namespace
 
 int main()
 {
-    tinalux::ui::setTheme(tinalux::ui::Theme::dark());
+    {
+        tinalux::app::Application app;
+        tinalux::app::PerfLogConfig perfConfig {
+            .enabled = true,
+            .frameInterval = 0,
+        };
+        app.setPerfLogConfig(perfConfig);
+        const auto currentConfig = app.perfLogConfig();
+        expect(currentConfig.enabled, "perf log config should preserve enabled flag");
+        expect(currentConfig.frameInterval == 1, "perf log frame interval should clamp to at least 1");
+    }
+
+    {
+        tinalux::app::Application app;
+        tinalux::app::DebugHudConfig hudConfig {
+            .enabled = true,
+            .highlightDirtyRegion = true,
+            .scale = 0.1f,
+        };
+        app.setDebugHudConfig(hudConfig);
+        const auto currentConfig = app.debugHudConfig();
+        expect(currentConfig.enabled, "debug hud config should preserve enabled flag");
+        expect(currentConfig.highlightDirtyRegion, "debug hud config should preserve dirty region flag");
+        expect(std::abs(currentConfig.scale - 0.5f) <= 0.001f, "debug hud scale should clamp to minimum");
+    }
 
     {
         std::vector<std::string> trace;
         auto root = std::make_shared<TraceContainer>(&trace);
         auto leaf = std::make_shared<TraceLeaf>(&trace);
         root->addChild(leaf);
-        root->arrange(SkRect::MakeXYWH(0.0f, 0.0f, 240.0f, 160.0f));
-        leaf->arrange(SkRect::MakeXYWH(24.0f, 20.0f, 90.0f, 40.0f));
+        root->arrange(tinalux::core::Rect::MakeXYWH(0.0f, 0.0f, 240.0f, 160.0f));
+        leaf->arrange(tinalux::core::Rect::MakeXYWH(24.0f, 20.0f, 90.0f, 40.0f));
 
         tinalux::app::Application app;
         app.setRootWidget(root);
@@ -131,8 +162,8 @@ int main()
         auto root = std::make_shared<TraceContainer>(&trace);
         auto leaf = std::make_shared<TraceLeaf>(&trace, true);
         root->addChild(leaf);
-        root->arrange(SkRect::MakeXYWH(0.0f, 0.0f, 240.0f, 160.0f));
-        leaf->arrange(SkRect::MakeXYWH(24.0f, 20.0f, 90.0f, 40.0f));
+        root->arrange(tinalux::core::Rect::MakeXYWH(0.0f, 0.0f, 240.0f, 160.0f));
+        leaf->arrange(tinalux::core::Rect::MakeXYWH(24.0f, 20.0f, 90.0f, 40.0f));
 
         tinalux::app::Application app;
         app.setRootWidget(root);
@@ -164,8 +195,8 @@ int main()
         auto root = std::make_shared<TraceContainer>(&trace);
         auto leaf = std::make_shared<TraceLeaf>(&trace);
         root->addChild(leaf);
-        root->arrange(SkRect::MakeXYWH(0.0f, 0.0f, 240.0f, 160.0f));
-        leaf->arrange(SkRect::MakeXYWH(24.0f, 20.0f, 90.0f, 40.0f));
+        root->arrange(tinalux::core::Rect::MakeXYWH(0.0f, 0.0f, 240.0f, 160.0f));
+        leaf->arrange(tinalux::core::Rect::MakeXYWH(24.0f, 20.0f, 90.0f, 40.0f));
 
         tinalux::app::Application app;
         app.setRootWidget(root);
@@ -190,8 +221,8 @@ int main()
         auto root = std::make_shared<tinalux::ui::Panel>();
         auto input = std::make_shared<tinalux::ui::TextInput>("drag");
         root->addChild(input);
-        root->arrange(SkRect::MakeXYWH(0.0f, 0.0f, 320.0f, 160.0f));
-        input->arrange(SkRect::MakeXYWH(12.0f, 12.0f, 280.0f, 48.0f));
+        root->arrange(tinalux::core::Rect::MakeXYWH(0.0f, 0.0f, 320.0f, 160.0f));
+        input->arrange(tinalux::core::Rect::MakeXYWH(12.0f, 12.0f, 280.0f, 48.0f));
 
         tinalux::app::Application app;
         app.setRootWidget(root);
@@ -211,7 +242,7 @@ int main()
         app.handleEvent(textB);
         app.handleEvent(textC);
 
-        const SkRect inputBounds = input->globalBounds();
+        const tinalux::core::Rect inputBounds = input->globalBounds();
         const double pressX = inputBounds.x() + 8.0;
         const double pressY = inputBounds.centerY();
         tinalux::core::MouseButtonEvent press(
@@ -232,7 +263,7 @@ int main()
 
     {
         auto root = std::make_shared<tinalux::ui::Panel>();
-        root->setBackgroundColor(SkColorSetRGB(18, 20, 28));
+        root->setBackgroundColor(tinalux::core::colorRGB(18, 20, 28));
         auto layout = std::make_unique<tinalux::ui::VBoxLayout>();
         layout->padding = 16.0f;
         layout->spacing = 10.0f;
@@ -249,7 +280,7 @@ int main()
         root->addChild(primary);
         root->addChild(secondary);
         root->measure(tinalux::ui::Constraints::tight(320.0f, 200.0f));
-        root->arrange(SkRect::MakeXYWH(0.0f, 0.0f, 320.0f, 200.0f));
+        root->arrange(tinalux::core::Rect::MakeXYWH(0.0f, 0.0f, 320.0f, 200.0f));
 
         tinalux::app::Application app;
         app.setRootWidget(root);
@@ -281,7 +312,7 @@ int main()
         app.handleEvent(enterKey);
         expect(primaryClicks == 1, "Enter on focused button should trigger click");
 
-        const SkRect secondaryBounds = secondary->globalBounds();
+        const tinalux::core::Rect secondaryBounds = secondary->globalBounds();
         const double centerX = secondaryBounds.centerX();
         const double centerY = secondaryBounds.centerY();
         tinalux::core::MouseMoveEvent move(centerX, centerY);
@@ -318,6 +349,53 @@ int main()
         expect(root->children().front().get() == second.get(), "removeChild should keep later children intact");
         expect(first->parent() == nullptr, "removed child parent should be cleared");
         expect(second->parent() == root.get(), "remaining child parent should stay intact");
+    }
+
+    {
+        std::vector<std::string> rootTrace;
+        std::vector<std::string> overlayTrace;
+
+        auto root = std::make_shared<TraceContainer>(&rootTrace, "root");
+        auto rootLeaf = std::make_shared<TraceLeaf>(&rootTrace, true, "root-leaf");
+        root->addChild(rootLeaf);
+        root->arrange(tinalux::core::Rect::MakeXYWH(0.0f, 0.0f, 240.0f, 160.0f));
+        rootLeaf->arrange(tinalux::core::Rect::MakeXYWH(24.0f, 20.0f, 120.0f, 48.0f));
+
+        auto overlay = std::make_shared<TraceContainer>(&overlayTrace, "overlay");
+        auto overlayLeaf = std::make_shared<TraceLeaf>(&overlayTrace, true, "overlay-leaf");
+        overlay->addChild(overlayLeaf);
+        overlay->arrange(tinalux::core::Rect::MakeXYWH(0.0f, 0.0f, 240.0f, 160.0f));
+        overlayLeaf->arrange(tinalux::core::Rect::MakeXYWH(24.0f, 20.0f, 120.0f, 48.0f));
+
+        tinalux::app::Application app;
+        app.setRootWidget(root);
+        app.setOverlayWidget(overlay);
+
+        tinalux::core::MouseButtonEvent overlayPress(
+            0,
+            0,
+            40.0,
+            30.0,
+            tinalux::core::EventType::MouseButtonPress);
+        app.handleEvent(overlayPress);
+
+        expect(rootTrace.empty(), "overlay should receive pointer events before root tree");
+        expect(overlayTrace.size() == 3, "overlay event path should contain capture, target and bubble");
+        expect(overlayTrace[0] == "overlay-capture", "overlay capture order mismatch");
+        expect(overlayTrace[1] == "overlay-leaf-target", "overlay target order mismatch");
+        expect(overlayTrace[2] == "overlay-bubble", "overlay bubble order mismatch");
+
+        tinalux::core::KeyEvent tabForward(
+            tinalux::core::keys::kTab,
+            0,
+            0,
+            tinalux::core::EventType::KeyPress);
+        app.handleEvent(tabForward);
+        expect(overlayLeaf->focused(), "overlay should own focus traversal while active");
+
+        app.clearOverlayWidget();
+        app.handleEvent(tabForward);
+        expect(rootLeaf->focused(), "focus traversal should fall back to root after clearing overlay");
     }
 
     return 0;

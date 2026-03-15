@@ -16,15 +16,15 @@ public:
     void removeChild(Widget* child);
     void setLayout(std::unique_ptr<Layout> layout);
 
-    SkSize measure(const Constraints& constraints) override;
-    void arrange(const SkRect& bounds) override;
-    void onDraw(SkCanvas* canvas) override;
+    core::Size measure(const Constraints& constraints) override;
+    void arrange(const core::Rect& bounds) override;
+    void onDraw(rendering::Canvas& canvas) override;
     Widget* hitTest(float x, float y) override;
 
     const std::vector<std::shared_ptr<Widget>>& children() const;
 
 protected:
-    void drawChildren(SkCanvas* canvas);
+    void drawChildren(rendering::Canvas& canvas);
 
     std::vector<std::shared_ptr<Widget>> children_;
     std::unique_ptr<Layout> layout_;

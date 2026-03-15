@@ -18,9 +18,33 @@ CMakeUserPresets.json
 *.opendb
 *.suo
 
+# C/C++ build artifacts
+*.o
+*.obj
+*.d
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.dll
+*.exe
+*.a
+*.so
+*.dylib
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+_deps/
+
 # Skia checkout (large; sync via scripts instead of committing)
 3rdparty/skia/
 .ace-tool/
 
 # OS
 Thumbs.db
+.DS_Store
+Desktop.ini

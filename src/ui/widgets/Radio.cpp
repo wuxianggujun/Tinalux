@@ -1,10 +1,8 @@
 #include "tinalux/ui/Radio.h"
 
-#include "include/core/SkCanvas.h"
-#include "include/core/SkFont.h"
-#include "include/core/SkPaint.h"
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
+#include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Container.h"
 #include "tinalux/ui/Theme.h"
 
@@ -40,7 +38,7 @@ void Radio::setLabel(const std::string& label)
     }
 
     label_ = label;
-    markDirty();
+    markLayoutDirty();
 }
 
 const std::string& Radio::group() const
@@ -58,7 +56,7 @@ void Radio::setGroup(const std::string& group)
     if (selected_) {
         deselectGroupSiblings();
     }
-    markDirty();
+    markPaintDirty();
 }
 
 bool Radio::selected() const
@@ -81,52 +79,47 @@ bool Radio::focusable() const
     return true;
 }
 
-SkSize Radio::measure(const Constraints& constraints)
+core::Size Radio::measure(const Constraints& constraints)
 {
-    const Theme& theme = currentTheme();
+    const Theme& theme = resolvedTheme();
     const TextMetrics metrics = measureTextMetrics(label_, theme.fontSize);
-    return constraints.constrain(SkSize::Make(
+    return constraints.constrain(core::Size::Make(
         kIndicatorSize + kLabelGap + metrics.width,
         std::max(kMinimumHeight, std::max(kIndicatorSize, metrics.height))));
 }
 
-void Radio::onDraw(SkCanvas* canvas)
+void Radio::onDraw(rendering::Canvas& canvas)
 {
-    if (canvas == nullptr) {
+    if (!canvas) {
         return;
     }
 
-    const Theme& theme = currentTheme();
+    const Theme& theme = resolvedTheme();
     const TextMetrics metrics = measureTextMetrics(label_, theme.fontSize);
     const float indicatorY = (bounds_.height() - kIndicatorSize) * 0.5f;
     const float center = indicatorY + kIndicatorSize * 0.5f;
 
-    SkPaint ringPaint;
-    ringPaint.setAntiAlias(true);
-    ringPaint.setStyle(SkPaint::kStroke_Style);
-    ringPaint.setStrokeWidth(focused() ? 2.0f : 1.5f);
-    ringPaint.setColor((focused() || hovered_ || selected_) ? theme.primary : theme.border);
-    canvas->drawCircle(kIndicatorSize * 0.5f, center, kIndicatorSize * 0.5f - 1.5f, ringPaint);
+    canvas.drawCircle(
+        kIndicatorSize * 0.5f,
+        center,
+        kIndicatorSize * 0.5f - 1.5f,
+        (focused() || hovered_ || selected_) ? theme.primary : theme.border,
+        rendering::PaintStyle::Stroke,
+        focused() ? 2.0f : 1.5f);
 
     if (selected_) {
-        SkPaint dotPaint;
-        dotPaint.setAntiAlias(true);
-        dotPaint.setColor(theme.primary);
-        canvas->drawCircle(kIndicatorSize * 0.5f, center, kInnerDotSize * 0.5f, dotPaint);
+        canvas.drawCircle(
+            kIndicatorSize * 0.5f,
+            center,
+            kInnerDotSize * 0.5f,
+            theme.primary);
     }
-
-    SkFont font;
-    font.setSize(theme.fontSize);
-
-    SkPaint textPaint;
-    textPaint.setAntiAlias(true);
-    textPaint.setColor(theme.text);
-    canvas->drawString(
+    canvas.drawText(
         label_.c_str(),
         kIndicatorSize + kLabelGap + metrics.drawX,
         (bounds_.height() - metrics.height) * 0.5f + metrics.baseline,
-        font,
-        textPaint);
+        theme.fontSize,
+        theme.text);
 }
 
 bool Radio::onEvent(core::Event& event)
@@ -135,37 +128,41 @@ bool Radio::onEvent(core::Event& event)
     case core::EventType::MouseEnter:
         if (!hovered_) {
             hovered_ = true;
-            markDirty();
+            markPaintDirty();
         }
         return false;
     case core::EventType::MouseLeave:
         if (hovered_) {
             hovered_ = false;
-            markDirty();
+            markPaintDirty();
         }
         return false;
     case core::EventType::MouseMove: {
         const auto& moveEvent = static_cast<const core::MouseMoveEvent&>(event);
-        const bool inside = containsGlobalPoint(
+        const core::Point localPoint = globalToLocal(core::Point::Make(
             static_cast<float>(moveEvent.x),
-            static_cast<float>(moveEvent.y));
+            static_cast<float>(moveEvent.y)));
+        const bool inside = containsLocalPoint(localPoint.x(), localPoint.y());
         if (hovered_ != inside) {
             hovered_ = inside;
-            markDirty();
+            markPaintDirty();
         }
         return pressed_;
     }
     case core::EventType::MouseButtonPress: {
         const auto& mouseEvent = static_cast<const core::MouseButtonEvent&>(event);
+        const core::Point localPoint = globalToLocal(core::Point::Make(
+            static_cast<float>(mouseEvent.x),
+            static_cast<float>(mouseEvent.y)));
         if (mouseEvent.button != core::mouse::kLeft
-            || !containsGlobalPoint(static_cast<float>(mouseEvent.x), static_cast<float>(mouseEvent.y))) {
+            || !containsLocalPoint(localPoint.x(), localPoint.y())) {
             return false;
         }
 
         if (!pressed_) {
             pressed_ = true;
             hovered_ = true;
-            markDirty();
+            markPaintDirty();
         }
         return true;
     }
@@ -175,14 +172,15 @@ bool Radio::onEvent(core::Event& event)
             return false;
         }
 
-        const bool inside = containsGlobalPoint(
+        const core::Point localPoint = globalToLocal(core::Point::Make(
             static_cast<float>(mouseEvent.x),
-            static_cast<float>(mouseEvent.y));
+            static_cast<float>(mouseEvent.y)));
+        const bool inside = containsLocalPoint(localPoint.x(), localPoint.y());
         const bool wasPressed = pressed_;
         if (pressed_ || hovered_ != inside) {
             pressed_ = false;
             hovered_ = inside;
-            markDirty();
+            markPaintDirty();
         }
         if (wasPressed && inside) {
             updateSelected(true, true, true);
@@ -219,7 +217,7 @@ void Radio::updateSelected(bool selected, bool emitCallback, bool syncGroup)
     if (selected_ && syncGroup) {
         deselectGroupSiblings();
     }
-    markDirty();
+    markPaintDirty();
     if (emitCallback && onChanged_) {
         onChanged_(selected_);
     }

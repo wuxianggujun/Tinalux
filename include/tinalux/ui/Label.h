@@ -2,7 +2,6 @@
 
 #include <string>
 
-#include "include/core/SkColor.h"
 #include "tinalux/ui/Widget.h"
 
 namespace tinalux::ui {
@@ -13,15 +12,15 @@ public:
 
     void setText(const std::string& text);
     void setFontSize(float size);
-    void setColor(SkColor color);
+    void setColor(core::Color color);
 
-    SkSize measure(const Constraints& constraints) override;
-    void onDraw(SkCanvas* canvas) override;
+    core::Size measure(const Constraints& constraints) override;
+    void onDraw(rendering::Canvas& canvas) override;
 
 private:
     std::string text_;
     float fontSize_ = 18.0f;
-    SkColor color_ = SkColorSetRGB(236, 239, 244);
+    core::Color color_ = core::colorRGB(236, 239, 244);
 };
 
 }  // namespace tinalux::ui

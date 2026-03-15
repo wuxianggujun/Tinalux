@@ -4,6 +4,8 @@
 #include "include/gpu/ganesh/GrBackendSurface.h"
 #include "include/gpu/ganesh/SkSurfaceGanesh.h"
 #include "include/gpu/ganesh/gl/GrGLBackendSurface.h"
+#include "RenderHandles.h"
+#include "tinalux/core/Log.h"
 
 namespace {
 
@@ -14,10 +16,17 @@ constexpr GrGLenum kDefaultFramebufferFormat = 0x8058;  // GL_RGBA8
 
 namespace tinalux::rendering {
 
-sk_sp<SkSurface> createWindowSurface(GrDirectContext* context, int width, int height)
+RenderSurface createWindowSurface(const RenderContext& context, int width, int height)
 {
-    if (context == nullptr || width <= 0 || height <= 0) {
-        return nullptr;
+    auto* skia = RenderAccess::skiaContext(context);
+    if (skia == nullptr || width <= 0 || height <= 0) {
+        core::logWarnCat(
+            "render",
+            "Skipping window surface creation because context={} width={} height={}",
+            static_cast<const void*>(skia),
+            width,
+            height);
+        return {};
     }
 
     GrGLFramebufferInfo framebufferInfo;
@@ -27,13 +36,24 @@ sk_sp<SkSurface> createWindowSurface(GrDirectContext* context, int width, int he
     GrBackendRenderTarget renderTarget =
         GrBackendRenderTargets::MakeGL(width, height, 0, 8, framebufferInfo);
 
-    return SkSurfaces::WrapBackendRenderTarget(
-        context,
+    sk_sp<SkSurface> surface = SkSurfaces::WrapBackendRenderTarget(
+        skia,
         renderTarget,
         kBottomLeft_GrSurfaceOrigin,
         kRGBA_8888_SkColorType,
         SkColorSpace::MakeSRGB(),
         nullptr);
+    if (!surface) {
+        core::logErrorCat(
+            "render",
+            "Failed to wrap backend render target into window surface {}x{}",
+            width,
+            height);
+        return {};
+    }
+
+    core::logDebugCat("render", "Created window surface {}x{}", width, height);
+    return RenderAccess::makeSurface(std::move(surface));
 }
 
 }  // namespace tinalux::rendering

@@ -1,11 +1,8 @@
 #include "tinalux/ui/Toggle.h"
 
-#include "include/core/SkCanvas.h"
-#include "include/core/SkFont.h"
-#include "include/core/SkPaint.h"
-#include "include/core/SkRRect.h"
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
+#include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Theme.h"
 
 #include "../TextPrimitives.h"
@@ -41,7 +38,7 @@ void Toggle::setLabel(const std::string& label)
     }
 
     label_ = label;
-    markDirty();
+    markLayoutDirty();
 }
 
 bool Toggle::on() const
@@ -64,22 +61,22 @@ bool Toggle::focusable() const
     return true;
 }
 
-SkSize Toggle::measure(const Constraints& constraints)
+core::Size Toggle::measure(const Constraints& constraints)
 {
-    const Theme& theme = currentTheme();
+    const Theme& theme = resolvedTheme();
     const TextMetrics metrics = measureTextMetrics(label_, theme.fontSize);
-    return constraints.constrain(SkSize::Make(
+    return constraints.constrain(core::Size::Make(
         metrics.width + kLabelGap + kTrackWidth,
         std::max(kMinimumHeight, std::max(metrics.height, kTrackHeight))));
 }
 
-void Toggle::onDraw(SkCanvas* canvas)
+void Toggle::onDraw(rendering::Canvas& canvas)
 {
-    if (canvas == nullptr) {
+    if (!canvas) {
         return;
     }
 
-    const Theme& theme = currentTheme();
+    const Theme& theme = resolvedTheme();
     const TextMetrics metrics = measureTextMetrics(label_, theme.fontSize);
     const float trackY = (bounds_.height() - kTrackHeight) * 0.5f;
     const float thumbCenterY = bounds_.height() * 0.5f;
@@ -87,49 +84,28 @@ void Toggle::onDraw(SkCanvas* canvas)
         ? (kTrackWidth - kThumbInset - kThumbRadius)
         : (kThumbInset + kThumbRadius);
 
-    SkPaint trackPaint;
-    trackPaint.setAntiAlias(true);
-    trackPaint.setColor(on_
-        ? theme.primary
-        : (pressed_ || hovered_ ? theme.background : theme.surface));
-    canvas->drawRRect(
-        SkRRect::MakeRectXY(
-            SkRect::MakeXYWH(0.0f, trackY, kTrackWidth, kTrackHeight),
-            kTrackHeight * 0.5f,
-            kTrackHeight * 0.5f),
-        trackPaint);
+    canvas.drawRoundRect(
+        core::Rect::MakeXYWH(0.0f, trackY, kTrackWidth, kTrackHeight),
+        kTrackHeight * 0.5f,
+        kTrackHeight * 0.5f,
+        on_ ? theme.primary : (pressed_ || hovered_ ? theme.background : theme.surface));
 
     if (focused()) {
-        SkPaint focusPaint;
-        focusPaint.setAntiAlias(true);
-        focusPaint.setStyle(SkPaint::kStroke_Style);
-        focusPaint.setStrokeWidth(2.0f);
-        focusPaint.setColor(theme.primary);
-        canvas->drawRRect(
-            SkRRect::MakeRectXY(
-                SkRect::MakeXYWH(1.0f, trackY + 1.0f, kTrackWidth - 2.0f, kTrackHeight - 2.0f),
-                kTrackHeight * 0.5f,
-                kTrackHeight * 0.5f),
-            focusPaint);
+        canvas.drawRoundRect(
+            core::Rect::MakeXYWH(1.0f, trackY + 1.0f, kTrackWidth - 2.0f, kTrackHeight - 2.0f),
+            kTrackHeight * 0.5f,
+            kTrackHeight * 0.5f,
+            theme.primary,
+            rendering::PaintStyle::Stroke,
+            2.0f);
     }
-
-    SkPaint thumbPaint;
-    thumbPaint.setAntiAlias(true);
-    thumbPaint.setColor(on_ ? theme.onPrimary : theme.text);
-    canvas->drawCircle(thumbCenterX, thumbCenterY, kThumbRadius, thumbPaint);
-
-    SkFont font;
-    font.setSize(theme.fontSize);
-
-    SkPaint textPaint;
-    textPaint.setAntiAlias(true);
-    textPaint.setColor(theme.text);
-    canvas->drawString(
+    canvas.drawCircle(thumbCenterX, thumbCenterY, kThumbRadius, on_ ? theme.onPrimary : theme.text);
+    canvas.drawText(
         label_.c_str(),
         kTrackWidth + kLabelGap + metrics.drawX,
         (bounds_.height() - metrics.height) * 0.5f + metrics.baseline,
-        font,
-        textPaint);
+        theme.fontSize,
+        theme.text);
 }
 
 bool Toggle::onEvent(core::Event& event)
@@ -138,37 +114,41 @@ bool Toggle::onEvent(core::Event& event)
     case core::EventType::MouseEnter:
         if (!hovered_) {
             hovered_ = true;
-            markDirty();
+            markPaintDirty();
         }
         return false;
     case core::EventType::MouseLeave:
         if (hovered_) {
             hovered_ = false;
-            markDirty();
+            markPaintDirty();
         }
         return false;
     case core::EventType::MouseMove: {
         const auto& moveEvent = static_cast<const core::MouseMoveEvent&>(event);
-        const bool inside = containsGlobalPoint(
+        const core::Point localPoint = globalToLocal(core::Point::Make(
             static_cast<float>(moveEvent.x),
-            static_cast<float>(moveEvent.y));
+            static_cast<float>(moveEvent.y)));
+        const bool inside = containsLocalPoint(localPoint.x(), localPoint.y());
         if (hovered_ != inside) {
             hovered_ = inside;
-            markDirty();
+            markPaintDirty();
         }
         return pressed_;
     }
     case core::EventType::MouseButtonPress: {
         const auto& mouseEvent = static_cast<const core::MouseButtonEvent&>(event);
+        const core::Point localPoint = globalToLocal(core::Point::Make(
+            static_cast<float>(mouseEvent.x),
+            static_cast<float>(mouseEvent.y)));
         if (mouseEvent.button != core::mouse::kLeft
-            || !containsGlobalPoint(static_cast<float>(mouseEvent.x), static_cast<float>(mouseEvent.y))) {
+            || !containsLocalPoint(localPoint.x(), localPoint.y())) {
             return false;
         }
 
         if (!pressed_) {
             pressed_ = true;
             hovered_ = true;
-            markDirty();
+            markPaintDirty();
         }
         return true;
     }
@@ -178,14 +158,15 @@ bool Toggle::onEvent(core::Event& event)
             return false;
         }
 
-        const bool inside = containsGlobalPoint(
+        const core::Point localPoint = globalToLocal(core::Point::Make(
             static_cast<float>(mouseEvent.x),
-            static_cast<float>(mouseEvent.y));
+            static_cast<float>(mouseEvent.y)));
+        const bool inside = containsLocalPoint(localPoint.x(), localPoint.y());
         const bool wasPressed = pressed_;
         if (pressed_ || hovered_ != inside) {
             pressed_ = false;
             hovered_ = inside;
-            markDirty();
+            markPaintDirty();
         }
         if (wasPressed && inside) {
             updateOn(!on_, true);
@@ -219,7 +200,7 @@ void Toggle::updateOn(bool on, bool emitCallback)
     }
 
     on_ = on;
-    markDirty();
+    markPaintDirty();
     if (emitCallback && onToggle_) {
         onToggle_(on_);
     }

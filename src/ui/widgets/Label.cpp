@@ -1,18 +1,12 @@
 #include "tinalux/ui/Label.h"
 
-#include "include/core/SkCanvas.h"
-#include "include/core/SkFont.h"
-#include "include/core/SkPaint.h"
-#include "tinalux/ui/Theme.h"
-
+#include "tinalux/rendering/rendering.h"
 #include "../TextPrimitives.h"
 
 namespace tinalux::ui {
 
 Label::Label(std::string text)
     : text_(std::move(text))
-    , fontSize_(currentTheme().fontSize)
-    , color_(currentTheme().text)
 {
 }
 
@@ -23,7 +17,7 @@ void Label::setText(const std::string& text)
     }
 
     text_ = text;
-    markDirty();
+    markLayoutDirty();
 }
 
 void Label::setFontSize(float size)
@@ -34,41 +28,33 @@ void Label::setFontSize(float size)
     }
 
     fontSize_ = clampedSize;
-    markDirty();
+    markLayoutDirty();
 }
 
-void Label::setColor(SkColor color)
+void Label::setColor(core::Color color)
 {
     if (color_ == color) {
         return;
     }
 
     color_ = color;
-    markDirty();
+    markPaintDirty();
 }
 
-SkSize Label::measure(const Constraints& constraints)
+core::Size Label::measure(const Constraints& constraints)
 {
     const TextMetrics metrics = measureTextMetrics(text_, fontSize_);
-    return constraints.constrain(SkSize::Make(metrics.width, metrics.height));
+    return constraints.constrain(core::Size::Make(metrics.width, metrics.height));
 }
 
-void Label::onDraw(SkCanvas* canvas)
+void Label::onDraw(rendering::Canvas& canvas)
 {
-    if (canvas == nullptr || text_.empty()) {
+    if (!canvas || text_.empty()) {
         return;
     }
 
     const TextMetrics metrics = measureTextMetrics(text_, fontSize_);
-
-    SkFont font;
-    font.setSize(fontSize_);
-
-    SkPaint paint;
-    paint.setAntiAlias(true);
-    paint.setColor(color_);
-
-    canvas->drawString(text_.c_str(), metrics.drawX, metrics.baseline, font, paint);
+    canvas.drawText(text_, metrics.drawX, metrics.baseline, fontSize_, color_);
 }
 
 }  // namespace tinalux::ui

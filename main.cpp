@@ -8,6 +8,8 @@ int main()
         return 1;
     }
 
-    app.setRootWidget(tinalux::ui::createDemoScene());
+    const tinalux::ui::Theme theme = tinalux::ui::Theme::dark();
+    app.setTheme(theme);
+    app.setRootWidget(tinalux::ui::createDemoScene(theme, app.animationSink()));
     return app.run();
 }

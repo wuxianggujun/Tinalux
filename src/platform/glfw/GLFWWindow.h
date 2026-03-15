@@ -18,6 +18,7 @@ public:
 
     bool shouldClose() const override;
     void pollEvents() override;
+    void waitEventsTimeout(double timeoutSeconds) override;
     void swapBuffers() override;
     void requestClose() override;
 
