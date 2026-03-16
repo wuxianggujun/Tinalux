@@ -25,7 +25,7 @@ RenderSurface createRasterSurface(int width, int height)
     }
 
     core::logDebugCat("render", "Created raster surface {}x{}", width, height);
-    return RenderAccess::makeSurface(std::move(surface));
+    return RenderAccess::makeSurface(Backend::OpenGL, std::move(surface));
 }
 
 }  // namespace tinalux::rendering

@@ -39,6 +39,7 @@ tinalux::rendering::RenderContext makeFakeContext(std::uintptr_t token)
 {
     return tinalux::rendering::RenderAccess::makeContext(
         Backend::Vulkan,
+        nullptr,
         reinterpret_cast<void*>(token),
         &destroyFakeHandle,
         nullptr);
@@ -185,6 +186,38 @@ int main()
         auto* finalWindow = dynamic_cast<FakeWindow*>(app.window());
         expect(finalWindow != nullptr, "Runtime fallback should leave a fake window instance active");
         expect(finalWindow->graphicsApi() == GraphicsAPI::OpenGL, "Runtime fallback should leave the OpenGL window active");
+    }
+
+    {
+        resetScenario();
+
+        app::Application app;
+        expect(
+            app.init(app::ApplicationConfig { .backend = Backend::Auto }),
+            "Auto backend init should succeed for surface recreation smoke");
+        expect(gSurfaceCreateCalls == 1, "Init should create exactly one initial surface");
+
+        expect(
+            app::detail::ApplicationTestAccess::renderFrame(app),
+            "Render frame should succeed without recreating the surface when framebuffer size is unchanged");
+        expect(
+            gSurfaceCreateCalls == 1,
+            "Stable framebuffer size should reuse the existing surface");
+
+        gFramebufferWidthOverride = 1440;
+        gFramebufferHeightOverride = 900;
+        expect(
+            app::detail::ApplicationTestAccess::renderFrame(app),
+            "Render frame should recreate the surface when framebuffer size changes");
+        expect(
+            gSurfaceCreateCalls == 2,
+            "Framebuffer resize should trigger exactly one surface recreation");
+        expect(
+            gWindowApis.size() == 1,
+            "Surface recreation without backend failure should not create a second window");
+        expect(
+            gContextRequests.size() == 1,
+            "Surface recreation without backend failure should not create a second context");
     }
 
     return 0;

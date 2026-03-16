@@ -8,6 +8,7 @@
 #include "UIContext.h"
 #include "tinalux/core/Log.h"
 #include "tinalux/core/events/Event.h"
+#include "../rendering/FrameLifecycle.h"
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Animation.h"
 #include "tinalux/ui/Clipboard.h"
@@ -470,7 +471,49 @@ bool Application::renderFrame()
         impl_->surfaceHeight = framebufferHeight;
     }
 
+    const rendering::FramePrepareStatus framePrepareStatus =
+        rendering::prepareFrame(impl_->context, impl_->surface);
+    if (framePrepareStatus == rendering::FramePrepareStatus::RetryLater) {
+        const rendering::SurfaceFailureReason failureReason =
+            rendering::lastSurfaceFailureReason(impl_->surface);
+        core::logDebugCat(
+            "app",
+            "Skipping frame because backend '{}' is temporarily unavailable (reason='{}')",
+            rendering::backendName(impl_->context.backend()),
+            rendering::surfaceFailureReasonName(failureReason));
+        syncTextInputState();
+        return true;
+    }
+    if (framePrepareStatus == rendering::FramePrepareStatus::SurfaceLost) {
+        const rendering::SurfaceFailureReason failureReason =
+            rendering::lastSurfaceFailureReason(impl_->surface);
+        core::logWarnCat(
+            "app",
+            "Render surface became unavailable during frame preparation for backend '{}' (reason='{}')",
+            rendering::backendName(impl_->context.backend()),
+            rendering::surfaceFailureReasonName(failureReason));
+        impl_->surface = {};
+        impl_->surfaceWidth = 0;
+        impl_->surfaceHeight = 0;
+        syncTextInputState();
+        return true;
+    }
+
     rendering::Canvas canvas = impl_->surface.canvas();
+    if (!canvas) {
+        const rendering::SurfaceFailureReason failureReason =
+            rendering::lastSurfaceFailureReason(impl_->surface);
+        core::logWarnCat(
+            "app",
+            "Frame preparation reported ready, but backend '{}' returned an empty canvas (reason='{}')",
+            rendering::backendName(impl_->context.backend()),
+            rendering::surfaceFailureReasonName(failureReason));
+        impl_->surface = {};
+        impl_->surfaceWidth = 0;
+        impl_->surfaceHeight = 0;
+        syncTextInputState();
+        return true;
+    }
     const bool fullRedraw =
         impl_->uiContext.render(canvas, framebufferWidth, framebufferHeight);
 

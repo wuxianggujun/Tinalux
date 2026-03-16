@@ -7,8 +7,15 @@ add_library(TinaluxRendering STATIC
     ParagraphPainter.cpp
     RasterSurface.cpp
     GLContext.cpp
+    VulkanBackend.cpp
     WindowSurface.cpp
 )
+
+if(APPLE)
+    target_sources(TinaluxRendering PRIVATE MetalBackend.mm)
+else()
+    target_sources(TinaluxRendering PRIVATE MetalBackend.cpp)
+endif()
 
 add_library(Tinalux::Rendering ALIAS TinaluxRendering)
 
@@ -24,3 +31,12 @@ target_link_libraries(TinaluxRendering
         Tinalux::Core
         Skia::Skia
 )
+
+if(APPLE)
+    find_library(TINALUX_METAL_FRAMEWORK Metal REQUIRED)
+    find_library(TINALUX_QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)
+    target_link_libraries(TinaluxRendering PRIVATE
+        ${TINALUX_METAL_FRAMEWORK}
+        ${TINALUX_QUARTZCORE_FRAMEWORK}
+    )
+endif()

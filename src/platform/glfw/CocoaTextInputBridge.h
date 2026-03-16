@@ -21,6 +21,7 @@ public:
         bool active,
         const std::optional<core::Rect>& cursorRect,
         float dpiScale) = 0;
+    virtual void syncWindowBinding() = 0;
     virtual void setCursorRect(
         const std::optional<core::Rect>& cursorRect,
         float dpiScale) = 0;

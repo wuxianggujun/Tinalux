@@ -7,6 +7,10 @@
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 
+#include <atomic>
+#include <unordered_map>
+#include <unordered_set>
+
 #import <Cocoa/Cocoa.h>
 #import <objc/runtime.h>
 
@@ -15,6 +19,7 @@
 #include <string>
 #include <utility>
 
+#include "CocoaMainThread.h"
 #include "GLFWWindow.h"
 #include "tinalux/core/Log.h"
 
@@ -28,12 +33,28 @@ using SelectedRangeFn = NSRange (*)(id, SEL);
 using SetMarkedTextFn = void (*)(id, SEL, id, NSRange, NSRange);
 using UnmarkTextFn = void (*)(id, SEL);
 
-FirstRectForCharacterRangeFn gOriginalFirstRectForCharacterRange = nullptr;
-InsertTextFn gOriginalInsertText = nullptr;
-SelectedRangeFn gOriginalSelectedRange = nullptr;
-SetMarkedTextFn gOriginalSetMarkedText = nullptr;
-UnmarkTextFn gOriginalUnmarkText = nullptr;
+std::atomic<bool> gLoggedCreateThreadHandoff = false;
+std::atomic<bool> gLoggedDestroyThreadHandoff = false;
+std::atomic<bool> gLoggedSetActiveThreadHandoff = false;
+std::atomic<bool> gLoggedSyncBindingThreadHandoff = false;
+std::atomic<bool> gLoggedSetCursorRectThreadHandoff = false;
+
+std::unordered_set<Class> gInstalledContentViewClasses;
+std::unordered_map<Class, FirstRectForCharacterRangeFn> gOriginalFirstRectForCharacterRangeByClass;
+std::unordered_map<Class, InsertTextFn> gOriginalInsertTextByClass;
+std::unordered_map<Class, SelectedRangeFn> gOriginalSelectedRangeByClass;
+std::unordered_map<Class, SetMarkedTextFn> gOriginalSetMarkedTextByClass;
+std::unordered_map<Class, UnmarkTextFn> gOriginalUnmarkTextByClass;
 void* kBridgeAssociationKey = &kBridgeAssociationKey;
+
+template <typename Fn>
+Fn originalImplementationForClass(
+    const std::unordered_map<Class, Fn>& implementations,
+    Class contentViewClass)
+{
+    const auto it = implementations.find(contentViewClass);
+    return it != implementations.end() ? it->second : nullptr;
+}
 
 std::size_t utf8ByteOffsetForNSStringPrefix(NSString* text, NSUInteger utf16Length)
 {
@@ -80,70 +101,52 @@ public:
         : window_(window)
         , owner_(owner)
         , cocoaWindow_(cocoaWindow)
-        , contentView_(contentView)
     {
-        installHooks([contentView_ class]);
-        objc_setAssociatedObject(contentView_, kBridgeAssociationKey, this, OBJC_ASSOCIATION_ASSIGN);
+        bindToContentView(contentView);
     }
 
     ~CocoaTextInputBridgeImpl() override
     {
-        if (contentView_ != nil) {
-            objc_setAssociatedObject(contentView_, kBridgeAssociationKey, nil, OBJC_ASSOCIATION_ASSIGN);
-        }
+        detail::runOnMainThread("Cocoa text input bridge", "destroy", gLoggedDestroyThreadHandoff, ^{
+            bindToContentView(nil);
+            cocoaWindow_ = nil;
+        });
     }
 
     void setActive(bool active, const std::optional<core::Rect>& cursorRect, float dpiScale) override
     {
-        active_ = active;
-        cursorRect_ = cursorRect;
-        dpiScale_ = dpiScale;
+        detail::runOnMainThread("Cocoa text input bridge", "setActive", gLoggedSetActiveThreadHandoff, ^{
+            setActiveImpl(active, cursorRect, dpiScale);
+        });
+    }
 
-        if (contentView_ == nil) {
-            return;
-        }
-
-        NSTextInputContext* inputContext = [contentView_ inputContext];
-        if (inputContext == nil) {
-            return;
-        }
-
-        if (active_) {
-            if (cocoaWindow_ != nil && [cocoaWindow_ firstResponder] != contentView_) {
-                [cocoaWindow_ makeFirstResponder:contentView_];
-            }
-            [inputContext activate];
-            [inputContext invalidateCharacterCoordinates];
-            return;
-        }
-
-        if (markedTextActive_) {
-            owner_.dispatchPlatformCompositionEnd();
-            markedTextActive_ = false;
-        }
-        selectedRange_ = NSMakeRange(NSNotFound, 0);
-
-        [inputContext discardMarkedText];
-        [inputContext deactivate];
+    void syncWindowBinding() override
+    {
+        detail::runOnMainThread(
+            "Cocoa text input bridge",
+            "syncWindowBinding",
+            gLoggedSyncBindingThreadHandoff,
+            ^{
+                refreshViewBinding();
+            });
     }
 
     void setCursorRect(const std::optional<core::Rect>& cursorRect, float dpiScale) override
     {
-        cursorRect_ = cursorRect;
-        dpiScale_ = dpiScale;
-
-        if (!active_ || contentView_ == nil) {
-            return;
-        }
-
-        NSTextInputContext* inputContext = [contentView_ inputContext];
-        if (inputContext != nil) {
-            [inputContext invalidateCharacterCoordinates];
-        }
+        detail::runOnMainThread(
+            "Cocoa text input bridge",
+            "setCursorRect",
+            gLoggedSetCursorRectThreadHandoff,
+            ^{
+                setCursorRectImpl(cursorRect, dpiScale);
+            });
     }
 
-    std::optional<NSRect> firstRectForCharacterRange(NSRange range, NSRangePointer actualRange) const
+    std::optional<NSRect> firstRectForCharacterRange(NSRange range, NSRangePointer actualRange)
     {
+        if (!refreshViewBinding()) {
+            return std::nullopt;
+        }
         if (!active_ || !cursorRect_.has_value() || contentView_ == nil || cocoaWindow_ == nil) {
             return std::nullopt;
         }
@@ -252,6 +255,114 @@ public:
     }
 
 private:
+    void bindToContentView(NSView* contentView)
+    {
+        if (contentView_ == contentView) {
+            return;
+        }
+
+        if (contentView_ != nil) {
+            objc_setAssociatedObject(contentView_, kBridgeAssociationKey, nil, OBJC_ASSOCIATION_ASSIGN);
+        }
+
+        contentView_ = contentView;
+        if (contentView_ == nil) {
+            return;
+        }
+
+        installHooks([contentView_ class]);
+        objc_setAssociatedObject(contentView_, kBridgeAssociationKey, this, OBJC_ASSOCIATION_ASSIGN);
+    }
+
+    bool refreshViewBinding()
+    {
+        if (window_ == nullptr) {
+            cocoaWindow_ = nil;
+            bindToContentView(nil);
+            return false;
+        }
+
+        NSWindow* latestWindow = glfwGetCocoaWindow(window_);
+        if (latestWindow == nil) {
+            core::logErrorCat("platform", "Failed to get Cocoa window from GLFW");
+            cocoaWindow_ = nil;
+            bindToContentView(nil);
+            return false;
+        }
+
+        NSView* latestContentView = latestWindow.contentView;
+        if (latestContentView == nil) {
+            core::logErrorCat("platform", "Failed to get Cocoa content view from GLFW window");
+            cocoaWindow_ = latestWindow;
+            bindToContentView(nil);
+            return false;
+        }
+
+        const bool windowChanged = cocoaWindow_ != latestWindow;
+        const bool contentViewChanged = contentView_ != latestContentView;
+        cocoaWindow_ = latestWindow;
+        if (contentViewChanged) {
+            bindToContentView(latestContentView);
+        }
+        if (windowChanged || contentViewChanged) {
+            core::logInfoCat(
+                "platform",
+                "Refreshed Cocoa text input binding: window_changed={} content_view_changed={}",
+                windowChanged,
+                contentViewChanged);
+        }
+        return true;
+    }
+
+    void setActiveImpl(bool active, const std::optional<core::Rect>& cursorRect, float dpiScale)
+    {
+        active_ = active;
+        cursorRect_ = cursorRect;
+        dpiScale_ = dpiScale;
+
+        if (!refreshViewBinding() || contentView_ == nil) {
+            return;
+        }
+
+        NSTextInputContext* inputContext = [contentView_ inputContext];
+        if (inputContext == nil) {
+            return;
+        }
+
+        if (active_) {
+            if (cocoaWindow_ != nil && [cocoaWindow_ firstResponder] != contentView_) {
+                [cocoaWindow_ makeFirstResponder:contentView_];
+            }
+            [inputContext activate];
+            [inputContext invalidateCharacterCoordinates];
+            return;
+        }
+
+        if (markedTextActive_) {
+            owner_.dispatchPlatformCompositionEnd();
+            markedTextActive_ = false;
+        }
+        selectedRange_ = NSMakeRange(NSNotFound, 0);
+
+        [inputContext discardMarkedText];
+        [inputContext deactivate];
+    }
+
+    void setCursorRectImpl(const std::optional<core::Rect>& cursorRect, float dpiScale)
+    {
+        cursorRect_ = cursorRect;
+        dpiScale_ = dpiScale;
+
+        if (!active_ || !refreshViewBinding() || contentView_ == nil) {
+            return;
+        }
+
+        NSTextInputContext* inputContext = [contentView_ inputContext];
+        if (inputContext != nil) {
+            [inputContext invalidateCharacterCoordinates];
+        }
+    }
+
     static CocoaTextInputBridgeImpl* bridgeFromView(id view)
     {
         return reinterpret_cast<CocoaTextInputBridgeImpl*>(
@@ -260,8 +371,7 @@ private:
 
     static void installHooks(Class contentViewClass)
     {
-        static bool installed = false;
-        if (installed || contentViewClass == Nil) {
+        if (contentViewClass == Nil || !gInstalledContentViewClasses.insert(contentViewClass).second) {
             return;
         }
 
@@ -269,7 +379,7 @@ private:
             contentViewClass,
             @selector(firstRectForCharacterRange:actualRange:));
         if (firstRectMethod != nullptr) {
-            gOriginalFirstRectForCharacterRange =
+            gOriginalFirstRectForCharacterRangeByClass[contentViewClass] =
                 reinterpret_cast<FirstRectForCharacterRangeFn>(method_getImplementation(firstRectMethod));
             method_setImplementation(firstRectMethod, reinterpret_cast<IMP>(&swizzledFirstRectForCharacterRange));
         }
@@ -278,14 +388,14 @@ private:
             contentViewClass,
             @selector(insertText:replacementRange:));
         if (insertTextMethod != nullptr) {
-            gOriginalInsertText =
+            gOriginalInsertTextByClass[contentViewClass] =
                 reinterpret_cast<InsertTextFn>(method_getImplementation(insertTextMethod));
             method_setImplementation(insertTextMethod, reinterpret_cast<IMP>(&swizzledInsertText));
         }
 
         Method selectedRangeMethod = class_getInstanceMethod(contentViewClass, @selector(selectedRange));
         if (selectedRangeMethod != nullptr) {
-            gOriginalSelectedRange =
+            gOriginalSelectedRangeByClass[contentViewClass] =
                 reinterpret_cast<SelectedRangeFn>(method_getImplementation(selectedRangeMethod));
             method_setImplementation(selectedRangeMethod, reinterpret_cast<IMP>(&swizzledSelectedRange));
         }
@@ -294,19 +404,17 @@ private:
             contentViewClass,
             @selector(setMarkedText:selectedRange:replacementRange:));
         if (setMarkedTextMethod != nullptr) {
-            gOriginalSetMarkedText =
+            gOriginalSetMarkedTextByClass[contentViewClass] =
                 reinterpret_cast<SetMarkedTextFn>(method_getImplementation(setMarkedTextMethod));
             method_setImplementation(setMarkedTextMethod, reinterpret_cast<IMP>(&swizzledSetMarkedText));
         }
 
         Method unmarkTextMethod = class_getInstanceMethod(contentViewClass, @selector(unmarkText));
         if (unmarkTextMethod != nullptr) {
-            gOriginalUnmarkText =
+            gOriginalUnmarkTextByClass[contentViewClass] =
                 reinterpret_cast<UnmarkTextFn>(method_getImplementation(unmarkTextMethod));
             method_setImplementation(unmarkTextMethod, reinterpret_cast<IMP>(&swizzledUnmarkText));
         }
-
-        installed = true;
     }
 
     static NSRect swizzledFirstRectForCharacterRange(
@@ -321,8 +429,10 @@ private:
             }
         }
 
-        if (gOriginalFirstRectForCharacterRange != nullptr) {
-            return gOriginalFirstRectForCharacterRange(self, _cmd, range, actualRange);
+        if (const FirstRectForCharacterRangeFn original =
+                originalImplementationForClass(gOriginalFirstRectForCharacterRangeByClass, object_getClass(self));
+            original != nullptr) {
+            return original(self, _cmd, range, actualRange);
         }
 
         return NSMakeRect(0.0, 0.0, 0.0, 0.0);
@@ -330,8 +440,10 @@ private:
 
     static void swizzledInsertText(id self, SEL _cmd, id string, NSRange replacementRange)
     {
-        if (gOriginalInsertText != nullptr) {
-            gOriginalInsertText(self, _cmd, string, replacementRange);
+        if (const InsertTextFn original =
+                originalImplementationForClass(gOriginalInsertTextByClass, object_getClass(self));
+            original != nullptr) {
+            original(self, _cmd, string, replacementRange);
         }
 
         if (CocoaTextInputBridgeImpl* bridge = bridgeFromView(self); bridge != nullptr) {
@@ -347,8 +459,10 @@ private:
             }
         }
 
-        if (gOriginalSelectedRange != nullptr) {
-            return gOriginalSelectedRange(self, _cmd);
+        if (const SelectedRangeFn original =
+                originalImplementationForClass(gOriginalSelectedRangeByClass, object_getClass(self));
+            original != nullptr) {
+            return original(self, _cmd);
         }
 
         return NSMakeRange(NSNotFound, 0);
@@ -361,8 +475,10 @@ private:
         NSRange selectedRange,
         NSRange replacementRange)
     {
-        if (gOriginalSetMarkedText != nullptr) {
-            gOriginalSetMarkedText(self, _cmd, string, selectedRange, replacementRange);
+        if (const SetMarkedTextFn original =
+                originalImplementationForClass(gOriginalSetMarkedTextByClass, object_getClass(self));
+            original != nullptr) {
+            original(self, _cmd, string, selectedRange, replacementRange);
         }
 
         if (CocoaTextInputBridgeImpl* bridge = bridgeFromView(self); bridge != nullptr) {
@@ -372,8 +488,10 @@ private:
 
     static void swizzledUnmarkText(id self, SEL _cmd)
     {
-        if (gOriginalUnmarkText != nullptr) {
-            gOriginalUnmarkText(self, _cmd);
+        if (const UnmarkTextFn original =
+                originalImplementationForClass(gOriginalUnmarkTextByClass, object_getClass(self));
+            original != nullptr) {
+            original(self, _cmd);
         }
 
         if (CocoaTextInputBridgeImpl* bridge = bridgeFromView(self); bridge != nullptr) {
@@ -398,23 +516,29 @@ CocoaTextInputBridge::~CocoaTextInputBridge() = default;
 
 std::unique_ptr<CocoaTextInputBridge> CocoaTextInputBridge::create(GLFWwindow* window, GLFWWindow& owner)
 {
-    if (window == nullptr) {
-        return nullptr;
-    }
+    return std::unique_ptr<CocoaTextInputBridge>(detail::runValueOnMainThread<CocoaTextInputBridge*>(
+        "Cocoa text input bridge",
+        "create",
+        gLoggedCreateThreadHandoff,
+        ^CocoaTextInputBridge* {
+            if (window == nullptr) {
+                return nullptr;
+            }
 
-    NSWindow* cocoaWindow = glfwGetCocoaWindow(window);
-    if (cocoaWindow == nil) {
-        core::logErrorCat("platform", "Failed to get Cocoa window from GLFW");
-        return nullptr;
-    }
+            NSWindow* cocoaWindow = glfwGetCocoaWindow(window);
+            if (cocoaWindow == nil) {
+                core::logErrorCat("platform", "Failed to get Cocoa window from GLFW");
+                return nullptr;
+            }
 
-    NSView* contentView = [cocoaWindow contentView];
-    if (contentView == nil) {
-        core::logErrorCat("platform", "Failed to get Cocoa content view from GLFW window");
-        return nullptr;
-    }
+            NSView* contentView = [cocoaWindow contentView];
+            if (contentView == nil) {
+                core::logErrorCat("platform", "Failed to get Cocoa content view from GLFW window");
+                return nullptr;
+            }
 
-    return std::make_unique<CocoaTextInputBridgeImpl>(window, owner, cocoaWindow, contentView);
+            return new CocoaTextInputBridgeImpl(window, owner, cocoaWindow, contentView);
+        }));
 }
 
 }  // namespace tinalux::platform

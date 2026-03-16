@@ -107,12 +107,13 @@ set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 add_subdirectory("${TINALUX_GLFW_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/tina_glfw-build")
 
 # --- spdlog (日志后端) ---
-include(FetchContent)
-FetchContent_Declare(
-    spdlog
-    GIT_REPOSITORY https://github.com/gabime/spdlog.git
-    GIT_TAG        v1.14.1
-)
+set(TINALUX_SPDLOG_SOURCE_DIR "${PROJECT_SOURCE_DIR}/3rdparty/spdlog")
+if(NOT EXISTS "${TINALUX_SPDLOG_SOURCE_DIR}/CMakeLists.txt")
+    message(FATAL_ERROR
+        "Missing spdlog checkout at ${TINALUX_SPDLOG_SOURCE_DIR}. "
+        "Clone https://github.com/gabime/spdlog.git first.")
+endif()
+
 set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
 set(SPDLOG_BUILD_EXAMPLE_HO OFF CACHE BOOL "" FORCE)
 set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -120,7 +121,7 @@ set(SPDLOG_BUILD_TESTS_HO OFF CACHE BOOL "" FORCE)
 set(SPDLOG_BUILD_BENCH OFF CACHE BOOL "" FORCE)
 set(SPDLOG_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 set(SPDLOG_INSTALL OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(spdlog)
+add_subdirectory("${TINALUX_SPDLOG_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/spdlog-build")
 
 # --- Skia ---
 include(SkiaConfig)

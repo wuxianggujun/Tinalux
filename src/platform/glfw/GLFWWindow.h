@@ -16,6 +16,7 @@ namespace tinalux::platform {
 
 #if defined(__APPLE__)
 class CocoaTextInputBridge;
+class CocoaMetalLayerBridge;
 #endif
 
 class GLFWWindow final : public Window {
@@ -53,6 +54,12 @@ public:
     bool vulkanPresentationSupported(void* instance, void* physicalDevice, uint32_t queueFamilyIndex) const override;
     void* createVulkanWindowSurface(void* instance) const override;
     void destroyVulkanWindowSurface(void* instance, void* surface) const override;
+    bool prepareMetalLayer(
+        void* device,
+        int framebufferWidth,
+        int framebufferHeight,
+        float dpiScale) override;
+    void* metalLayer() const override;
     void dispatchPlatformCompositionStart();
     void dispatchPlatformCompositionUpdate(
         const std::string& text,
@@ -72,6 +79,7 @@ private:
     int framebufferHeight_ = 0;
     float dpiScale_ = 1.0f;
     GraphicsAPI graphicsApi_ = GraphicsAPI::OpenGL;
+    bool vsync_ = true;
     bool textInputActive_ = false;
     std::optional<core::Rect> imeCursorRect_;
 
@@ -103,6 +111,7 @@ private:
 #endif
 #if defined(__APPLE__)
     std::unique_ptr<CocoaTextInputBridge> cocoaTextInputBridge_;
+    std::unique_ptr<CocoaMetalLayerBridge> cocoaMetalLayerBridge_;
 #endif
 };
 

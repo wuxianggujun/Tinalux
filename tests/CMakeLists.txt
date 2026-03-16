@@ -46,6 +46,21 @@ target_include_directories(TinaluxCoreRenderBackendSmoke PRIVATE
     ${TINALUX_GLFW_SOURCE_DIR}/deps
 )
 
+tinalux_add_smoke_test(TinaluxCoreFramePrepareSmoke
+    SOURCE core/frame_prepare_smoke.cpp
+    LINK_LIBS Tinalux::Rendering
+)
+
+tinalux_add_smoke_test(TinaluxCoreMetalContextSmoke
+    SOURCE core/metal_context_smoke.cpp
+    LINK_LIBS Tinalux::Rendering
+)
+
+tinalux_add_smoke_test(TinaluxCoreMetalSurfaceSmoke
+    SOURCE core/metal_surface_smoke.cpp
+    LINK_LIBS Tinalux::Rendering
+)
+
 tinalux_add_smoke_test(TinaluxAppBackendPlanSmoke
     SOURCE app/backend_plan_smoke.cpp
     LINK_LIBS Tinalux::App

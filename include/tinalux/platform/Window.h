@@ -90,6 +90,22 @@ public:
         (void)instance;
         (void)surface;
     }
+    virtual bool prepareMetalLayer(
+        void* device,
+        int framebufferWidth,
+        int framebufferHeight,
+        float dpiScale)
+    {
+        (void)device;
+        (void)framebufferWidth;
+        (void)framebufferHeight;
+        (void)dpiScale;
+        return false;
+    }
+    virtual void* metalLayer() const
+    {
+        return nullptr;
+    }
 };
 
 std::unique_ptr<Window> createWindow(const WindowConfig& config);

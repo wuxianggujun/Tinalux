@@ -343,6 +343,11 @@ int main()
     expect(
         !createContext(ContextConfig { .backend = Backend::Vulkan }),
         "Vulkan selection without bootstrap data should fail cleanly");
+#if !defined(__APPLE__)
+    expect(
+        !createContext(ContextConfig { .backend = Backend::Auto }),
+        "Auto selection without any backend bootstrap data should fail cleanly on non-Apple platforms");
+#endif
     expect(
         !createContext(ContextConfig {
             .backend = Backend::Vulkan,
@@ -425,14 +430,39 @@ int main()
             !gDestroyWindowSurfaceCalled,
             "No platform Vulkan surface should be destroyed when creation never began");
     }
+#if !defined(__APPLE__)
+    gDestroyCalled = false;
+    gDestroyedInstance = nullptr;
+    {
+        RenderContext autoContext = createContext(ContextConfig {
+            .backend = Backend::Auto,
+            .vulkanGetInstanceProc = &fakeVulkanLoader,
+            .vulkanInstanceExtensions = { "VK_KHR_surface" },
+        });
+        expect(
+            static_cast<bool>(autoContext),
+            "Auto selection should create a Vulkan instance when Vulkan bootstrap data is available");
+        expect(autoContext.backend() == Backend::Vulkan, "Auto selection should resolve to Vulkan on non-Apple platforms");
+    }
+    expect(gDestroyCalled, "Auto Vulkan context destruction should destroy the Vulkan instance");
+    expect(gDestroyedInstance == reinterpret_cast<void*>(0x1234), "Auto Vulkan instance should destroy the created handle");
+#endif
     expect(gDestroyDeviceCalled, "Vulkan context destruction should destroy the logical device");
     expect(gDestroyedDevice == reinterpret_cast<void*>(0x3456), "Destroyed Vulkan device should match created handle");
     expect(gDestroyCalled, "Vulkan context destruction should destroy the instance");
     expect(gDestroyedInstance == reinterpret_cast<void*>(0x1234), "Destroyed Vulkan instance should match created handle");
 
+#if defined(__APPLE__)
+    {
+        RenderContext metalContext = createContext(ContextConfig { .backend = Backend::Metal });
+        expect(metalContext, "Metal selection should create a direct context on Apple platforms");
+        expect(metalContext.backend() == Backend::Metal, "Metal context should report Metal backend");
+    }
+#else
     expect(
         !createContext(ContextConfig { .backend = Backend::Metal }),
-        "Metal selection should fail cleanly until implemented");
+        "Metal selection should fail cleanly on non-Apple platforms");
+#endif
 
     return 0;
 }

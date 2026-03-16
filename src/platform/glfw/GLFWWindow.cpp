@@ -5,10 +5,10 @@
 #include <string>
 #include <vector>
 #include <cmath>
-#include <type_traits>
 
 #include "tinalux/core/Log.h"
 #include "tinalux/core/events/Event.h"
+#include "../../rendering/HandleCast.h"
 
 #define GLFW_INCLUDE_NONE
 #include <glad/vulkan.h>
@@ -20,10 +20,17 @@
 #elif defined(__linux__)
 #define GLFW_EXPOSE_NATIVE_X11
 #include <GLFW/glfw3native.h>
+#elif defined(__APPLE__)
+#define GLFW_EXPOSE_NATIVE_COCOA
+#include <GLFW/glfw3native.h>
 #endif
 #if defined(__APPLE__)
+#include "CocoaMetalLayerBridge.h"
 #include "CocoaTextInputBridge.h"
 #endif
+
+using tinalux::rendering::handleFromOpaque;
+using tinalux::rendering::opaqueHandle;
 
 namespace {
 
@@ -44,26 +51,6 @@ std::size_t utf8CodepointCount(const std::string& text)
         }
     }
     return count;
-}
-
-template <typename Handle>
-void* opaqueHandle(Handle handle)
-{
-    if constexpr (std::is_pointer_v<Handle>) {
-        return reinterpret_cast<void*>(handle);
-    } else {
-        return reinterpret_cast<void*>(static_cast<std::uintptr_t>(handle));
-    }
-}
-
-template <typename Handle>
-Handle handleFromOpaque(void* handle)
-{
-    if constexpr (std::is_pointer_v<Handle>) {
-        return reinterpret_cast<Handle>(handle);
-    } else {
-        return static_cast<Handle>(reinterpret_cast<std::uintptr_t>(handle));
-    }
 }
 
 #if defined(_WIN32)
@@ -281,6 +268,7 @@ GLFWWindow::GLFWWindow(const WindowConfig& config)
     }
 
     graphicsApi_ = config.graphicsApi;
+    vsync_ = config.vsync;
     if (graphicsApi_ == GraphicsAPI::OpenGL) {
         glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, kOpenGlMajor);
@@ -339,6 +327,7 @@ GLFWWindow::GLFWWindow(const WindowConfig& config)
 #endif
 #if defined(__APPLE__)
     cocoaTextInputBridge_ = CocoaTextInputBridge::create(window_, *this);
+    cocoaMetalLayerBridge_ = CocoaMetalLayerBridge::create(window_);
 #endif
 
     updateWindowMetrics();
@@ -363,6 +352,7 @@ GLFWWindow::~GLFWWindow()
 #endif
 #if defined(__APPLE__)
         cocoaTextInputBridge_.reset();
+        cocoaMetalLayerBridge_.reset();
 #endif
 #if defined(__linux__)
         glfwSetX11TextInputActive(window_, GLFW_FALSE);
@@ -387,6 +377,11 @@ void GLFWWindow::pollEvents()
 {
     glfwPollEvents();
     updateWindowMetrics();
+#if defined(__APPLE__)
+    if (cocoaTextInputBridge_) {
+        cocoaTextInputBridge_->syncWindowBinding();
+    }
+#endif
 }
 
 void GLFWWindow::waitEventsTimeout(double timeoutSeconds)
@@ -397,6 +392,11 @@ void GLFWWindow::waitEventsTimeout(double timeoutSeconds)
 
     glfwWaitEventsTimeout(timeoutSeconds > 0.0 ? timeoutSeconds : 0.0);
     updateWindowMetrics();
+#if defined(__APPLE__)
+    if (cocoaTextInputBridge_) {
+        cocoaTextInputBridge_->syncWindowBinding();
+    }
+#endif
 }
 
 void GLFWWindow::swapBuffers()
@@ -635,6 +635,41 @@ void GLFWWindow::destroyVulkanWindowSurface(void* instance, void* surface) const
         handleFromOpaque<VkInstance>(instance),
         handleFromOpaque<VkSurfaceKHR>(surface),
         nullptr);
+}
+
+bool GLFWWindow::prepareMetalLayer(
+    void* device,
+    int framebufferWidth,
+    int framebufferHeight,
+    float dpiScale)
+{
+#if defined(__APPLE__)
+    if (cocoaMetalLayerBridge_ == nullptr) {
+        return false;
+    }
+
+    return cocoaMetalLayerBridge_->prepareLayer(
+        device,
+        framebufferWidth,
+        framebufferHeight,
+        dpiScale,
+        vsync_);
+#else
+    (void)device;
+    (void)framebufferWidth;
+    (void)framebufferHeight;
+    (void)dpiScale;
+    return false;
+#endif
+}
+
+void* GLFWWindow::metalLayer() const
+{
+#if defined(__APPLE__)
+    return cocoaMetalLayerBridge_ != nullptr ? cocoaMetalLayerBridge_->layerHandle() : nullptr;
+#else
+    return nullptr;
+#endif
 }
 
 void GLFWWindow::dispatchPlatformCompositionStart()

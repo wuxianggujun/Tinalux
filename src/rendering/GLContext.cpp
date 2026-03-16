@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <type_traits>
 #include <vector>
 
 #include "include/gpu/ganesh/gl/GrGLAssembleInterface.h"
@@ -11,8 +10,14 @@
 #include "include/gpu/ganesh/vk/GrVkDirectContext.h"
 #include "include/gpu/vk/VulkanBackendContext.h"
 #include "include/private/gpu/vk/SkiaVulkan.h"
+#include "HandleCast.h"
+#include "MetalBackend.h"
 #include "RenderHandles.h"
+#include "VulkanBackendState.h"
 #include "tinalux/core/Log.h"
+
+using tinalux::rendering::handleFromOpaque;
+using tinalux::rendering::opaqueHandle;
 
 namespace {
 
@@ -20,26 +25,6 @@ struct ProcContext {
     // 通过外部注入的 getProc 取 GL 函数指针，避免 Rendering 依赖 Platform/GLFW。
     tinalux::rendering::GLGetProcFn getProc = nullptr;
 };
-
-template <typename Handle>
-void* opaqueHandle(Handle handle)
-{
-    if constexpr (std::is_pointer_v<Handle>) {
-        return reinterpret_cast<void*>(handle);
-    } else {
-        return reinterpret_cast<void*>(static_cast<std::uintptr_t>(handle));
-    }
-}
-
-template <typename Handle>
-Handle handleFromOpaque(void* handle)
-{
-    if constexpr (std::is_pointer_v<Handle>) {
-        return reinterpret_cast<Handle>(handle);
-    } else {
-        return static_cast<Handle>(reinterpret_cast<std::uintptr_t>(handle));
-    }
-}
 
 GrGLFuncPtr getProcAddress(void* ctx, const char name[])
 {
@@ -96,6 +81,16 @@ VkInstanceCreateFlags instanceCreateFlagsForExtensions(const std::vector<std::st
     return flags;
 }
 
+bool canCreateOpenGLContext(tinalux::rendering::GLGetProcFn getProc)
+{
+    return getProc != nullptr;
+}
+
+bool canCreateVulkanContext(const tinalux::rendering::ContextConfig& config)
+{
+    return config.vulkanGetInstanceProc != nullptr && !config.vulkanInstanceExtensions.empty();
+}
+
 }  // namespace
 
 namespace tinalux::rendering {
@@ -124,7 +119,7 @@ RenderContext createOpenGLContextImpl(GLGetProcFn getProc)
     }
 
     core::logInfoCat("render", "Created Skia Ganesh GL direct context");
-    return RenderAccess::makeContext(std::move(directContext), Backend::OpenGL);
+    return RenderAccess::makeContext(Backend::OpenGL, std::move(directContext));
 }
 
 RenderContext createVulkanContextImpl(const ContextConfig& config)
@@ -255,6 +250,7 @@ RenderContext createVulkanContextImpl(const ContextConfig& config)
         extensionNames.size());
     return RenderAccess::makeContext(
         Backend::Vulkan,
+        nullptr,
         opaqueHandle(instance),
         &destroyVulkanState,
         state);
@@ -359,18 +355,42 @@ RenderContext createContext(const ContextConfig& config)
 {
     switch (config.backend) {
     case Backend::Auto:
-        core::logInfoCat("render", "Render backend selection: Auto -> OpenGL");
-        return createOpenGLContextImpl(config.glGetProc);
+    {
+#if defined(__APPLE__)
+        if (RenderContext metalContext = createMetalContextImpl()) {
+            core::logInfoCat("render", "Render backend selection: Auto -> Metal");
+            return metalContext;
+        }
+#endif
+        if (canCreateVulkanContext(config)) {
+            if (RenderContext vulkanContext = createVulkanContextImpl(config)) {
+                core::logInfoCat("render", "Render backend selection: Auto -> Vulkan");
+                return vulkanContext;
+            }
+        } else {
+            core::logDebugCat(
+                "render",
+                "Render backend selection: Auto skipped Vulkan because bootstrap callbacks or extensions are missing");
+        }
+        if (canCreateOpenGLContext(config.glGetProc)) {
+            if (RenderContext openGlContext = createOpenGLContextImpl(config.glGetProc)) {
+                core::logInfoCat("render", "Render backend selection: Auto -> OpenGL");
+                return openGlContext;
+            }
+        } else {
+            core::logDebugCat(
+                "render",
+                "Render backend selection: Auto skipped OpenGL because the GL proc loader callback is null");
+        }
+        core::logErrorCat("render", "Render backend selection: Auto found no available backend");
+        return {};
+    }
     case Backend::OpenGL:
         return createOpenGLContextImpl(config.glGetProc);
     case Backend::Vulkan:
         return createVulkanContextImpl(config);
     case Backend::Metal:
-        core::logErrorCat(
-            "render",
-            "Render backend selection requested '{}', but Metal context creation is not implemented yet",
-            backendName(config.backend));
-        return {};
+        return createMetalContextImpl();
     default:
         core::logErrorCat("render", "Unknown render backend selection");
         return {};
