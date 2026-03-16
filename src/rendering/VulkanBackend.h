@@ -11,6 +11,8 @@ class Window;
 
 namespace tinalux::rendering {
 
+bool canCreateVulkanContext(const ContextConfig& config);
+RenderContext createVulkanContextImpl(const ContextConfig& config);
 RenderSurface createVulkanWindowSurface(RenderContext& context, platform::Window& window);
 FramePrepareStatus prepareVulkanFrame(RenderSurface& surface);
 void flushVulkanFrame(RenderContext& context, RenderSurface& surface);

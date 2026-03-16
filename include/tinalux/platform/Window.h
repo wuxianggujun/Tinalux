@@ -24,12 +24,18 @@ enum class GraphicsAPI {
 };
 
 struct WindowConfig {
+    struct AndroidNativeWindowConfig {
+        void* nativeWindow = nullptr;
+        float dpiScale = 1.0f;
+    };
+
     int width = 960;
     int height = 640;
     const char* title = "Tinalux";
     bool resizable = true;
     bool vsync = true;
     GraphicsAPI graphicsApi = GraphicsAPI::OpenGL;
+    std::optional<AndroidNativeWindowConfig> android;
 };
 
 class Window {

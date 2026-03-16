@@ -3,6 +3,8 @@
 
 #if defined(TINALUX_PLATFORM_GLFW)
 #include "glfw/GLFWWindow.h"
+#elif defined(TINALUX_PLATFORM_ANDROID)
+#include "android/AndroidWindow.h"
 #endif
 
 namespace tinalux::platform {
@@ -31,6 +33,22 @@ std::unique_ptr<Window> createWindow(const WindowConfig& config)
         window->framebufferWidth(),
         window->framebufferHeight(),
         window->dpiScale());
+    return window;
+#elif defined(TINALUX_PLATFORM_ANDROID)
+    core::logDebugCat(
+        "platform",
+        "Creating Android window title='{}' size={}x{} resizable={} vsync={} graphics_api={}",
+        config.title != nullptr ? config.title : "Tinalux",
+        config.width,
+        config.height,
+        config.resizable,
+        config.vsync,
+        config.graphicsApi == GraphicsAPI::OpenGL ? "OpenGL" : "None");
+    auto window = std::make_unique<AndroidWindow>(config);
+    if (!window->valid()) {
+        core::logErrorCat("platform", "Android window creation returned invalid window");
+        return nullptr;
+    }
     return window;
 #else
     (void)config;

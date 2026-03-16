@@ -16,7 +16,16 @@ target_link_libraries(TinaluxPlatform
         Tinalux::Core
 )
 
-if(NOT ANDROID)
+if(ANDROID)
+    target_sources(TinaluxPlatform PRIVATE
+        android/AndroidWindow.cpp
+    )
+    target_link_libraries(TinaluxPlatform PRIVATE
+        android
+        EGL
+    )
+    target_compile_definitions(TinaluxPlatform PRIVATE TINALUX_PLATFORM_ANDROID)
+else()
     target_sources(TinaluxPlatform PRIVATE
         glfw/GLFWWindow.cpp
     )

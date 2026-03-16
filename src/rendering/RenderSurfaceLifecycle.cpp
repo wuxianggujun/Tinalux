@@ -1,4 +1,4 @@
-#include "tinalux/rendering/WindowSurface.h"
+#include "tinalux/rendering/rendering.h"
 
 #include <cstdint>
 #include <utility>

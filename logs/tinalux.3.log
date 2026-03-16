@@ -1,0 +1,12 @@
+[2026-03-17 02:32:21.008] [error] [render] Cannot create GL context: getProc callback is null
+[2026-03-17 02:32:21.008] [error] [render] Cannot create Vulkan context: proc loader callback is null
+[2026-03-17 02:32:21.008] [error] [render] Render backend selection: Auto found no available backend
+[2026-03-17 02:32:21.008] [error] [render] Cannot create Vulkan context: vkCreateInstance is unavailable
+[2026-03-17 02:32:21.008] [info] [render] Created Vulkan instance with 2 required extensions
+[2026-03-17 02:32:21.008] [info] [render] Created Vulkan instance with 1 required extensions
+[2026-03-17 02:32:21.008] [info] [render] Created Vulkan logical device with graphics queue family 0 and present queue family 1
+[2026-03-17 02:32:21.009] [warning] [render] Vulkan device bootstrap succeeded, but Skia Ganesh Vulkan context creation failed
+[2026-03-17 02:32:21.010] [error] [render] Cannot create 'Vulkan' window surface because Skia Vulkan context creation failed
+[2026-03-17 02:32:21.010] [info] [render] Created Vulkan instance with 1 required extensions
+[2026-03-17 02:32:21.010] [info] [render] Render backend selection: Auto -> Vulkan
+[2026-03-17 02:32:21.010] [error] [render] Render backend selection requested 'Metal', but Metal is only available on Apple platforms

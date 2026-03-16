@@ -6,9 +6,9 @@ add_library(TinaluxRendering STATIC
     ImageCache.cpp
     ParagraphPainter.cpp
     RasterSurface.cpp
-    GLContext.cpp
+    RenderContextFactory.cpp
     VulkanBackend.cpp
-    WindowSurface.cpp
+    RenderSurfaceLifecycle.cpp
 )
 
 if(APPLE)
