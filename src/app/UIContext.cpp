@@ -29,7 +29,10 @@ bool isKeyboardEvent(core::EventType type)
     return type == core::EventType::KeyPress
         || type == core::EventType::KeyRelease
         || type == core::EventType::KeyRepeat
-        || type == core::EventType::TextInput;
+        || type == core::EventType::TextInput
+        || type == core::EventType::TextCompositionStart
+        || type == core::EventType::TextCompositionUpdate
+        || type == core::EventType::TextCompositionEnd;
 }
 
 std::vector<ui::Widget*> buildEventPath(ui::Widget* target)
@@ -435,6 +438,20 @@ void UIContext::clearOverlayWidget()
 ui::AnimationSink& UIContext::animationSink()
 {
     return runtimeState_->animationScheduler;
+}
+
+bool UIContext::textInputActive()
+{
+    return focusedWidget_ != nullptr && focusedWidget_->wantsTextInput();
+}
+
+std::optional<core::Rect> UIContext::imeCursorRect()
+{
+    ui::ScopedRuntimeState runtimeScope(*runtimeState_);
+    if (focusedWidget_ == nullptr) {
+        return std::nullopt;
+    }
+    return focusedWidget_->imeCursorRect();
 }
 
 FrameStats UIContext::frameStats() const

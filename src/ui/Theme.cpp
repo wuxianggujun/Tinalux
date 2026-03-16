@@ -109,6 +109,7 @@ Theme& Theme::syncDerivedTokens()
     dialogStyle = DialogStyle::standard(colors, typography, spacingScale);
     panelStyle = PanelStyle::standard(colors, typography, spacingScale);
     listViewStyle = ListViewStyle::standard(colors, typography, spacingScale);
+    richTextStyle = RichTextStyle::standard(colors, typography, spacingScale);
     return *this;
 }
 

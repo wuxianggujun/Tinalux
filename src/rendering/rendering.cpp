@@ -194,7 +194,12 @@ RenderContext::~RenderContext() = default;
 
 RenderContext::operator bool() const
 {
-    return impl_ != nullptr && impl_->skiaContext != nullptr;
+    return impl_ != nullptr && impl_->valid();
+}
+
+Backend RenderContext::backend() const
+{
+    return impl_ != nullptr ? impl_->backend : Backend::Auto;
 }
 
 RenderSurface::RenderSurface(std::shared_ptr<Impl> impl)
@@ -206,7 +211,7 @@ RenderSurface::~RenderSurface() = default;
 
 RenderSurface::operator bool() const
 {
-    return impl_ != nullptr && impl_->skiaSurface != nullptr;
+    return impl_ != nullptr && impl_->valid();
 }
 
 Canvas RenderSurface::canvas() const
@@ -247,7 +252,7 @@ Image RenderAccess::makeImage(sk_sp<SkImage> image)
     return Image(std::move(impl));
 }
 
-RenderContext RenderAccess::makeContext(sk_sp<GrDirectContext> context)
+RenderContext RenderAccess::makeContext(sk_sp<GrDirectContext> context, Backend backend)
 {
     if (!context) {
         return {};
@@ -255,6 +260,28 @@ RenderContext RenderAccess::makeContext(sk_sp<GrDirectContext> context)
 
     auto impl = std::make_shared<RenderContext::Impl>();
     impl->skiaContext = std::move(context);
+    impl->backend = backend;
+    return RenderContext(std::move(impl));
+}
+
+RenderContext RenderAccess::makeContext(
+    Backend backend,
+    void* nativeHandle,
+    NativeHandleDestroyFn destroyNativeHandle,
+    void* destroyNativeHandleUserData)
+{
+    if (nativeHandle == nullptr) {
+        return {};
+    }
+
+    auto impl = std::make_shared<RenderContext::Impl>();
+    impl->backend = backend;
+    impl->nativeHandle = nativeHandle;
+    impl->destroyNativeHandle = destroyNativeHandle;
+    impl->destroyNativeHandleUserData = destroyNativeHandleUserData;
+    if (backend == Backend::Vulkan) {
+        impl->vulkanState = static_cast<VulkanContextState*>(destroyNativeHandleUserData);
+    }
     return RenderContext(std::move(impl));
 }
 
@@ -265,7 +292,29 @@ RenderSurface RenderAccess::makeSurface(sk_sp<SkSurface> surface)
     }
 
     auto impl = std::make_shared<RenderSurface::Impl>();
+    impl->backend = Backend::OpenGL;
     impl->skiaSurface = std::move(surface);
+    return RenderSurface(std::move(impl));
+}
+
+RenderSurface RenderAccess::makeSurface(
+    Backend backend,
+    void* nativeHandle,
+    NativeHandleDestroyFn destroyNativeHandle,
+    void* destroyNativeHandleUserData)
+{
+    if (nativeHandle == nullptr) {
+        return {};
+    }
+
+    auto impl = std::make_shared<RenderSurface::Impl>();
+    impl->backend = backend;
+    impl->nativeHandle = nativeHandle;
+    impl->destroyNativeHandle = destroyNativeHandle;
+    impl->destroyNativeHandleUserData = destroyNativeHandleUserData;
+    if (backend == Backend::Vulkan) {
+        impl->vulkanSwapchainState = static_cast<VulkanSwapchainState*>(destroyNativeHandleUserData);
+    }
     return RenderSurface(std::move(impl));
 }
 
@@ -289,6 +338,48 @@ SkSurface* RenderAccess::skiaSurface(const RenderSurface& surface)
     return surface.impl_ != nullptr ? surface.impl_->skiaSurface.get() : nullptr;
 }
 
+void* RenderAccess::nativeHandle(const RenderContext& context)
+{
+    return context.impl_ != nullptr ? context.impl_->nativeHandle : nullptr;
+}
+
+VulkanContextState* RenderAccess::vulkanState(const RenderContext& context)
+{
+    return context.impl_ != nullptr ? context.impl_->vulkanState : nullptr;
+}
+
+void RenderAccess::setSkiaContext(RenderContext& context, sk_sp<GrDirectContext> skiaContext)
+{
+    if (context.impl_ != nullptr) {
+        context.impl_->skiaContext = std::move(skiaContext);
+    }
+}
+
+VulkanSwapchainState* RenderAccess::vulkanSwapchainState(const RenderSurface& surface)
+{
+    return surface.impl_ != nullptr ? surface.impl_->vulkanSwapchainState : nullptr;
+}
+
+void RenderAccess::setSkiaSurface(RenderSurface& surface, sk_sp<SkSurface> skiaSurface)
+{
+    if (surface.impl_ != nullptr) {
+        surface.impl_->skiaSurface = std::move(skiaSurface);
+    }
+}
+
+void RenderAccess::invalidateSurface(RenderSurface& surface)
+{
+    if (surface.impl_ == nullptr) {
+        return;
+    }
+
+    surface.impl_->skiaSurface.reset();
+    if (surface.impl_->vulkanSwapchainState != nullptr) {
+        surface.impl_->vulkanSwapchainState->valid = false;
+        surface.impl_->vulkanSwapchainState->frameAcquired = false;
+    }
+}
+
 void initSkia()
 {
     SkGraphics::Init();
@@ -302,14 +393,20 @@ void shutdownSkia()
     core::logDebugCat("render", "Skia runtime caches purged");
 }
 
-void flushFrame(RenderContext& ctx)
+const char* backendName(Backend backend)
 {
-    auto* skia = RenderAccess::skiaContext(ctx);
-    if (skia == nullptr) {
-        return;
+    switch (backend) {
+    case Backend::Auto:
+        return "Auto";
+    case Backend::OpenGL:
+        return "OpenGL";
+    case Backend::Vulkan:
+        return "Vulkan";
+    case Backend::Metal:
+        return "Metal";
+    default:
+        return "Unknown";
     }
-
-    skia->flushAndSubmit();
 }
 
 }  // namespace tinalux::rendering

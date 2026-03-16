@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "tinalux/core/Geometry.h"
@@ -34,6 +35,8 @@ public:
     void setOverlayWidget(std::shared_ptr<ui::Widget> overlay);
     void clearOverlayWidget();
     ui::AnimationSink& animationSink();
+    bool textInputActive();
+    std::optional<core::Rect> imeCursorRect();
 
     FrameStats frameStats() const;
     void resetFrameStats();

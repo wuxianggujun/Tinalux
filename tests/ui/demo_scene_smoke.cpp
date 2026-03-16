@@ -4,11 +4,12 @@
 
 #include "../../src/ui/RuntimeState.h"
 #include "tinalux/ui/Constraints.h"
+#include "tinalux/ui/Button.h"
 #include "tinalux/ui/Container.h"
 #include "tinalux/ui/DemoScene.h"
-#include "tinalux/ui/ListView.h"
+#include "tinalux/ui/Label.h"
 #include "tinalux/ui/Panel.h"
-#include "tinalux/ui/TextInput.h"
+#include "tinalux/ui/ParagraphLabel.h"
 #include "tinalux/ui/Theme.h"
 
 namespace {
@@ -21,12 +22,28 @@ void expect(bool condition, const char* message)
     }
 }
 
-std::size_t listItemCount(const std::shared_ptr<tinalux::ui::ListView>& list)
+std::size_t countButtons(const std::shared_ptr<tinalux::ui::Container>& container)
 {
-    expect(list != nullptr, "list view should exist");
-    auto* content = dynamic_cast<tinalux::ui::Container*>(list->content());
-    expect(content != nullptr, "list view content should be a container");
-    return content->children().size();
+    expect(container != nullptr, "container should exist");
+    std::size_t count = 0;
+    for (const auto& child : container->children()) {
+        if (std::dynamic_pointer_cast<tinalux::ui::Button>(child) != nullptr) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+std::size_t countLabels(const std::shared_ptr<tinalux::ui::Container>& container)
+{
+    expect(container != nullptr, "container should exist");
+    std::size_t count = 0;
+    for (const auto& child : container->children()) {
+        if (std::dynamic_pointer_cast<tinalux::ui::Label>(child) != nullptr) {
+            ++count;
+        }
+    }
+    return count;
 }
 
 }  // namespace
@@ -44,45 +61,46 @@ int main()
     expect(root != nullptr, "demo scene should return a container root");
 
     const auto& children = root->children();
-    expect(children.size() >= 4, "demo scene should expose a workspace container at root level");
+    expect(children.size() >= 4, "demo scene should keep a compact root with a showcase shell");
 
-    auto workspace = std::dynamic_pointer_cast<ui::Container>(children.back());
-    expect(workspace != nullptr, "demo scene should expose a responsive workspace container");
-    expect(workspace->children().size() == 2, "workspace should contain account and activity columns");
+    auto shell = std::dynamic_pointer_cast<ui::Container>(children.back());
+    expect(shell != nullptr, "demo scene should expose a showcase shell container");
+    expect(shell->children().size() == 2, "showcase shell should contain navigation and content panels");
 
-    auto accountColumn = std::dynamic_pointer_cast<ui::Container>(workspace->children()[0]);
-    auto activityCard = std::dynamic_pointer_cast<ui::Panel>(workspace->children()[1]);
-    expect(accountColumn != nullptr, "workspace should include an account column");
-    expect(activityCard != nullptr, "workspace should include an activity card");
-    expect(activityCard->children().size() == 4, "activity card should include title, summary, search, and list");
+    auto navPanel = std::dynamic_pointer_cast<ui::Panel>(shell->children()[0]);
+    auto contentPanel = std::dynamic_pointer_cast<ui::Panel>(shell->children()[1]);
+    expect(navPanel != nullptr, "showcase shell should include a navigation panel");
+    expect(contentPanel != nullptr, "showcase shell should include a content panel");
+    expect(navPanel->children().size() == 4, "navigation panel should include title, hint, buttons, and footnote");
+    expect(contentPanel->children().size() == 4, "content panel should include eyebrow, title, summary, and page host");
 
-    auto searchInput = std::dynamic_pointer_cast<ui::TextInput>(activityCard->children()[2]);
-    auto activityList = std::dynamic_pointer_cast<ui::ListView>(activityCard->children()[3]);
-    expect(searchInput != nullptr, "demo scene should include a search text input");
-    expect(activityList != nullptr, "demo scene should include an activity list view");
+    auto navButtons = std::dynamic_pointer_cast<ui::Container>(navPanel->children()[2]);
+    auto pageSummary = std::dynamic_pointer_cast<ui::ParagraphLabel>(contentPanel->children()[2]);
+    auto pageHost = std::dynamic_pointer_cast<ui::Container>(contentPanel->children()[3]);
+    expect(navButtons != nullptr, "navigation panel should expose a button column");
+    expect(pageSummary != nullptr, "content panel should expose a page summary");
+    expect(pageHost != nullptr, "content panel should expose a page host container");
+    expect(countButtons(navButtons) == 9, "showcase navigation should expose nine page buttons");
+    expect(countLabels(navButtons) >= 7, "showcase navigation should expose category labels");
+    expect(pageHost->children().size() == 1, "page host should attach exactly one active showcase page");
+    expect(
+        countButtons(navButtons) > 0,
+        "showcase navigation should build button-based routing");
+    expect(
+        std::dynamic_pointer_cast<ui::Container>(pageHost->children()[0]) != nullptr,
+        "active showcase page should be a container-based page root");
 
     root->measure(ui::Constraints::tight(720.0f, 960.0f));
     root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 720.0f, 960.0f));
     expect(
-        workspace->children()[1]->bounds().y() > workspace->children()[0]->bounds().y(),
-        "narrow demo scene should stack activity card below account column");
+        shell->children()[1]->bounds().y() > shell->children()[0]->bounds().y(),
+        "narrow demo scene should stack content below navigation");
 
     root->measure(ui::Constraints::tight(1280.0f, 960.0f));
     root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 1280.0f, 960.0f));
     expect(
-        workspace->children()[1]->bounds().x() > workspace->children()[0]->bounds().x(),
-        "wide demo scene should place activity card beside account column");
-
-    expect(listItemCount(activityList) == 12, "demo scene should start with all activity sessions visible");
-
-    searchInput->setText("android");
-    expect(listItemCount(activityList) == 2, "search input should filter activity list entries");
-
-    searchInput->setText("no-such-device");
-    expect(listItemCount(activityList) == 1, "no-match search should show one empty-state card");
-
-    searchInput->setText("");
-    expect(listItemCount(activityList) == 12, "clearing search text should restore full activity list");
+        shell->children()[1]->bounds().x() > shell->children()[0]->bounds().x(),
+        "wide demo scene should place content beside navigation");
 
     return 0;
 }

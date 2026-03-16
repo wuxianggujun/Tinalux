@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 
 #include "tinalux/core/Geometry.h"
 #include "tinalux/ui/Constraints.h"
@@ -51,6 +52,8 @@ public:
     bool focused() const;
     virtual void setFocused(bool focused);
     virtual bool focusable() const;
+    virtual bool wantsTextInput() const;
+    virtual std::optional<core::Rect> imeCursorRect();
 
     void markLayoutDirty();
     bool isDirty() const;

@@ -1,0 +1,191 @@
+#include <cstdint>
+#include <cstdlib>
+#include <iostream>
+#include <memory>
+#include <vector>
+
+#include "tinalux/app/Application.h"
+
+#include "../../src/app/ApplicationTestAccess.h"
+#include "../../src/app/RuntimeHooks.h"
+#include "../../src/rendering/RenderHandles.h"
+#include "tinalux/platform/Window.h"
+#include "tinalux/rendering/rendering.h"
+
+namespace {
+
+void expect(bool condition, const char* message)
+{
+    if (!condition) {
+        std::cerr << message << '\n';
+        std::exit(1);
+    }
+}
+
+using tinalux::platform::GraphicsAPI;
+using tinalux::rendering::Backend;
+
+std::vector<GraphicsAPI> gWindowApis;
+std::vector<Backend> gContextRequests;
+std::size_t gSurfaceCreateCalls = 0;
+bool gFailFirstVulkanContext = false;
+bool gFailSecondVulkanSurface = false;
+int gFramebufferWidthOverride = 0;
+int gFramebufferHeightOverride = 0;
+
+void destroyFakeHandle(void*, void*) {}
+
+tinalux::rendering::RenderContext makeFakeContext(std::uintptr_t token)
+{
+    return tinalux::rendering::RenderAccess::makeContext(
+        Backend::Vulkan,
+        reinterpret_cast<void*>(token),
+        &destroyFakeHandle,
+        nullptr);
+}
+
+class FakeWindow final : public tinalux::platform::Window {
+public:
+    explicit FakeWindow(const tinalux::platform::WindowConfig& config)
+        : graphicsApi_(config.graphicsApi)
+        , width_(config.width)
+        , height_(config.height)
+    {
+    }
+
+    bool shouldClose() const override { return false; }
+    void pollEvents() override {}
+    void waitEventsTimeout(double) override {}
+    void swapBuffers() override {}
+    void requestClose() override {}
+
+    int width() const override { return width_; }
+    int height() const override { return height_; }
+    int framebufferWidth() const override
+    {
+        return gFramebufferWidthOverride > 0 ? gFramebufferWidthOverride : width_;
+    }
+    int framebufferHeight() const override
+    {
+        return gFramebufferHeightOverride > 0 ? gFramebufferHeightOverride : height_;
+    }
+    float dpiScale() const override { return 1.0f; }
+
+    void setClipboardText(const std::string&) override {}
+    std::string clipboardText() const override { return {}; }
+    void setEventCallback(tinalux::platform::EventCallback callback) override
+    {
+        callback_ = std::move(callback);
+    }
+    tinalux::platform::GLGetProcFn glGetProcAddress() const override { return nullptr; }
+    bool vulkanSupported() const override { return true; }
+    std::vector<std::string> requiredVulkanInstanceExtensions() const override { return {}; }
+    tinalux::platform::VulkanGetInstanceProcFn vulkanGetInstanceProcAddress() const override { return nullptr; }
+
+    GraphicsAPI graphicsApi() const { return graphicsApi_; }
+
+private:
+    GraphicsAPI graphicsApi_ = GraphicsAPI::OpenGL;
+    int width_ = 0;
+    int height_ = 0;
+    tinalux::platform::EventCallback callback_;
+};
+
+std::unique_ptr<tinalux::platform::Window> createFakeWindow(const tinalux::platform::WindowConfig& config)
+{
+    gWindowApis.push_back(config.graphicsApi);
+    return std::make_unique<FakeWindow>(config);
+}
+
+tinalux::rendering::RenderContext createFakeContext(const tinalux::rendering::ContextConfig& config)
+{
+    gContextRequests.push_back(config.backend);
+    if (gFailFirstVulkanContext
+        && config.backend == Backend::Vulkan
+        && gContextRequests.size() == 1) {
+        return {};
+    }
+    return makeFakeContext(gContextRequests.size() + 1);
+}
+
+tinalux::rendering::RenderSurface createFakeWindowSurface(
+    tinalux::rendering::RenderContext&,
+    tinalux::platform::Window&)
+{
+    ++gSurfaceCreateCalls;
+    if (gFailSecondVulkanSurface && gSurfaceCreateCalls == 2) {
+        return {};
+    }
+    return tinalux::rendering::createRasterSurface(64, 64);
+}
+
+void resetScenario()
+{
+    gWindowApis.clear();
+    gContextRequests.clear();
+    gSurfaceCreateCalls = 0;
+    gFailFirstVulkanContext = false;
+    gFailSecondVulkanSurface = false;
+    gFramebufferWidthOverride = 0;
+    gFramebufferHeightOverride = 0;
+}
+
+}  // namespace
+
+int main()
+{
+    using namespace tinalux;
+
+    app::detail::RuntimeHooks hooks {
+        .createWindow = &createFakeWindow,
+        .createContext = &createFakeContext,
+        .createWindowSurface = &createFakeWindowSurface,
+    };
+    app::detail::ScopedRuntimeHooksOverride scopedHooks(hooks);
+
+    {
+        resetScenario();
+        gFailFirstVulkanContext = true;
+
+        app::Application app;
+        expect(
+            app.init(app::ApplicationConfig { .backend = Backend::Auto }),
+            "Auto backend init should fall back to the next backend when Vulkan context creation fails");
+        expect(gWindowApis.size() == 2, "Auto backend init should create two windows during fallback");
+        expect(gWindowApis[0] == GraphicsAPI::None, "Vulkan candidate should request a no-api window");
+        expect(gWindowApis[1] == GraphicsAPI::OpenGL, "OpenGL fallback should request an OpenGL window");
+        expect(gContextRequests.size() == 2, "Auto backend init should try two render backends");
+        expect(gContextRequests[0] == Backend::Vulkan, "Auto backend init should try Vulkan first");
+        expect(gContextRequests[1] == Backend::OpenGL, "Auto backend init should fall back to OpenGL second");
+        expect(gSurfaceCreateCalls == 1, "Only the successful fallback backend should create an initial surface");
+    }
+
+    {
+        resetScenario();
+        gFailSecondVulkanSurface = true;
+
+        app::Application app;
+        expect(
+            app.init(app::ApplicationConfig { .backend = Backend::Auto }),
+            "Auto backend init should succeed on the first Vulkan attempt");
+        expect(gWindowApis.size() == 1, "Initial Vulkan startup should create one window");
+        expect(gContextRequests.size() == 1, "Initial Vulkan startup should create one context");
+        expect(gSurfaceCreateCalls == 1, "Initial Vulkan startup should create one surface");
+
+        gFramebufferWidthOverride = 1280;
+        gFramebufferHeightOverride = 720;
+        expect(
+            app::detail::ApplicationTestAccess::renderFrame(app),
+            "Render frame should recover by promoting the next backend when Vulkan surface recreation fails");
+        expect(gWindowApis.size() == 2, "Runtime fallback should create a second window for the fallback backend");
+        expect(gWindowApis[1] == GraphicsAPI::OpenGL, "Runtime fallback should recreate the window as OpenGL");
+        expect(gContextRequests.size() == 2, "Runtime fallback should create a second context");
+        expect(gContextRequests[1] == Backend::OpenGL, "Runtime fallback should try the OpenGL backend next");
+        expect(gSurfaceCreateCalls == 3, "Runtime fallback should retry surface creation on the fallback backend");
+        auto* finalWindow = dynamic_cast<FakeWindow*>(app.window());
+        expect(finalWindow != nullptr, "Runtime fallback should leave a fake window instance active");
+        expect(finalWindow->graphicsApi() == GraphicsAPI::OpenGL, "Runtime fallback should leave the OpenGL window active");
+    }
+
+    return 0;
+}

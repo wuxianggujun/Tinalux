@@ -15,6 +15,8 @@ add_library(Tinalux::Rendering ALIAS TinaluxRendering)
 target_include_directories(TinaluxRendering
     PUBLIC
         ${PROJECT_SOURCE_DIR}/include
+    PRIVATE
+        ${TINALUX_GLFW_SOURCE_DIR}/deps
 )
 
 target_link_libraries(TinaluxRendering

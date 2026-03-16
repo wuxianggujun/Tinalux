@@ -74,7 +74,9 @@ private:
 
 enum class FlexDirection {
     Row,
+    RowReverse,
     Column,
+    ColumnReverse,
 };
 
 enum class JustifyContent {
@@ -82,6 +84,7 @@ enum class JustifyContent {
     Center,
     End,
     SpaceBetween,
+    SpaceAround,
 };
 
 enum class AlignItems {
@@ -91,6 +94,11 @@ enum class AlignItems {
     Stretch,
 };
 
+enum class FlexWrap {
+    NoWrap,
+    Wrap,
+};
+
 struct FlexSpec {
     float grow = 0.0f;
     float shrink = 1.0f;
@@ -98,12 +106,20 @@ struct FlexSpec {
 
 class FlexLayout final : public Layout {
 public:
+    /// 主轴方向。支持行/列以及反向排列。
     FlexDirection direction = FlexDirection::Row;
+    /// 主轴剩余空间分配策略。
     JustifyContent justifyContent = JustifyContent::Start;
+    /// 交叉轴对齐策略。
     AlignItems alignItems = AlignItems::Start;
+    /// 是否允许在主轴空间不足时换行（列方向下表现为换列）。
+    FlexWrap wrap = FlexWrap::NoWrap;
+    /// 同一行（列）内项目之间的间距；换行时也复用该值作为行间距。
     float spacing = 0.0f;
+    /// 容器四周统一内边距。
     float padding = 0.0f;
 
+    /// 为指定子控件设置 flex-grow / flex-shrink。
     void setFlex(Widget* child, float grow, float shrink = 1.0f);
     void clearFlex(Widget* child);
     FlexSpec flex(Widget* child) const;

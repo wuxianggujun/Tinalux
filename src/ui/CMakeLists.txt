@@ -3,10 +3,17 @@ add_library(TinaluxUI STATIC
     Widget.cpp
     Container.cpp
     DemoScene.cpp
+    showcase/ShowcaseSupport.cpp
+    showcase/ShowcasePages.cpp
+    showcase/FoundationPages.cpp
+    showcase/InputPages.cpp
+    showcase/ContentPages.cpp
+    showcase/SystemPages.cpp
     IconRegistry.cpp
     ResourceManager.cpp
     ResourceLoader.cpp
     Theme.cpp
+    RichTextStyle.cpp
     ButtonStyle.cpp
     DialogStyle.cpp
     ListViewStyle.cpp
@@ -20,6 +27,7 @@ add_library(TinaluxUI STATIC
     RuntimeState.cpp
     TextPrimitives.cpp
     TextMetricsBackend.cpp
+    ParagraphTextLayout.cpp
     Clipboard.cpp
     layouts/VBoxLayout.cpp
     layouts/HBoxLayout.cpp
@@ -28,6 +36,7 @@ add_library(TinaluxUI STATIC
     layouts/ResponsiveLayout.cpp
     widgets/Label.cpp
     widgets/ParagraphLabel.cpp
+    widgets/RichText.cpp
     widgets/Button.cpp
     widgets/Checkbox.cpp
     widgets/Dialog.cpp

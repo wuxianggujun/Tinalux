@@ -210,7 +210,7 @@ function(_tinalux_compute_skia_gn_args out_var build_type is_debug)
     endif()
 
     list(APPEND _gn_args "skia_use_gl=${_skia_use_gl}")
-    list(APPEND _gn_args "skia_use_vulkan=false")
+    list(APPEND _gn_args "skia_use_vulkan=true")
     list(APPEND _gn_args "skia_use_dawn=${_skia_use_dawn}")
     if(TINALUX_USE_SYSTEM_DEPS)
         set(_tinalux_use_system_deps "true")
@@ -282,6 +282,7 @@ function(_tinalux_define_skia_build out_lib_var build_type is_debug)
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${_skia_out_dir}"
         COMMAND "${GN_EXECUTABLE}" gen "${_skia_out_dir}" --args=${_gn_args_str}
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_expected_signature_file}" "${_signature_marker}"
+        DEPENDS "${_expected_signature_file}"
         WORKING_DIRECTORY "${SKIA_SOURCE_DIR}"
         COMMENT "Configuring Skia ${build_type} (gn gen)"
         VERBATIM

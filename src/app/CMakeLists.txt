@@ -1,5 +1,7 @@
 add_library(TinaluxApp STATIC
     Application.cpp
+    BackendPlan.cpp
+    RuntimeHooks.cpp
     UIContext.cpp
 )
 

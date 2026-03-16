@@ -6,7 +6,7 @@
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Constraints.h"
 #include "tinalux/ui/Container.h"
-#include "tinalux/ui/Layout.h"
+#include "tinalux/ui/FlexLayout.h"
 
 namespace {
 
@@ -49,67 +49,100 @@ int main()
 {
     using namespace tinalux;
 
-    auto rowContainer = std::make_shared<ui::Container>();
-    auto rowLayout = std::make_unique<ui::FlexLayout>();
-    rowLayout->direction = ui::FlexDirection::Row;
-    rowLayout->spacing = 10.0f;
-    rowLayout->padding = 10.0f;
-    rowLayout->alignItems = ui::AlignItems::Stretch;
+    {
+        auto container = std::make_shared<ui::Container>();
+        auto layout = std::make_unique<ui::FlexLayout>();
+        layout->direction = ui::FlexDirection::Row;
+        layout->spacing = 10.0f;
+        layout->padding = 10.0f;
+        layout->alignItems = ui::AlignItems::Stretch;
 
-    auto first = std::make_shared<ProbeWidget>(core::Size::Make(50.0f, 20.0f));
-    auto second = std::make_shared<ProbeWidget>(core::Size::Make(30.0f, 30.0f));
-    rowContainer->addChild(first);
-    rowContainer->addChild(second);
-    rowLayout->setFlex(second.get(), 1.0f, 1.0f);
-    rowContainer->setLayout(std::move(rowLayout));
+        auto first = std::make_shared<ProbeWidget>(core::Size::Make(50.0f, 20.0f));
+        auto second = std::make_shared<ProbeWidget>(core::Size::Make(30.0f, 30.0f));
+        container->addChild(first);
+        container->addChild(second);
+        layout->setFlex(second.get(), 1.0f, 1.0f);
+        container->setLayout(std::move(layout));
 
-    const core::Size rowMeasured = rowContainer->measure(ui::Constraints::loose(300.0f, 120.0f));
-    expect(nearlyEqual(rowMeasured.width(), 110.0f), "flex row should report natural width before growth");
-    expect(nearlyEqual(rowMeasured.height(), 50.0f), "flex row should report natural cross size");
+        const core::Size measured = container->measure(ui::Constraints::loose(300.0f, 120.0f));
+        expect(nearlyEqual(measured.width(), 110.0f), "row flex should report intrinsic width before growth");
+        expect(nearlyEqual(measured.height(), 50.0f), "row flex should report intrinsic cross size");
 
-    rowContainer->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 300.0f, 100.0f));
-    expect(nearlyEqual(first->bounds().x(), 10.0f), "first row item should start after padding");
-    expect(nearlyEqual(first->bounds().width(), 50.0f), "first row item should keep intrinsic width");
-    expect(nearlyEqual(first->bounds().height(), 80.0f), "stretch alignment should expand first item height");
-    expect(nearlyEqual(second->bounds().x(), 70.0f), "second row item should follow spacing after first");
-    expect(nearlyEqual(second->bounds().width(), 220.0f), "grow item should consume remaining row space");
-    expect(nearlyEqual(second->bounds().height(), 80.0f), "stretch alignment should expand second item height");
+        container->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 300.0f, 100.0f));
+        expect(nearlyEqual(first->bounds().x(), 10.0f), "row first item should respect padding");
+        expect(nearlyEqual(first->bounds().width(), 50.0f), "row first item should keep intrinsic width");
+        expect(nearlyEqual(first->bounds().height(), 80.0f), "stretch should expand first item height");
+        expect(nearlyEqual(second->bounds().x(), 70.0f), "row second item should follow first item and spacing");
+        expect(nearlyEqual(second->bounds().width(), 220.0f), "grow item should consume remaining width");
+        expect(nearlyEqual(second->bounds().height(), 80.0f), "stretch should expand second item height");
+    }
 
-    auto centerContainer = std::make_shared<ui::Container>();
-    auto centerLayout = std::make_unique<ui::FlexLayout>();
-    centerLayout->direction = ui::FlexDirection::Row;
-    centerLayout->justifyContent = ui::JustifyContent::Center;
-    centerLayout->alignItems = ui::AlignItems::Center;
-    centerLayout->spacing = 10.0f;
+    {
+        auto container = std::make_shared<ui::Container>();
+        auto layout = std::make_unique<ui::FlexLayout>();
+        layout->direction = ui::FlexDirection::Column;
+        layout->alignItems = ui::AlignItems::End;
+        layout->padding = 8.0f;
 
-    auto centerA = std::make_shared<ProbeWidget>(core::Size::Make(40.0f, 20.0f));
-    auto centerB = std::make_shared<ProbeWidget>(core::Size::Make(60.0f, 30.0f));
-    centerContainer->addChild(centerA);
-    centerContainer->addChild(centerB);
-    centerContainer->setLayout(std::move(centerLayout));
-    centerContainer->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 200.0f, 100.0f));
-    expect(nearlyEqual(centerA->bounds().x(), 45.0f), "center justification should offset first item");
-    expect(nearlyEqual(centerA->bounds().y(), 40.0f), "center alignment should vertically center first item");
-    expect(nearlyEqual(centerB->bounds().x(), 95.0f), "center justification should preserve gap");
-    expect(nearlyEqual(centerB->bounds().y(), 35.0f), "center alignment should vertically center second item");
+        auto first = std::make_shared<ProbeWidget>(core::Size::Make(40.0f, 20.0f));
+        auto second = std::make_shared<ProbeWidget>(core::Size::Make(30.0f, 30.0f));
+        container->addChild(first);
+        container->addChild(second);
+        container->setLayout(std::move(layout));
 
-    auto columnContainer = std::make_shared<ui::Container>();
-    auto columnLayout = std::make_unique<ui::FlexLayout>();
-    columnLayout->direction = ui::FlexDirection::Column;
-    columnLayout->justifyContent = ui::JustifyContent::SpaceBetween;
-    columnLayout->alignItems = ui::AlignItems::End;
-    columnLayout->padding = 8.0f;
+        container->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 120.0f, 140.0f));
+        expect(nearlyEqual(first->bounds().x(), 72.0f), "column align end should right-align first item");
+        expect(nearlyEqual(first->bounds().y(), 8.0f), "column first item should start after top padding");
+        expect(nearlyEqual(second->bounds().x(), 82.0f), "column align end should right-align second item");
+        expect(nearlyEqual(second->bounds().y(), 28.0f), "column second item should follow the first item");
+    }
 
-    auto columnA = std::make_shared<ProbeWidget>(core::Size::Make(40.0f, 20.0f));
-    auto columnB = std::make_shared<ProbeWidget>(core::Size::Make(30.0f, 30.0f));
-    columnContainer->addChild(columnA);
-    columnContainer->addChild(columnB);
-    columnContainer->setLayout(std::move(columnLayout));
-    columnContainer->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 120.0f, 140.0f));
-    expect(nearlyEqual(columnA->bounds().y(), 8.0f), "column first item should start at top padding");
-    expect(nearlyEqual(columnB->bounds().y(), 102.0f), "space-between should push last column item to bottom");
-    expect(nearlyEqual(columnA->bounds().x(), 72.0f), "end alignment should right-align wider first item");
-    expect(nearlyEqual(columnB->bounds().x(), 82.0f), "end alignment should right-align narrower second item");
+    {
+        auto container = std::make_shared<ui::Container>();
+        auto layout = std::make_unique<ui::FlexLayout>();
+        layout->direction = ui::FlexDirection::Row;
+        layout->justifyContent = ui::JustifyContent::SpaceBetween;
+
+        auto first = std::make_shared<ProbeWidget>(core::Size::Make(30.0f, 10.0f));
+        auto second = std::make_shared<ProbeWidget>(core::Size::Make(20.0f, 10.0f));
+        auto third = std::make_shared<ProbeWidget>(core::Size::Make(10.0f, 10.0f));
+        container->addChild(first);
+        container->addChild(second);
+        container->addChild(third);
+        container->setLayout(std::move(layout));
+
+        container->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 200.0f, 40.0f));
+        expect(nearlyEqual(first->bounds().x(), 0.0f), "space-between should pin first item to start");
+        expect(nearlyEqual(second->bounds().x(), 100.0f), "space-between should distribute middle item");
+        expect(nearlyEqual(third->bounds().x(), 190.0f), "space-between should pin last item to end");
+    }
+
+    {
+        auto container = std::make_shared<ui::Container>();
+        auto layout = std::make_unique<ui::FlexLayout>();
+        layout->direction = ui::FlexDirection::RowReverse;
+        layout->wrap = ui::FlexWrap::Wrap;
+        layout->spacing = 10.0f;
+        layout->padding = 10.0f;
+
+        auto first = std::make_shared<ProbeWidget>(core::Size::Make(40.0f, 20.0f));
+        auto second = std::make_shared<ProbeWidget>(core::Size::Make(40.0f, 20.0f));
+        auto third = std::make_shared<ProbeWidget>(core::Size::Make(40.0f, 20.0f));
+        container->addChild(first);
+        container->addChild(second);
+        container->addChild(third);
+        container->setLayout(std::move(layout));
+
+        const core::Size measured = container->measure(ui::Constraints::loose(140.0f, 200.0f));
+        expect(nearlyEqual(measured.width(), 110.0f), "wrapped reverse row should report widest line width");
+        expect(nearlyEqual(measured.height(), 70.0f), "wrapped reverse row should report accumulated line height");
+
+        container->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 140.0f, 120.0f));
+        expect(nearlyEqual(third->bounds().x(), 90.0f), "row-reverse should place the visual first item on the right");
+        expect(nearlyEqual(second->bounds().x(), 40.0f), "row-reverse should place the second item to the left");
+        expect(nearlyEqual(first->bounds().x(), 90.0f), "wrapped item should start a new line on the right edge");
+        expect(nearlyEqual(first->bounds().y(), 40.0f), "wrapped item should move to the next line");
+    }
 
     return 0;
 }

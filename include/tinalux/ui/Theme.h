@@ -7,6 +7,7 @@
 #include "tinalux/ui/DialogStyle.h"
 #include "tinalux/ui/ListViewStyle.h"
 #include "tinalux/ui/PanelStyle.h"
+#include "tinalux/ui/RichTextStyle.h"
 #include "tinalux/ui/SelectionControlStyle.h"
 #include "tinalux/ui/ScrollViewStyle.h"
 #include "tinalux/ui/SliderStyle.h"
@@ -30,6 +31,7 @@ struct Theme {
     DialogStyle dialogStyle = DialogStyle::standard(colors, typography, spacingScale);
     PanelStyle panelStyle = PanelStyle::standard(colors, typography, spacingScale);
     ListViewStyle listViewStyle = ListViewStyle::standard(colors, typography, spacingScale);
+    RichTextStyle richTextStyle = RichTextStyle::standard(colors, typography, spacingScale);
 
     core::Color background = core::colorRGB(18, 20, 28);
     core::Color surface = core::colorRGB(32, 35, 47);

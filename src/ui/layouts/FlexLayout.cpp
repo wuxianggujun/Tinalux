@@ -1,8 +1,9 @@
-#include "tinalux/ui/Layout.h"
+#include "tinalux/ui/FlexLayout.h"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <utility>
 #include <vector>
 
 #include "LayoutUtils.h"
@@ -24,20 +25,39 @@ struct AxisSize {
 struct FlexItemMetrics {
     Widget* widget = nullptr;
     FlexSpec spec {};
-    core::Size measuredSize = core::Size::Make(0.0f, 0.0f);
     float baseMain = 0.0f;
     float baseCross = 0.0f;
     float finalMain = 0.0f;
 };
 
-bool isRow(FlexDirection direction)
+struct FlexLine {
+    std::vector<FlexItemMetrics> items;
+    float baseCross = 0.0f;
+};
+
+struct MainAxisPlacement {
+    float startOffset = 0.0f;
+    float gap = 0.0f;
+};
+
+bool isRowDirection(FlexDirection direction)
 {
-    return direction == FlexDirection::Row;
+    return direction == FlexDirection::Row || direction == FlexDirection::RowReverse;
+}
+
+bool isReverseDirection(FlexDirection direction)
+{
+    return direction == FlexDirection::RowReverse || direction == FlexDirection::ColumnReverse;
 }
 
 bool isFiniteExtent(float value)
 {
     return std::isfinite(value);
+}
+
+bool canWrap(FlexWrap wrap, float availableMain)
+{
+    return wrap == FlexWrap::Wrap && isFiniteExtent(availableMain);
 }
 
 float sanitizeNonNegative(float value)
@@ -47,7 +67,7 @@ float sanitizeNonNegative(float value)
 
 AxisSize toAxisSize(core::Size size, FlexDirection direction)
 {
-    if (isRow(direction)) {
+    if (isRowDirection(direction)) {
         return {
             .main = size.width(),
             .cross = size.height(),
@@ -62,7 +82,7 @@ AxisSize toAxisSize(core::Size size, FlexDirection direction)
 
 core::Size fromAxisSize(AxisSize size, FlexDirection direction)
 {
-    if (isRow(direction)) {
+    if (isRowDirection(direction)) {
         return core::Size::Make(size.main, size.cross);
     }
 
@@ -74,7 +94,7 @@ Constraints baseMeasureConstraints(
     float maxMain,
     float maxCross)
 {
-    if (isRow(direction)) {
+    if (isRowDirection(direction)) {
         return {
             .minWidth = 0.0f,
             .maxWidth = maxMain,
@@ -94,21 +114,21 @@ Constraints baseMeasureConstraints(
 Constraints arrangedMeasureConstraints(
     FlexDirection direction,
     float finalMain,
-    float maxCross,
+    float crossExtent,
     bool stretchCross)
 {
-    if (isRow(direction)) {
+    if (isRowDirection(direction)) {
         return {
             .minWidth = sanitizeNonNegative(finalMain),
             .maxWidth = sanitizeNonNegative(finalMain),
-            .minHeight = stretchCross && isFiniteExtent(maxCross) ? sanitizeNonNegative(maxCross) : 0.0f,
-            .maxHeight = maxCross,
+            .minHeight = stretchCross && isFiniteExtent(crossExtent) ? sanitizeNonNegative(crossExtent) : 0.0f,
+            .maxHeight = crossExtent,
         };
     }
 
     return {
-        .minWidth = stretchCross && isFiniteExtent(maxCross) ? sanitizeNonNegative(maxCross) : 0.0f,
-        .maxWidth = maxCross,
+        .minWidth = stretchCross && isFiniteExtent(crossExtent) ? sanitizeNonNegative(crossExtent) : 0.0f,
+        .maxWidth = crossExtent,
         .minHeight = sanitizeNonNegative(finalMain),
         .maxHeight = sanitizeNonNegative(finalMain),
     };
@@ -116,22 +136,27 @@ Constraints arrangedMeasureConstraints(
 
 float axisMainStart(const core::Rect& rect, FlexDirection direction)
 {
-    return isRow(direction) ? rect.x() : rect.y();
+    return isRowDirection(direction) ? rect.x() : rect.y();
+}
+
+float axisMainEnd(const core::Rect& rect, FlexDirection direction)
+{
+    return isRowDirection(direction) ? rect.right() : rect.bottom();
 }
 
 float axisCrossStart(const core::Rect& rect, FlexDirection direction)
 {
-    return isRow(direction) ? rect.y() : rect.x();
+    return isRowDirection(direction) ? rect.y() : rect.x();
 }
 
 float axisMainExtent(const core::Rect& rect, FlexDirection direction)
 {
-    return isRow(direction) ? rect.width() : rect.height();
+    return isRowDirection(direction) ? rect.width() : rect.height();
 }
 
 float axisCrossExtent(const core::Rect& rect, FlexDirection direction)
 {
-    return isRow(direction) ? rect.height() : rect.width();
+    return isRowDirection(direction) ? rect.height() : rect.width();
 }
 
 core::Rect rectFromAxis(
@@ -141,11 +166,29 @@ core::Rect rectFromAxis(
     float mainExtent,
     float crossExtent)
 {
-    if (isRow(direction)) {
+    if (isRowDirection(direction)) {
         return core::Rect::MakeXYWH(mainStart, crossStart, mainExtent, crossExtent);
     }
 
     return core::Rect::MakeXYWH(crossStart, mainStart, crossExtent, mainExtent);
+}
+
+float totalBaseMain(const std::vector<FlexItemMetrics>& items)
+{
+    float total = 0.0f;
+    for (const FlexItemMetrics& item : items) {
+        total += item.baseMain;
+    }
+    return total;
+}
+
+float totalFinalMain(const std::vector<FlexItemMetrics>& items)
+{
+    float total = 0.0f;
+    for (const FlexItemMetrics& item : items) {
+        total += item.finalMain;
+    }
+    return total;
 }
 
 void applyGrow(std::vector<FlexItemMetrics>& items, float extraSpace)
@@ -223,6 +266,168 @@ void applyShrink(std::vector<FlexItemMetrics>& items, float shortage)
     }
 }
 
+std::vector<FlexItemMetrics> measureItems(
+    FlexDirection direction,
+    FlexWrap wrap,
+    float availableMain,
+    float availableCross,
+    std::vector<std::shared_ptr<Widget>>& children,
+    const FlexLayout& layout)
+{
+    std::vector<FlexItemMetrics> items;
+    items.reserve(children.size());
+
+    const float measureMain = canWrap(wrap, availableMain)
+        ? availableMain
+        : std::numeric_limits<float>::infinity();
+    const auto measureChild = [&](const std::shared_ptr<Widget>& child) {
+        if (child == nullptr) {
+            return;
+        }
+
+        const core::Size childSize = child->measure(baseMeasureConstraints(
+            direction,
+            measureMain,
+            availableCross));
+        const AxisSize axisSize = toAxisSize(childSize, direction);
+        items.push_back(FlexItemMetrics {
+            .widget = child.get(),
+            .spec = layout.flex(child.get()),
+            .baseMain = axisSize.main,
+            .baseCross = axisSize.cross,
+            .finalMain = axisSize.main,
+        });
+    };
+
+    if (isReverseDirection(direction)) {
+        for (auto it = children.rbegin(); it != children.rend(); ++it) {
+            measureChild(*it);
+        }
+    } else {
+        for (const auto& child : children) {
+            measureChild(child);
+        }
+    }
+
+    return items;
+}
+
+std::vector<FlexLine> buildLines(
+    std::vector<FlexItemMetrics> items,
+    bool wrapEnabled,
+    float availableMain,
+    float spacing)
+{
+    std::vector<FlexLine> lines;
+    FlexLine currentLine;
+    float currentLineMain = 0.0f;
+
+    auto flushLine = [&lines, &currentLine, &currentLineMain]() {
+        if (currentLine.items.empty()) {
+            return;
+        }
+        lines.push_back(std::move(currentLine));
+        currentLine = FlexLine {};
+        currentLineMain = 0.0f;
+    };
+
+    for (FlexItemMetrics& item : items) {
+        if (wrapEnabled && !currentLine.items.empty()) {
+            const float nextMain = currentLineMain + spacing + item.baseMain;
+            if (nextMain > availableMain + kFlexTolerance) {
+                flushLine();
+            }
+        }
+
+        if (!currentLine.items.empty()) {
+            currentLineMain += spacing;
+        }
+        currentLineMain += item.baseMain;
+        currentLine.baseCross = std::max(currentLine.baseCross, item.baseCross);
+        currentLine.items.push_back(std::move(item));
+    }
+
+    flushLine();
+    return lines;
+}
+
+void resolveFlexibleMain(std::vector<FlexItemMetrics>& items, float availableMain, float spacing)
+{
+    const float occupiedMain = totalBaseMain(items)
+        + (items.empty() ? 0.0f : spacing * static_cast<float>(items.size() - 1));
+    const float freeSpace = availableMain - occupiedMain;
+
+    if (freeSpace > kFlexTolerance) {
+        applyGrow(items, freeSpace);
+    } else if (freeSpace < -kFlexTolerance) {
+        applyShrink(items, -freeSpace);
+    }
+}
+
+MainAxisPlacement resolveMainAxisPlacement(
+    JustifyContent justifyContent,
+    float availableMain,
+    float occupiedMain,
+    float baseGap,
+    std::size_t itemCount)
+{
+    const float remainingMain = availableMain - occupiedMain;
+    const float distributableMain = std::max(0.0f, remainingMain);
+
+    switch (justifyContent) {
+    case JustifyContent::Center:
+        return {
+            .startOffset = remainingMain * 0.5f,
+            .gap = baseGap,
+        };
+    case JustifyContent::End:
+        return {
+            .startOffset = remainingMain,
+            .gap = baseGap,
+        };
+    case JustifyContent::SpaceBetween:
+        if (itemCount > 1) {
+            return {
+                .startOffset = 0.0f,
+                .gap = baseGap + distributableMain / static_cast<float>(itemCount - 1),
+            };
+        }
+        return {
+            .startOffset = 0.0f,
+            .gap = baseGap,
+        };
+    case JustifyContent::SpaceAround:
+        if (itemCount > 0) {
+            return {
+                .startOffset = distributableMain / (static_cast<float>(itemCount) * 2.0f),
+                .gap = baseGap + distributableMain / static_cast<float>(itemCount),
+            };
+        }
+        return {
+            .startOffset = 0.0f,
+            .gap = baseGap,
+        };
+    case JustifyContent::Start:
+    default:
+        return {
+            .startOffset = 0.0f,
+            .gap = baseGap,
+        };
+    }
+}
+
+float resolvedLineCrossExtent(
+    const FlexLine& line,
+    std::size_t lineCount,
+    float availableCross)
+{
+    if (lineCount == 1 && isFiniteExtent(availableCross)) {
+        return availableCross;
+    }
+
+    return line.baseCross;
+}
+
 }  // namespace
 
 void FlexLayout::setFlex(Widget* child, float grow, float shrink)
@@ -263,38 +468,46 @@ core::Size FlexLayout::measure(
     const Constraints& constraints,
     std::vector<std::shared_ptr<Widget>>& children)
 {
+    const float normalizedPadding = sanitizeNonNegative(padding);
+    const float normalizedSpacing = sanitizeNonNegative(spacing);
     const AxisSize contentLimits = toAxisSize(
         core::Size::Make(
-            innerExtent(constraints.maxWidth, padding),
-            innerExtent(constraints.maxHeight, padding)),
+            innerExtent(constraints.maxWidth, normalizedPadding),
+            innerExtent(constraints.maxHeight, normalizedPadding)),
         direction);
+
+    const std::vector<FlexItemMetrics> items = measureItems(
+        direction,
+        wrap,
+        contentLimits.main,
+        contentLimits.cross,
+        children,
+        *this);
+    const std::vector<FlexLine> lines = buildLines(
+        items,
+        canWrap(wrap, contentLimits.main),
+        contentLimits.main,
+        normalizedSpacing);
 
     float usedMain = 0.0f;
     float usedCross = 0.0f;
-    bool firstChild = true;
-
-    for (const auto& child : children) {
-        if (child == nullptr) {
-            continue;
+    bool firstLine = true;
+    for (const FlexLine& line : lines) {
+        usedMain = std::max(
+            usedMain,
+            totalBaseMain(line.items)
+                + (line.items.empty() ? 0.0f : normalizedSpacing * static_cast<float>(line.items.size() - 1)));
+        if (!firstLine) {
+            usedCross += normalizedSpacing;
         }
-
-        const core::Size childSize = child->measure(baseMeasureConstraints(
-            direction,
-            std::numeric_limits<float>::infinity(),
-            contentLimits.cross));
-        const AxisSize axisSize = toAxisSize(childSize, direction);
-        if (!firstChild) {
-            usedMain += spacing;
-        }
-        usedMain += axisSize.main;
-        usedCross = std::max(usedCross, axisSize.cross);
-        firstChild = false;
+        usedCross += line.baseCross;
+        firstLine = false;
     }
 
     return constraints.constrain(fromAxisSize(
         AxisSize {
-            .main = usedMain + padding * 2.0f,
-            .cross = usedCross + padding * 2.0f,
+            .main = usedMain + normalizedPadding * 2.0f,
+            .cross = usedCross + normalizedPadding * 2.0f,
         },
         direction));
 }
@@ -303,93 +516,98 @@ void FlexLayout::arrange(
     const core::Rect& bounds,
     std::vector<std::shared_ptr<Widget>>& children)
 {
-    const core::Rect contentBounds = innerExtent(bounds, padding);
+    const float normalizedPadding = sanitizeNonNegative(padding);
+    const float normalizedSpacing = sanitizeNonNegative(spacing);
+    const core::Rect contentBounds = innerExtent(bounds, normalizedPadding);
     const float availableMain = axisMainExtent(contentBounds, direction);
     const float availableCross = axisCrossExtent(contentBounds, direction);
+    const bool wrapEnabled = canWrap(wrap, availableMain);
 
-    std::vector<FlexItemMetrics> items;
-    items.reserve(children.size());
+    std::vector<FlexItemMetrics> items = measureItems(
+        direction,
+        wrap,
+        availableMain,
+        availableCross,
+        children,
+        *this);
+    std::vector<FlexLine> lines = buildLines(
+        std::move(items),
+        wrapEnabled,
+        availableMain,
+        normalizedSpacing);
+    if (lines.empty()) {
+        return;
+    }
 
-    float totalBaseMain = 0.0f;
-    bool firstChild = true;
-    for (const auto& child : children) {
-        if (child == nullptr) {
-            continue;
+    for (FlexLine& line : lines) {
+        resolveFlexibleMain(line.items, availableMain, normalizedSpacing);
+    }
+
+    float crossCursor = axisCrossStart(contentBounds, direction);
+    for (std::size_t lineIndex = 0; lineIndex < lines.size(); ++lineIndex) {
+        FlexLine& line = lines[lineIndex];
+        const float lineCrossExtent = resolvedLineCrossExtent(line, lines.size(), availableCross);
+        const float occupiedMain = totalFinalMain(line.items)
+            + (line.items.empty() ? 0.0f : normalizedSpacing * static_cast<float>(line.items.size() - 1));
+        const MainAxisPlacement placement = resolveMainAxisPlacement(
+            justifyContent,
+            availableMain,
+            occupiedMain,
+            normalizedSpacing,
+            line.items.size());
+
+        float cursorMain = 0.0f;
+        if (isReverseDirection(direction)) {
+            cursorMain = axisMainEnd(contentBounds, direction) - placement.startOffset;
+        } else {
+            cursorMain = axisMainStart(contentBounds, direction) + placement.startOffset;
         }
 
-        const core::Size childSize = child->measure(baseMeasureConstraints(
-            direction,
-            std::numeric_limits<float>::infinity(),
-            availableCross));
-        const AxisSize axisSize = toAxisSize(childSize, direction);
-        if (!firstChild) {
-            totalBaseMain += spacing;
-        }
-        totalBaseMain += axisSize.main;
-        firstChild = false;
+        for (FlexItemMetrics& item : line.items) {
+            const bool stretchCross = alignItems == AlignItems::Stretch && isFiniteExtent(lineCrossExtent);
+            const core::Size arrangedMeasure = item.widget->measure(arrangedMeasureConstraints(
+                direction,
+                item.finalMain,
+                lineCrossExtent,
+                stretchCross));
+            const AxisSize arrangedAxis = toAxisSize(arrangedMeasure, direction);
+            float childCross = stretchCross ? lineCrossExtent : arrangedAxis.cross;
+            if (isFiniteExtent(lineCrossExtent)) {
+                childCross = std::min(childCross, lineCrossExtent);
+            }
 
-        items.push_back(FlexItemMetrics {
-            .widget = child.get(),
-            .spec = flex(child.get()),
-            .measuredSize = childSize,
-            .baseMain = axisSize.main,
-            .baseCross = axisSize.cross,
-            .finalMain = axisSize.main,
-        });
-    }
+            float crossStart = crossCursor;
+            if (!stretchCross && isFiniteExtent(lineCrossExtent)) {
+                if (alignItems == AlignItems::Center) {
+                    crossStart += (lineCrossExtent - childCross) * 0.5f;
+                } else if (alignItems == AlignItems::End) {
+                    crossStart += lineCrossExtent - childCross;
+                }
+            }
 
-    const float freeSpace = availableMain - totalBaseMain;
-    if (freeSpace > kFlexTolerance) {
-        applyGrow(items, freeSpace);
-    } else if (freeSpace < -kFlexTolerance) {
-        applyShrink(items, -freeSpace);
-    }
+            float mainStart = cursorMain;
+            if (isReverseDirection(direction)) {
+                mainStart -= item.finalMain;
+            }
 
-    float totalFinalMain = 0.0f;
-    for (const FlexItemMetrics& item : items) {
-        totalFinalMain += item.finalMain;
-    }
-    const float baseSpacing = items.size() > 1 ? spacing * static_cast<float>(items.size() - 1) : 0.0f;
-    const float remainingMain = std::max(0.0f, availableMain - totalFinalMain - baseSpacing);
+            item.widget->arrange(rectFromAxis(
+                direction,
+                mainStart,
+                crossStart,
+                item.finalMain,
+                childCross));
 
-    float cursorMain = axisMainStart(contentBounds, direction);
-    float gap = spacing;
-    if (justifyContent == JustifyContent::Center) {
-        cursorMain += remainingMain * 0.5f;
-    } else if (justifyContent == JustifyContent::End) {
-        cursorMain += remainingMain;
-    } else if (justifyContent == JustifyContent::SpaceBetween && items.size() > 1) {
-        gap += remainingMain / static_cast<float>(items.size() - 1);
-    }
-
-    for (FlexItemMetrics& item : items) {
-        const bool stretchCross = alignItems == AlignItems::Stretch && isFiniteExtent(availableCross);
-        const core::Size arrangedMeasure = item.widget->measure(arrangedMeasureConstraints(
-            direction,
-            item.finalMain,
-            availableCross,
-            stretchCross));
-        const AxisSize arrangedAxis = toAxisSize(arrangedMeasure, direction);
-        const float childCross = stretchCross
-            ? availableCross
-            : std::min(arrangedAxis.cross, availableCross);
-
-        float crossStart = axisCrossStart(contentBounds, direction);
-        if (!stretchCross) {
-            if (alignItems == AlignItems::Center) {
-                crossStart += (availableCross - childCross) * 0.5f;
-            } else if (alignItems == AlignItems::End) {
-                crossStart += availableCross - childCross;
+            if (isReverseDirection(direction)) {
+                cursorMain = mainStart - placement.gap;
+            } else {
+                cursorMain = mainStart + item.finalMain + placement.gap;
             }
         }
 
-        item.widget->arrange(rectFromAxis(
-            direction,
-            cursorMain,
-            crossStart,
-            item.finalMain,
-            childCross));
-        cursorMain += item.finalMain + gap;
+        crossCursor += lineCrossExtent;
+        if (lineIndex + 1 < lines.size()) {
+            crossCursor += normalizedSpacing;
+        }
     }
 }
 

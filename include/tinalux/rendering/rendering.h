@@ -4,21 +4,41 @@
 #include <cstdint>
 #include <memory>
 #include <span>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "tinalux/core/Geometry.h"
+
+namespace tinalux::platform {
+class Window;
+}
 
 namespace tinalux::rendering {
 
 using GLGetProcFn = void* (*)(const char* name);
+using VulkanGetInstanceProcFn = void* (*)(void* instance, const char* name);
 
 struct RenderAccess;
 class Canvas;
 class Image;
 class RenderSurface;
+enum class Backend {
+    Auto,
+    OpenGL,
+    Vulkan,
+    Metal,
+};
 enum class PaintStyle {
     Fill,
     Stroke,
+};
+
+struct ContextConfig {
+    Backend backend = Backend::Auto;
+    GLGetProcFn glGetProc = nullptr;
+    VulkanGetInstanceProcFn vulkanGetInstanceProc = nullptr;
+    std::vector<std::string> vulkanInstanceExtensions;
 };
 
 class Image {
@@ -129,6 +149,7 @@ public:
     RenderContext& operator=(RenderContext&&) noexcept = default;
 
     explicit operator bool() const;
+    Backend backend() const;
 
 private:
     struct Impl;
@@ -137,9 +158,9 @@ private:
 
     std::shared_ptr<Impl> impl_;
 
-    friend RenderContext createGLContext(GLGetProcFn getProc);
-    friend RenderSurface createWindowSurface(const RenderContext& ctx, int framebufferWidth, int framebufferHeight);
-    friend void flushFrame(RenderContext& ctx);
+    friend RenderContext createContext(const ContextConfig& config);
+    friend RenderSurface createWindowSurface(RenderContext& ctx, platform::Window& window);
+    friend void flushFrame(RenderContext& ctx, RenderSurface& surface);
     friend struct RenderAccess;
 };
 
@@ -164,7 +185,7 @@ private:
 
     std::shared_ptr<Impl> impl_;
 
-    friend RenderSurface createWindowSurface(const RenderContext& ctx, int framebufferWidth, int framebufferHeight);
+    friend RenderSurface createWindowSurface(RenderContext& ctx, platform::Window& window);
     friend struct RenderAccess;
 };
 
@@ -181,7 +202,8 @@ struct ImageCacheStats {
 void initSkia();
 void shutdownSkia();
 
-RenderContext createGLContext(GLGetProcFn getProc);
+const char* backendName(Backend backend);
+RenderContext createContext(const ContextConfig& config);
 Image loadImageFromFile(std::string_view path);
 Image loadImageFromEncoded(std::span<const std::uint8_t> encodedBytes);
 Image createImageFromRGBA(
@@ -192,8 +214,8 @@ Image createImageFromRGBA(
 void setImageFileCacheLimits(std::size_t maxEntries, std::size_t maxMemoryUsageBytes);
 ImageCacheStats imageFileCacheStats();
 void clearImageFileCache();
-RenderSurface createWindowSurface(const RenderContext& ctx, int framebufferWidth, int framebufferHeight);
+RenderSurface createWindowSurface(RenderContext& ctx, platform::Window& window);
 RenderSurface createRasterSurface(int width, int height);
-void flushFrame(RenderContext& ctx);
+void flushFrame(RenderContext& ctx, RenderSurface& surface);
 
 }  // namespace tinalux::rendering

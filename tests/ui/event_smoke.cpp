@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "include/core/SkColor.h"
+#include "../../src/app/UIContext.h"
 #include "tinalux/app/Application.h"
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
@@ -259,6 +260,42 @@ int main()
 
         expect(!input->focused(), "window blur should clear focused text input");
         expect(input->selectedText().empty(), "mouse drag state should reset when text input loses focus");
+    }
+
+    {
+        tinalux::app::UIContext context;
+        auto root = std::make_shared<tinalux::ui::Panel>();
+        auto layout = std::make_unique<tinalux::ui::VBoxLayout>();
+        layout->padding = 8.0f;
+        layout->spacing = 8.0f;
+        root->setLayout(std::move(layout));
+
+        auto button = std::make_shared<tinalux::ui::Button>("Action");
+        auto input = std::make_shared<tinalux::ui::TextInput>("ime");
+        root->addChild(button);
+        root->addChild(input);
+        root->measure(tinalux::ui::Constraints::tight(320.0f, 160.0f));
+        root->arrange(tinalux::core::Rect::MakeXYWH(0.0f, 0.0f, 320.0f, 160.0f));
+
+        context.setRootWidget(root);
+        expect(!context.textInputActive(), "text input should be inactive before focus");
+
+        tinalux::core::KeyEvent tabForward(
+            tinalux::core::keys::kTab,
+            0,
+            0,
+            tinalux::core::EventType::KeyPress);
+        context.handleEvent(tabForward, [] {});
+        expect(button->focused(), "first Tab should focus button");
+        expect(!context.textInputActive(), "button focus should not activate text input");
+
+        context.handleEvent(tabForward, [] {});
+        expect(input->focused(), "second Tab should focus text input");
+        expect(context.textInputActive(), "focused text input should activate text input state");
+
+        tinalux::core::WindowFocusEvent blur(false);
+        context.handleEvent(blur, [] {});
+        expect(!context.textInputActive(), "window blur should clear active text input state");
     }
 
     {

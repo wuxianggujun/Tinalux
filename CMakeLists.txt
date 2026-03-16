@@ -3,6 +3,10 @@ project(Tinalux LANGUAGES CXX)
 
 option(TINALUX_BUILD_TESTS "Build tests" ON)
 
+if(APPLE)
+    enable_language(OBJCXX)
+endif()
+
 if(WIN32 AND MSVC)
     # 某些 IDE/Ninja 环境下不会自动带上 Windows SDK 的 /LIBPATH，
     # 导致链接阶段找不到 mpr.lib / userenv.lib 等系统库（LNK1104）。
@@ -90,18 +94,20 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # --- GLFW (轻量窗口管理) ---
-include(FetchContent)
-FetchContent_Declare(
-    glfw
-    GIT_REPOSITORY https://github.com/glfw/glfw.git
-    GIT_TAG        3.4
-)
+set(TINALUX_GLFW_SOURCE_DIR "${PROJECT_SOURCE_DIR}/3rdparty/tina_glfw")
+if(NOT EXISTS "${TINALUX_GLFW_SOURCE_DIR}/CMakeLists.txt")
+    message(FATAL_ERROR
+        "Missing tina_glfw checkout at ${TINALUX_GLFW_SOURCE_DIR}. "
+        "Clone https://github.com/wuxianggujun/tina_glfw.git first.")
+endif()
+
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(glfw)
+add_subdirectory("${TINALUX_GLFW_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/tina_glfw-build")
 
 # --- spdlog (日志后端) ---
+include(FetchContent)
 FetchContent_Declare(
     spdlog
     GIT_REPOSITORY https://github.com/gabime/spdlog.git

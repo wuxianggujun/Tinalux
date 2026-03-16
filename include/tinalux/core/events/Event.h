@@ -1,6 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
+#include <string>
+#include <utility>
 
 namespace tinalux::core {
 
@@ -19,6 +22,9 @@ enum class EventType {
     MouseLeave,
     MouseScroll,
     TextInput,
+    TextCompositionStart,
+    TextCompositionUpdate,
+    TextCompositionEnd,
 };
 
 class Event {
@@ -153,12 +159,72 @@ class TextInputEvent final : public Event {
 public:
     explicit TextInputEvent(uint32_t codepointValue)
         : codepoint(codepointValue)
+        , text(encodeUtf8(codepointValue))
+    {
+    }
+
+    explicit TextInputEvent(std::string textValue)
+        : codepoint(0)
+        , text(std::move(textValue))
     {
     }
 
     EventType type() const override { return EventType::TextInput; }
 
     uint32_t codepoint = 0;
+    std::string text;
+
+private:
+    static std::string encodeUtf8(uint32_t codepointValue)
+    {
+        std::string encoded;
+        if (codepointValue <= 0x7F) {
+            encoded.push_back(static_cast<char>(codepointValue));
+        } else if (codepointValue <= 0x7FF) {
+            encoded.push_back(static_cast<char>(0xC0 | (codepointValue >> 6)));
+            encoded.push_back(static_cast<char>(0x80 | (codepointValue & 0x3F)));
+        } else if (codepointValue <= 0xFFFF) {
+            encoded.push_back(static_cast<char>(0xE0 | (codepointValue >> 12)));
+            encoded.push_back(static_cast<char>(0x80 | ((codepointValue >> 6) & 0x3F)));
+            encoded.push_back(static_cast<char>(0x80 | (codepointValue & 0x3F)));
+        } else if (codepointValue <= 0x10FFFF) {
+            encoded.push_back(static_cast<char>(0xF0 | (codepointValue >> 18)));
+            encoded.push_back(static_cast<char>(0x80 | ((codepointValue >> 12) & 0x3F)));
+            encoded.push_back(static_cast<char>(0x80 | ((codepointValue >> 6) & 0x3F)));
+            encoded.push_back(static_cast<char>(0x80 | (codepointValue & 0x3F)));
+        }
+        return encoded;
+    }
+};
+
+class TextCompositionEvent final : public Event {
+public:
+    TextCompositionEvent(
+        EventType typeValue,
+        std::string textValue = {},
+        std::optional<std::size_t> caretUtf8OffsetValue = std::nullopt,
+        std::optional<std::size_t> targetStartUtf8Value = std::nullopt,
+        std::optional<std::size_t> targetEndUtf8Value = std::nullopt,
+        bool platformManagedValue = false)
+        : type_(typeValue)
+        , text(std::move(textValue))
+        , caretUtf8Offset(std::move(caretUtf8OffsetValue))
+        , targetStartUtf8(std::move(targetStartUtf8Value))
+        , targetEndUtf8(std::move(targetEndUtf8Value))
+        , platformManaged(platformManagedValue)
+    {
+    }
+
+    EventType type() const override { return type_; }
+
+    std::string text;
+    std::optional<std::size_t> caretUtf8Offset;
+    std::optional<std::size_t> targetStartUtf8;
+    std::optional<std::size_t> targetEndUtf8;
+    bool platformManaged = false;
+
+private:
+    EventType type_ = EventType::TextCompositionUpdate;
 };
 
 }  // namespace tinalux::core

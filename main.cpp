@@ -4,7 +4,10 @@
 int main()
 {
     tinalux::app::Application app;
-    if (!app.init({ .width = 960, .height = 640, .title = "Tinalux" })) {
+    if (!app.init({
+            .window = { .width = 960, .height = 640, .title = "Tinalux" },
+            .backend = tinalux::rendering::Backend::Auto,
+        })) {
         return 1;
     }
 

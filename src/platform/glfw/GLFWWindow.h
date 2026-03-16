@@ -1,10 +1,22 @@
 #pragma once
 
+#include <cstdint>
+#include <memory>
+#include <optional>
+
 #include "tinalux/platform/Window.h"
 
 struct GLFWwindow;
 
+#if defined(_WIN32)
+#include <windows.h>
+#endif
+
 namespace tinalux::platform {
+
+#if defined(__APPLE__)
+class CocoaTextInputBridge;
+#endif
 
 class GLFWWindow final : public Window {
 public:
@@ -30,9 +42,24 @@ public:
 
     void setClipboardText(const std::string& text) override;
     std::string clipboardText() const override;
+    void setTextInputActive(bool active) override;
+    void setTextInputCursorRect(const std::optional<core::Rect>& rect) override;
 
     void setEventCallback(EventCallback callback) override;
     GLGetProcFn glGetProcAddress() const override;
+    bool vulkanSupported() const override;
+    std::vector<std::string> requiredVulkanInstanceExtensions() const override;
+    VulkanGetInstanceProcFn vulkanGetInstanceProcAddress() const override;
+    bool vulkanPresentationSupported(void* instance, void* physicalDevice, uint32_t queueFamilyIndex) const override;
+    void* createVulkanWindowSurface(void* instance) const override;
+    void destroyVulkanWindowSurface(void* instance, void* surface) const override;
+    void dispatchPlatformCompositionStart();
+    void dispatchPlatformCompositionUpdate(
+        const std::string& text,
+        std::optional<std::size_t> caretUtf8Offset,
+        std::optional<std::size_t> targetStartUtf8,
+        std::optional<std::size_t> targetEndUtf8);
+    void dispatchPlatformCompositionEnd();
 
 private:
     void updateWindowMetrics();
@@ -44,6 +71,9 @@ private:
     int framebufferWidth_ = 0;
     int framebufferHeight_ = 0;
     float dpiScale_ = 1.0f;
+    GraphicsAPI graphicsApi_ = GraphicsAPI::OpenGL;
+    bool textInputActive_ = false;
+    std::optional<core::Rect> imeCursorRect_;
 
     static void onFramebufferResize(GLFWwindow* w, int width, int height);
     static void onWindowClose(GLFWwindow* w);
@@ -54,6 +84,26 @@ private:
     static void onCursorEnter(GLFWwindow* w, int entered);
     static void onScroll(GLFWwindow* w, double xoff, double yoff);
     static void onChar(GLFWwindow* w, unsigned int codepoint);
+#if defined(__linux__)
+    static void onX11TextInput(
+        GLFWwindow* w,
+        int event,
+        const char* text,
+        int caret,
+        int targetStart,
+        int targetEnd,
+        void* userPointer);
+#endif
+#if defined(_WIN32)
+    static LRESULT CALLBACK onNativeWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+    HWND nativeWindow_ = nullptr;
+    WNDPROC originalWindowProc_ = nullptr;
+    int suppressedImeCharCount_ = 0;
+#endif
+#if defined(__APPLE__)
+    std::unique_ptr<CocoaTextInputBridge> cocoaTextInputBridge_;
+#endif
 };
 
 }  // namespace tinalux::platform

@@ -55,10 +55,12 @@ public:
     const TextInputStyle* style() const;
 
     bool focusable() const override;
+    bool wantsTextInput() const override;
     void setFocused(bool focused) override;
     core::Size measure(const Constraints& constraints) override;
     void onDraw(rendering::Canvas& canvas) override;
     bool onEvent(core::Event& event) override;
+    std::optional<core::Rect> imeCursorRect() override;
 
 protected:
     const TextInputStyle& resolvedStyle() const;
@@ -76,6 +78,12 @@ private:
     float prefixWidth(std::size_t cursorPos, float fontSize);
     std::size_t cursorFromLocalX(float localX, float fontSize);
     void collapseSelection(std::size_t caret);
+    bool hasCompositionReplacement() const;
+    std::string displayText() const;
+    void clearCompositionState();
+    void replaceRange(std::size_t start, std::size_t end, const std::string& replacement);
+    float compositionPrefixWidth(std::size_t utf8Offset, float fontSize);
+    std::size_t compositionCursorFromLocalX(float localX, float fontSize);
     float leadingIconSlotWidth(const TextInputStyle& style) const;
     float trailingIconSlotWidth(const TextInputStyle& style) const;
     core::Rect leadingIconBounds(const TextInputStyle& style) const;
@@ -114,6 +122,12 @@ private:
     std::size_t cursorPos_ = 0;
     std::size_t selectionAnchor_ = 0;
     std::size_t selectionExtent_ = 0;
+    std::string compositionText_;
+    std::size_t compositionReplaceStart_ = 0;
+    std::size_t compositionReplaceEnd_ = 0;
+    std::size_t compositionCaretOffset_ = 0;
+    std::optional<std::size_t> compositionTargetStart_;
+    std::optional<std::size_t> compositionTargetEnd_;
     float cachedFontSize_ = 0.0f;
     float cachedTextWidth_ = 0.0f;
     float cachedTextHeight_ = 0.0f;
@@ -124,6 +138,9 @@ private:
     bool draggingSelection_ = false;
     bool leadingIconPressed_ = false;
     bool trailingIconPressed_ = false;
+    bool compositionActive_ = false;
+    bool compositionReplacePending_ = false;
+    bool compositionManagedByPlatform_ = false;
     bool textLayoutCacheDirty_ = true;
 };
 

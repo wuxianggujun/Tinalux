@@ -1,7 +1,9 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Theme.h"
 #include "tinalux/platform/Window.h"
 
@@ -13,6 +15,10 @@ namespace tinalux::ui {
 class AnimationSink;
 class Container;
 class Widget;
+}
+
+namespace tinalux::app::detail {
+struct ApplicationTestAccess;
 }
 
 namespace tinalux::app {
@@ -40,6 +46,11 @@ struct DebugHudConfig {
     float scale = 1.0f;
 };
 
+struct ApplicationConfig {
+    platform::WindowConfig window {};
+    rendering::Backend backend = rendering::Backend::Auto;
+};
+
 class Application final {
 public:
     Application();
@@ -48,7 +59,7 @@ public:
     Application(const Application&) = delete;
     Application& operator=(const Application&) = delete;
 
-    bool init(const platform::WindowConfig& config = {});
+    bool init(const ApplicationConfig& config = {});
     int run();
     void shutdown();
 
@@ -67,10 +78,21 @@ public:
     PerfLogConfig perfLogConfig() const;
     void setDebugHudConfig(DebugHudConfig config);
     DebugHudConfig debugHudConfig() const;
+    rendering::Backend renderBackend() const;
 
 private:
+    friend struct detail::ApplicationTestAccess;
+
     struct Impl;
     bool renderFrame();
+    bool tryInitializeBackend(
+        const platform::WindowConfig& windowConfig,
+        rendering::Backend backend,
+        std::size_t backendIndex);
+    bool tryPromoteNextBackend();
+    platform::WindowConfig currentWindowConfigForRecovery() const;
+    void resetRenderState();
+    void syncTextInputState();
 
     std::unique_ptr<Impl> impl_;
 };

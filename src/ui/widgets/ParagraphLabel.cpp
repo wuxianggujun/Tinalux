@@ -1,59 +1,17 @@
 #include "tinalux/ui/ParagraphLabel.h"
 
 #include <algorithm>
-#include <cmath>
-#include <limits>
 
+#include "../ParagraphTextLayout.h"
 #include "../../rendering/ParagraphPainter.h"
-#include "include/core/SkFontMgr.h"
-#include "include/core/SkFontStyle.h"
-#include "include/core/SkString.h"
-#if defined(_WIN32)
-#include "include/ports/SkTypeface_win.h"
-#elif defined(__APPLE__)
-#include "include/ports/SkFontMgr_mac_ct.h"
-#elif defined(__linux__)
-#include "include/ports/SkFontMgr_fontconfig.h"
-#endif
-#include "modules/skparagraph/include/FontCollection.h"
 #include "modules/skparagraph/include/Paragraph.h"
 #include "modules/skparagraph/include/ParagraphBuilder.h"
 #include "modules/skparagraph/include/ParagraphStyle.h"
 #include "modules/skparagraph/include/TextStyle.h"
-#include "modules/skunicode/include/SkUnicode_icu.h"
+#include "tinalux/ui/Theme.h"
 namespace tinalux::ui {
 
 namespace {
-
-sk_sp<SkFontMgr> paragraphFontManager()
-{
-#if defined(_WIN32)
-    return SkFontMgr_New_DirectWrite();
-#elif defined(__APPLE__)
-    return SkFontMgr_New_CoreText(nullptr);
-#elif defined(__linux__)
-    return SkFontMgr::RefEmpty();
-#else
-    return SkFontMgr::RefEmpty();
-#endif
-}
-
-sk_sp<skia::textlayout::FontCollection> paragraphFontCollection()
-{
-    static sk_sp<skia::textlayout::FontCollection> collection = [] {
-        auto value = sk_make_sp<skia::textlayout::FontCollection>();
-        value->setDefaultFontManager(paragraphFontManager());
-        value->enableFontFallback();
-        return value;
-    }();
-    return collection;
-}
-
-sk_sp<SkUnicode> paragraphUnicode()
-{
-    static sk_sp<SkUnicode> unicode = SkUnicodes::ICU::Make();
-    return unicode;
-}
 
 std::unique_ptr<skia::textlayout::Paragraph> makeParagraph(
     const std::string& text,
@@ -65,21 +23,17 @@ std::unique_ptr<skia::textlayout::Paragraph> makeParagraph(
     skia::textlayout::TextStyle textStyle;
     textStyle.setColor(color);
     textStyle.setFontSize(std::max(fontSize, 1.0f));
-    textStyle.setFontFamilies({ SkString("Segoe UI"), SkString("Microsoft YaHei UI"), SkString("Arial") });
+    textStyle.setFontFamilies(detail::defaultParagraphFontFamilies());
 
-    skia::textlayout::ParagraphStyle paragraphStyle;
+    skia::textlayout::ParagraphStyle paragraphStyle = detail::makeParagraphStyle(
+        skia::textlayout::TextAlign::kStart,
+        maxLines);
     paragraphStyle.setTextStyle(textStyle);
-    paragraphStyle.setTextAlign(skia::textlayout::TextAlign::kStart);
-    paragraphStyle.setTextDirection(skia::textlayout::TextDirection::kLtr);
-    if (maxLines > 0) {
-        paragraphStyle.setMaxLines(maxLines);
-        paragraphStyle.setEllipsis(SkString("..."));
-    }
 
     auto builder = skia::textlayout::ParagraphBuilder::make(
         paragraphStyle,
-        paragraphFontCollection(),
-        paragraphUnicode());
+        detail::paragraphFontCollection(),
+        detail::paragraphUnicode());
     builder->pushStyle(textStyle);
     builder->addText(text.c_str(), text.size());
     builder->pop();
@@ -112,7 +66,7 @@ void ParagraphLabel::setText(const std::string& text)
 void ParagraphLabel::setFontSize(float size)
 {
     const float clampedSize = std::max(size, 1.0f);
-    if (fontSize_ == clampedSize) {
+    if (fontSize_ && detail::nearlyEqual(*fontSize_, clampedSize)) {
         return;
     }
 
@@ -121,13 +75,35 @@ void ParagraphLabel::setFontSize(float size)
     markLayoutDirty();
 }
 
+void ParagraphLabel::clearFontSize()
+{
+    if (!fontSize_.has_value()) {
+        return;
+    }
+
+    fontSize_.reset();
+    invalidateParagraphCache();
+    markLayoutDirty();
+}
+
 void ParagraphLabel::setColor(core::Color color)
 {
-    if (color_ == color) {
+    if (color_ && *color_ == color) {
         return;
     }
 
     color_ = color;
+    invalidateParagraphCache();
+    markPaintDirty();
+}
+
+void ParagraphLabel::clearColor()
+{
+    if (!color_.has_value()) {
+        return;
+    }
+
+    color_.reset();
     invalidateParagraphCache();
     markPaintDirty();
 }
@@ -145,16 +121,16 @@ void ParagraphLabel::setMaxLines(std::size_t maxLines)
 
 core::Size ParagraphLabel::measure(const Constraints& constraints)
 {
-    const float layoutWidth = std::isinf(constraints.maxWidth)
-        ? 4096.0f
-        : std::max(1.0f, constraints.maxWidth);
+    const float fontSize = resolvedFontSize();
+    const float layoutWidth = detail::resolveParagraphLayoutWidth(constraints.maxWidth);
     auto* paragraph = ensureParagraph(layoutWidth);
-    const float measuredWidth = std::isinf(constraints.maxWidth)
-        ? paragraph->getLongestLine()
-        : std::min(layoutWidth, paragraph->getLongestLine());
+    const float measuredWidth = detail::resolveParagraphMeasuredWidth(
+        *paragraph,
+        constraints.maxWidth,
+        layoutWidth);
     return constraints.constrain(core::Size::Make(
         std::max(0.0f, measuredWidth),
-        std::max(fontSize_, paragraph->getHeight())));
+        std::max(fontSize, paragraph->getHeight())));
 }
 
 void ParagraphLabel::onDraw(rendering::Canvas& canvas)
@@ -172,25 +148,40 @@ void ParagraphLabel::onDraw(rendering::Canvas& canvas)
 
 skia::textlayout::Paragraph* ParagraphLabel::ensureParagraph(float layoutWidth)
 {
-    const float clampedWidth = std::max(layoutWidth, 1.0f);
-    if (!cachedParagraph_ || paragraphCacheDirty_) {
-        cachedParagraph_ = makeParagraph(text_, fontSize_, color_, maxLines_, clampedWidth);
-        cachedLayoutWidth_ = clampedWidth;
-        paragraphCacheDirty_ = false;
-        return cachedParagraph_.get();
+    const float fontSize = resolvedFontSize();
+    const core::Color color = resolvedColor();
+    if (!cachedParagraph_
+        || paragraphCacheDirty_
+        || !detail::nearlyEqual(cachedResolvedFontSize_, fontSize)
+        || cachedResolvedColor_ != color) {
+        paragraphCacheDirty_ = true;
     }
 
-    if (std::abs(cachedLayoutWidth_ - clampedWidth) > 0.001f) {
-        cachedParagraph_->layout(clampedWidth);
-        cachedLayoutWidth_ = clampedWidth;
-    }
-
-    return cachedParagraph_.get();
+    return detail::ensureParagraphLayout(
+        cachedParagraph_,
+        cachedLayoutWidth_,
+        paragraphCacheDirty_,
+        layoutWidth,
+        [this, fontSize, color](float clampedWidth) {
+            cachedResolvedFontSize_ = fontSize;
+            cachedResolvedColor_ = color;
+            return makeParagraph(text_, fontSize, color, maxLines_, clampedWidth);
+        });
 }
 
 void ParagraphLabel::invalidateParagraphCache()
 {
     paragraphCacheDirty_ = true;
+}
+
+float ParagraphLabel::resolvedFontSize() const
+{
+    return std::max(fontSize_.value_or(resolvedTheme().fontSize), 1.0f);
+}
+
+core::Color ParagraphLabel::resolvedColor() const
+{
+    return color_.value_or(resolvedTheme().text);
 }
 
 }  // namespace tinalux::ui

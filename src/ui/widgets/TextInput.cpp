@@ -174,6 +174,7 @@ void TextInput::setText(const std::string& text)
         return;
     }
 
+    clearCompositionState();
     text_ = text;
     collapseSelection(text_.size());
     draggingSelection_ = false;
@@ -388,6 +389,11 @@ bool TextInput::focusable() const
     return true;
 }
 
+bool TextInput::wantsTextInput() const
+{
+    return true;
+}
+
 void TextInput::setFocused(bool focused)
 {
     if (Widget::focused() == focused) {
@@ -396,6 +402,7 @@ void TextInput::setFocused(bool focused)
 
     if (!focused) {
         draggingSelection_ = false;
+        clearCompositionState();
     }
 
     Widget::setFocused(focused);
@@ -640,11 +647,46 @@ void TextInput::onDraw(rendering::Canvas& canvas)
         textX,
         textY,
         style.textStyle.fontSize,
-        text_.empty() ? style.placeholderColor : style.textColor);
+        (text_.empty() && !compositionActive_ && !hasCompositionReplacement())
+            ? style.placeholderColor
+            : style.textColor);
+
+    if (compositionActive_ && !compositionText_.empty()) {
+        const float compositionLeft =
+            style.paddingHorizontal + leadingSlot + prefixWidth(compositionReplaceStart_, style.textStyle.fontSize);
+        const float compositionWidth = compositionPrefixWidth(compositionText_.size(), style.textStyle.fontSize);
+        if (compositionTargetStart_.has_value()
+            && compositionTargetEnd_.has_value()
+            && *compositionTargetStart_ <= *compositionTargetEnd_
+            && *compositionTargetEnd_ <= compositionText_.size()) {
+            const float targetLeft = compositionLeft + compositionPrefixWidth(*compositionTargetStart_, style.textStyle.fontSize);
+            const float targetRight = compositionLeft + compositionPrefixWidth(*compositionTargetEnd_, style.textStyle.fontSize);
+            canvas.drawRoundRect(
+                core::Rect::MakeXYWH(
+                    targetLeft,
+                    textTop + 2.0f,
+                    std::max(1.0f, targetRight - targetLeft),
+                    std::max(1.0f, cachedTextHeight_ - 4.0f)),
+                style.selectionCornerRadius,
+                style.selectionCornerRadius,
+                style.selectionColor);
+        }
+        const float underlineY = std::min(bounds_.height() - style.paddingVertical, textTop + cachedTextHeight_ + 1.0f);
+        canvas.drawLine(
+            compositionLeft,
+            underlineY,
+            compositionLeft + std::max(1.0f, compositionWidth),
+            underlineY,
+            style.caretColor,
+            1.2f,
+            true);
+    }
 
     if (focused()) {
-        const float caretX =
-            style.paddingHorizontal + leadingSlot + prefixWidth(cursorPos_, style.textStyle.fontSize);
+        float caretX = style.paddingHorizontal + leadingSlot + prefixWidth(cursorPos_, style.textStyle.fontSize);
+        if (compositionActive_) {
+            caretX += compositionPrefixWidth(compositionCaretOffset_, style.textStyle.fontSize);
+        }
         canvas.drawLine(
             caretX,
             style.paddingVertical,
@@ -690,6 +732,19 @@ bool TextInput::onEvent(core::Event& event)
         }
 
         const float localX = localPoint.x() - style.paddingHorizontal - leadingIconSlotWidth(style);
+        if (compositionActive_) {
+            compositionCaretOffset_ =
+                compositionCursorFromLocalX(std::max(0.0f, localX), style.textStyle.fontSize);
+            compositionTargetStart_.reset();
+            compositionTargetEnd_.reset();
+            collapseSelection(compositionReplaceStart_);
+            updateHovered(true);
+            draggingSelection_ = true;
+            invalidateTextLayoutCache();
+            markPaintDirty();
+            return true;
+        }
+
         const std::size_t hitCursor =
             cursorFromLocalX(std::max(0.0f, localX), style.textStyle.fontSize);
         if ((mouseEvent.mods & core::mods::kShift) != 0 && focused()) {
@@ -717,6 +772,19 @@ bool TextInput::onEvent(core::Event& event)
         }
 
         const float localX = localPoint.x() - style.paddingHorizontal - leadingIconSlotWidth(style);
+        if (compositionActive_) {
+            const std::size_t hitCompositionCursor =
+                compositionCursorFromLocalX(std::max(0.0f, localX), style.textStyle.fontSize);
+            if (compositionCaretOffset_ != hitCompositionCursor) {
+                compositionCaretOffset_ = hitCompositionCursor;
+                compositionTargetStart_.reset();
+                compositionTargetEnd_.reset();
+                invalidateTextLayoutCache();
+                markPaintDirty();
+            }
+            return true;
+        }
+
         const std::size_t hitCursor =
             cursorFromLocalX(std::max(0.0f, localX), style.textStyle.fontSize);
         if (cursorPos_ != hitCursor || selectionExtent_ != hitCursor) {
@@ -761,6 +829,95 @@ bool TextInput::onEvent(core::Event& event)
     case core::EventType::KeyRepeat: {
         if (!focused()) {
             return false;
+        }
+
+        if (compositionActive_) {
+            if (compositionManagedByPlatform_) {
+                return false;
+            }
+
+            const auto& keyEvent = static_cast<const core::KeyEvent&>(event);
+            const auto clearCompositionTarget = [this]() {
+                compositionTargetStart_.reset();
+                compositionTargetEnd_.reset();
+            };
+            const auto hasCompositionTarget = [this]() {
+                return compositionTargetStart_.has_value()
+                    && compositionTargetEnd_.has_value()
+                    && *compositionTargetStart_ <= *compositionTargetEnd_
+                    && *compositionTargetEnd_ <= compositionText_.size()
+                    && *compositionTargetStart_ != *compositionTargetEnd_;
+            };
+            const auto eraseCompositionRange = [this](std::size_t start, std::size_t end) {
+                const std::size_t clampedStart = std::min(start, compositionText_.size());
+                const std::size_t clampedEnd = std::min(std::max(start, end), compositionText_.size());
+                compositionText_.erase(clampedStart, clampedEnd - clampedStart);
+                compositionCaretOffset_ = clampedStart;
+                compositionTargetStart_.reset();
+                compositionTargetEnd_.reset();
+            };
+
+            switch (keyEvent.key) {
+            case core::keys::kEscape:
+                clearCompositionState();
+                invalidateTextLayoutCache();
+                markLayoutDirty();
+                return true;
+            case core::keys::kLeft:
+                if (hasCompositionTarget()) {
+                    compositionCaretOffset_ = *compositionTargetStart_;
+                    clearCompositionTarget();
+                } else {
+                    compositionCaretOffset_ = previousUtf8Offset(compositionText_, compositionCaretOffset_);
+                }
+                invalidateTextLayoutCache();
+                markPaintDirty();
+                return true;
+            case core::keys::kRight:
+                if (hasCompositionTarget()) {
+                    compositionCaretOffset_ = *compositionTargetEnd_;
+                    clearCompositionTarget();
+                } else {
+                    compositionCaretOffset_ = nextUtf8Offset(compositionText_, compositionCaretOffset_);
+                }
+                invalidateTextLayoutCache();
+                markPaintDirty();
+                return true;
+            case core::keys::kHome:
+                compositionCaretOffset_ = 0;
+                clearCompositionTarget();
+                invalidateTextLayoutCache();
+                markPaintDirty();
+                return true;
+            case core::keys::kEnd:
+                compositionCaretOffset_ = compositionText_.size();
+                clearCompositionTarget();
+                invalidateTextLayoutCache();
+                markPaintDirty();
+                return true;
+            case core::keys::kBackspace:
+                if (hasCompositionTarget()) {
+                    eraseCompositionRange(*compositionTargetStart_, *compositionTargetEnd_);
+                } else if (compositionCaretOffset_ > 0) {
+                    const std::size_t previous = previousUtf8Offset(compositionText_, compositionCaretOffset_);
+                    eraseCompositionRange(previous, compositionCaretOffset_);
+                }
+                invalidateTextLayoutCache();
+                markLayoutDirty();
+                return true;
+            case core::keys::kDelete:
+                if (hasCompositionTarget()) {
+                    eraseCompositionRange(*compositionTargetStart_, *compositionTargetEnd_);
+                } else if (compositionCaretOffset_ < compositionText_.size()) {
+                    const std::size_t next = nextUtf8Offset(compositionText_, compositionCaretOffset_);
+                    eraseCompositionRange(compositionCaretOffset_, next);
+                }
+                invalidateTextLayoutCache();
+                markLayoutDirty();
+                return true;
+            default:
+                return false;
+            }
         }
 
         const auto& keyEvent = static_cast<const core::KeyEvent&>(event);
@@ -920,17 +1077,21 @@ bool TextInput::onEvent(core::Event& event)
         }
 
         const auto& textEvent = static_cast<const core::TextInputEvent&>(event);
-        if (textEvent.codepoint < 32 || textEvent.codepoint == 127) {
-            return false;
-        }
-
-        const std::string encoded = encodeUtf8(textEvent.codepoint);
+        const std::string encoded = !textEvent.text.empty()
+            ? textEvent.text
+            : ((textEvent.codepoint >= 32 && textEvent.codepoint != 127)
+                      ? encodeUtf8(textEvent.codepoint)
+                      : std::string {});
         if (encoded.empty()) {
             return false;
         }
 
-        if (hasSelection()) {
-            text_.erase(selectionStart(), selectionEnd() - selectionStart());
+        if (compositionReplacePending_) {
+            replaceRange(compositionReplaceStart_, compositionReplaceEnd_, {});
+            collapseSelection(compositionReplaceStart_);
+            clearCompositionState();
+        } else if (hasSelection()) {
+            replaceRange(selectionStart(), selectionEnd(), {});
             collapseSelection(selectionStart());
         }
         text_.insert(cursorPos_, encoded);
@@ -942,9 +1103,93 @@ bool TextInput::onEvent(core::Event& event)
         markLayoutDirty();
         return true;
     }
+    case core::EventType::TextCompositionStart: {
+        if (!focused()) {
+            return false;
+        }
+
+        const auto& compositionEvent = static_cast<const core::TextCompositionEvent&>(event);
+        compositionActive_ = true;
+        compositionReplacePending_ = true;
+        compositionManagedByPlatform_ = compositionEvent.platformManaged;
+        compositionText_.clear();
+        compositionReplaceStart_ = hasSelection() ? selectionStart() : cursorPos_;
+        compositionReplaceEnd_ = hasSelection() ? selectionEnd() : cursorPos_;
+        compositionCaretOffset_ = 0;
+        compositionTargetStart_.reset();
+        compositionTargetEnd_.reset();
+        collapseSelection(compositionReplaceStart_);
+        invalidateTextLayoutCache();
+        markLayoutDirty();
+        return true;
+    }
+    case core::EventType::TextCompositionUpdate: {
+        if (!focused()) {
+            return false;
+        }
+
+        if (!compositionReplacePending_) {
+            compositionReplaceStart_ = cursorPos_;
+            compositionReplaceEnd_ = cursorPos_;
+            compositionReplacePending_ = true;
+        }
+        compositionActive_ = true;
+        const auto& compositionEvent = static_cast<const core::TextCompositionEvent&>(event);
+        compositionManagedByPlatform_ = compositionEvent.platformManaged;
+        compositionText_ = compositionEvent.text;
+        compositionCaretOffset_ = std::min(
+            compositionEvent.caretUtf8Offset.value_or(compositionText_.size()),
+            compositionText_.size());
+        compositionTargetStart_ = compositionEvent.targetStartUtf8.has_value()
+            ? std::make_optional(std::min(*compositionEvent.targetStartUtf8, compositionText_.size()))
+            : std::nullopt;
+        compositionTargetEnd_ = compositionEvent.targetEndUtf8.has_value()
+            ? std::make_optional(std::min(*compositionEvent.targetEndUtf8, compositionText_.size()))
+            : std::nullopt;
+        if (compositionTargetStart_.has_value() && compositionTargetEnd_.has_value()
+            && *compositionTargetEnd_ < *compositionTargetStart_) {
+            std::swap(*compositionTargetStart_, *compositionTargetEnd_);
+        }
+        collapseSelection(compositionReplaceStart_);
+        invalidateTextLayoutCache();
+        markLayoutDirty();
+        return true;
+    }
+    case core::EventType::TextCompositionEnd:
+        if (!focused()) {
+            return false;
+        }
+
+        clearCompositionState();
+        invalidateTextLayoutCache();
+        markLayoutDirty();
+        return true;
     default:
         return false;
     }
+}
+
+std::optional<core::Rect> TextInput::imeCursorRect()
+{
+    if (!focused() || bounds_.isEmpty()) {
+        return std::nullopt;
+    }
+
+    const TextInputStyle& style = resolvedStyle();
+    ensureTextLayout(style.textStyle.fontSize);
+
+    float caretX = style.paddingHorizontal + leadingIconSlotWidth(style) + prefixWidth(cursorPos_, style.textStyle.fontSize);
+    if (compositionActive_) {
+        caretX += compositionPrefixWidth(compositionCaretOffset_, style.textStyle.fontSize);
+    }
+
+    const float textTop = (bounds_.height() - cachedTextHeight_) * 0.5f;
+    const core::Point globalOrigin = localToGlobal(core::Point::Make(caretX, textTop));
+    return core::Rect::MakeXYWH(
+        globalOrigin.x(),
+        globalOrigin.y(),
+        1.0f,
+        std::max(1.0f, cachedTextHeight_));
 }
 
 void TextInput::invalidateTextLayoutCache()
@@ -960,9 +1205,7 @@ void TextInput::ensureTextLayout(float fontSize)
     }
 
     cachedFontSize_ = clampedFontSize;
-    cachedDisplayText_ = text_.empty()
-        ? placeholder_
-        : (obscured_ ? maskedText(text_) : text_);
+    cachedDisplayText_ = displayText();
     const TextMetrics metrics = measureTextMetrics(cachedDisplayText_, cachedFontSize_);
     cachedTextWidth_ = metrics.width;
     cachedTextHeight_ = metrics.height;
@@ -1052,6 +1295,93 @@ void TextInput::collapseSelection(std::size_t caret)
     cursorPos_ = std::min(caret, text_.size());
     selectionAnchor_ = cursorPos_;
     selectionExtent_ = cursorPos_;
+}
+
+bool TextInput::hasCompositionReplacement() const
+{
+    return compositionReplacePending_ && compositionReplaceStart_ <= compositionReplaceEnd_
+        && compositionReplaceEnd_ <= text_.size();
+}
+
+std::string TextInput::displayText() const
+{
+    std::string visibleText = text_;
+    if (hasCompositionReplacement()) {
+        visibleText = text_.substr(0, compositionReplaceStart_)
+            + compositionText_
+            + text_.substr(compositionReplaceEnd_);
+    }
+
+    if (visibleText.empty()) {
+        return placeholder_;
+    }
+    return obscured_ ? maskedText(visibleText) : visibleText;
+}
+
+void TextInput::clearCompositionState()
+{
+    compositionActive_ = false;
+    compositionReplacePending_ = false;
+    compositionManagedByPlatform_ = false;
+    compositionText_.clear();
+    compositionCaretOffset_ = 0;
+    compositionTargetStart_.reset();
+    compositionTargetEnd_.reset();
+    compositionReplaceStart_ = cursorPos_;
+    compositionReplaceEnd_ = cursorPos_;
+}
+
+void TextInput::replaceRange(std::size_t start, std::size_t end, const std::string& replacement)
+{
+    const std::size_t clampedStart = std::min(start, text_.size());
+    const std::size_t clampedEnd = std::min(std::max(start, end), text_.size());
+    text_.replace(clampedStart, clampedEnd - clampedStart, replacement);
+}
+
+float TextInput::compositionPrefixWidth(std::size_t utf8Offset, float fontSize)
+{
+    const std::size_t clampedOffset = std::min(utf8Offset, compositionText_.size());
+    const std::string prefix = obscured_
+        ? maskedText(compositionText_.substr(0, clampedOffset))
+        : compositionText_.substr(0, clampedOffset);
+    return measureTextMetrics(prefix, fontSize).width;
+}
+
+std::size_t TextInput::compositionCursorFromLocalX(float localX, float fontSize)
+{
+    if (compositionText_.empty()) {
+        return 0;
+    }
+
+    const float compositionStart = prefixWidth(compositionReplaceStart_, fontSize);
+    const float relativeX = std::max(0.0f, localX - compositionStart);
+
+    std::vector<std::size_t> offsets;
+    std::vector<float> xs;
+    offsets.push_back(0);
+    xs.push_back(0.0f);
+
+    for (std::size_t offset = 0; offset < compositionText_.size();) {
+        const std::size_t next = nextUtf8Offset(compositionText_, offset);
+        offsets.push_back(next);
+        xs.push_back(compositionPrefixWidth(next, fontSize));
+        offset = next;
+    }
+
+    const auto it = std::lower_bound(xs.begin(), xs.end(), relativeX);
+    if (it == xs.begin()) {
+        return offsets.front();
+    }
+    if (it == xs.end()) {
+        return offsets.back();
+    }
+
+    const std::size_t index = static_cast<std::size_t>(std::distance(xs.begin(), it));
+    const float right = xs[index];
+    const float left = xs[index - 1];
+    return std::abs(relativeX - left) <= std::abs(relativeX - right)
+        ? offsets[index - 1]
+        : offsets[index];
 }
 
 float TextInput::leadingIconSlotWidth(const TextInputStyle& style) const

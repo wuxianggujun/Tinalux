@@ -184,6 +184,16 @@ bool Widget::focusable() const
     return false;
 }
 
+bool Widget::wantsTextInput() const
+{
+    return false;
+}
+
+std::optional<core::Rect> Widget::imeCursorRect()
+{
+    return std::nullopt;
+}
+
 void Widget::markLayoutDirty()
 {
     const bool alreadyDirty = dirty_;
