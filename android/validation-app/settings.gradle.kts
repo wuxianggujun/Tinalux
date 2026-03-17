@@ -16,3 +16,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "TinaluxValidationApp"
 include(":app")
+include(":tinalux-sdk")
+
+project(":tinalux-sdk").projectDir = file("../tinalux-sdk")

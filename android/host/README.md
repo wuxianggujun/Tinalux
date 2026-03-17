@@ -28,11 +28,16 @@ Default backend:
 Validation app:
 
 - `../validation-app` is a minimal Android app skeleton
-- It reuses the host runtime sources from `../host/src/main/kotlin`
+- It consumes the reusable `../tinalux-sdk` Android library module
 - `MainActivity` validates the default OpenGL path
 - `VulkanValidationActivity` is the explicit Vulkan validation entry
 - `scripts/stage_android_validation_artifacts.ps1` stages `libtinalux_native.so`
-  into the validation app's `jniLibs/<abi>` folder
+  into the SDK module's `jniLibs/<abi>` folder
+
+SDK module:
+
+- `../tinalux-sdk` packages the host runtime as an Android Library/AAR-shaped module
+- Host apps should depend on `:tinalux-sdk` instead of copying Kotlin files manually
 
 Suggested integration steps:
 

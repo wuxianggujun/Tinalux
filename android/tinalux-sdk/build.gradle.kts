@@ -1,27 +1,20 @@
 plugins {
-    id("com.android.application")
+    id("com.android.library")
     id("org.jetbrains.kotlin.android")
 }
 
 android {
-    namespace = "com.tinalux.runtime.sample"
+    namespace = "com.tinalux.runtime"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.tinalux.runtime.sample"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        consumerProguardFiles("consumer-rules.pro")
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro",
-            )
         }
         debug {
             isMinifyEnabled = false
@@ -39,12 +32,19 @@ android {
 
     sourceSets {
         getByName("main") {
+            java.srcDir(projectDir.resolve("../host/src/main/kotlin"))
             manifest.srcFile("src/main/AndroidManifest.xml")
-            res.srcDirs("src/main/res")
+            jniLibs.srcDirs("src/main/jniLibs")
+            assets.srcDirs("src/main/assets")
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
         }
     }
 }
 
 dependencies {
-    implementation(project(":tinalux-sdk"))
 }

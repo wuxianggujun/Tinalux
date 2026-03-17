@@ -7,7 +7,7 @@ param(
 
     [string]$SourceIcuData = "",
 
-    [string]$ValidationAppRoot = ""
+    [string]$SdkModuleRoot = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,13 +17,13 @@ function Resolve-NormalizedPath {
     return [System.IO.Path]::GetFullPath((Resolve-Path $PathValue).Path)
 }
 
-if ([string]::IsNullOrWhiteSpace($ValidationAppRoot)) {
-    $ValidationAppRoot = Join-Path $PSScriptRoot "..\\android\\validation-app"
+if ([string]::IsNullOrWhiteSpace($SdkModuleRoot)) {
+    $SdkModuleRoot = Join-Path $PSScriptRoot "..\\android\\tinalux-sdk"
 }
 
-$validationAppPath = [System.IO.Path]::GetFullPath($ValidationAppRoot)
-if (-not (Test-Path $validationAppPath)) {
-    throw "Validation app root not found: $validationAppPath"
+$sdkModulePath = [System.IO.Path]::GetFullPath($SdkModuleRoot)
+if (-not (Test-Path $sdkModulePath)) {
+    throw "SDK module root not found: $sdkModulePath"
 }
 
 $sourceLibraryPath = Resolve-NormalizedPath $SourceLibrary
@@ -31,7 +31,7 @@ if (-not (Test-Path $sourceLibraryPath)) {
     throw "Source library not found: $sourceLibraryPath"
 }
 
-$destinationLibDir = Join-Path $validationAppPath "app\\src\\main\\jniLibs\\$Abi"
+$destinationLibDir = Join-Path $sdkModulePath "src\\main\\jniLibs\\$Abi"
 New-Item -ItemType Directory -Force -Path $destinationLibDir | Out-Null
 
 $destinationLibPath = Join-Path $destinationLibDir "libtinalux_native.so"
@@ -46,7 +46,7 @@ if (-not [string]::IsNullOrWhiteSpace($SourceIcuData)) {
         throw "Source ICU data not found: $sourceIcuDataPath"
     }
 
-    $destinationAssetsDir = Join-Path $validationAppPath "app\\src\\main\\assets"
+    $destinationAssetsDir = Join-Path $sdkModulePath "src\\main\\assets"
     New-Item -ItemType Directory -Force -Path $destinationAssetsDir | Out-Null
 
     $destinationIcuDataPath = Join-Path $destinationAssetsDir "icudtl.dat"
@@ -60,4 +60,5 @@ Write-Host ""
 Write-Host "Next steps:"
 Write-Host "  1. Open android/validation-app in Android Studio"
 Write-Host "  2. Sync Gradle"
-Write-Host "  3. Run MainActivity or VulkanValidationActivity on device"
+Write-Host "  3. validation-app will pick up the staged tinalux-sdk artifacts"
+Write-Host "  4. Run MainActivity or VulkanValidationActivity on device"
