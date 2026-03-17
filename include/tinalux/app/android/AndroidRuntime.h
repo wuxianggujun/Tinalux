@@ -11,6 +11,11 @@ namespace tinalux::app::android {
 
 struct AndroidRuntimeConfig {
     ApplicationConfig application {};
+
+    AndroidRuntimeConfig()
+    {
+        application.backend = rendering::Backend::OpenGL;
+    }
 };
 
 class AndroidRuntime final {

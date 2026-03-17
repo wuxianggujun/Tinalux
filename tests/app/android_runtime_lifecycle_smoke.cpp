@@ -34,6 +34,7 @@ struct WindowCreateRecord {
 };
 
 std::vector<WindowCreateRecord> gWindowCreates;
+std::vector<Backend> gContextRequests;
 std::size_t gContextCreates = 0;
 std::size_t gSurfaceCreates = 0;
 
@@ -132,8 +133,9 @@ std::unique_ptr<tinalux::platform::Window> createFakeWindow(const tinalux::platf
     return std::make_unique<FakeWindow>(config);
 }
 
-tinalux::rendering::RenderContext createFakeContext(const tinalux::rendering::ContextConfig&)
+tinalux::rendering::RenderContext createFakeContext(const tinalux::rendering::ContextConfig& config)
 {
+    gContextRequests.push_back(config.backend);
     ++gContextCreates;
     return makeFakeContext(gContextCreates + 100);
 }
@@ -149,6 +151,7 @@ tinalux::rendering::RenderSurface createFakeWindowSurface(
 void resetScenario()
 {
     gWindowCreates.clear();
+    gContextRequests.clear();
     gContextCreates = 0;
     gSurfaceCreates = 0;
 }
@@ -212,6 +215,21 @@ int main()
         resetScenario();
 
         app::android::AndroidRuntime runtime;
+        expect(
+            runtime.attachWindow(reinterpret_cast<void*>(0x001), 1.0f),
+            "Android runtime should attach successfully with the default config");
+        expect(
+            gWindowCreates.size() == 1 && gWindowCreates[0].graphicsApi == GraphicsAPI::OpenGL,
+            "Default Android runtime config should request an OpenGL window");
+        expect(
+            gContextRequests.size() == 1 && gContextRequests[0] == Backend::OpenGL,
+            "Default Android runtime config should request the OpenGL backend");
+    }
+
+    {
+        resetScenario();
+
+        app::android::AndroidRuntime runtime;
         app::android::AndroidRuntimeConfig config;
         config.application.window.width = 800;
         config.application.window.height = 600;
@@ -223,6 +241,8 @@ int main()
             "Android runtime should attach the first window");
         expect(runtime.ready(), "Android runtime should be ready after the first attach");
         expect(gWindowCreates.size() == 1, "First attach should create one window");
+        expect(gContextRequests.size() == 1, "First attach should create one backend request");
+        expect(gContextRequests[0] == Backend::Vulkan, "Explicit Vulkan config should request the Vulkan backend");
         expect(gContextCreates == 1, "First attach should create one render context");
         expect(gSurfaceCreates == 1, "First attach should create one render surface");
         expect(
@@ -248,6 +268,8 @@ int main()
             "Android runtime should reattach a second window");
         expect(runtime.ready(), "Android runtime should be ready after reattach");
         expect(gWindowCreates.size() == 2, "Reattach should create a second window");
+        expect(gContextRequests.size() == 2, "Reattach should create a second backend request");
+        expect(gContextRequests[1] == Backend::Vulkan, "Reattach should preserve the explicit Vulkan backend");
         expect(gContextCreates == 2, "Reattach should create a second render context");
         expect(gSurfaceCreates == 2, "Reattach should create a second render surface");
         expect(
@@ -268,6 +290,8 @@ int main()
         expect(!runtime.suspended(), "setSuspended(false) should clear the suspended state");
         expect(runtime.ready(), "Resuming should rebuild the render state");
         expect(gWindowCreates.size() == 3, "Resuming should create a new window");
+        expect(gContextRequests.size() == 3, "Resuming should create a new backend request");
+        expect(gContextRequests[2] == Backend::Vulkan, "Suspend/resume should preserve the explicit Vulkan backend");
         expect(gContextCreates == 3, "Resuming should create a new render context");
         expect(gSurfaceCreates == 3, "Resuming should create a new render surface");
         expect(

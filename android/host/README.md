@@ -9,11 +9,17 @@ Current contents:
 - `TinaluxRendererHost.kt`: lifecycle-safe runtime owner
 - `TinaluxSurfaceView.kt`: `SurfaceView` wrapper that drives native frames
 - `TinaluxInputConnection.kt`: IME bridge for text input / composition
+- `TinaluxActivity.kt`: minimal host `Activity` that wires the surface lifecycle
 - touch input is translated into the current mouse-style UI event model
 - system clipboard is mirrored between Android and the native window state
 - `TinaluxSurfaceView` exposes `onHostPause()` / `onHostResume()` helpers for host lifecycle wiring
 - runtime suspend/resume state is mirrored into the native layer
 - suspend/reattach keeps the native UI session alive and rebuilds render state on demand
+
+Default backend:
+
+- `AndroidRuntimeConfig` defaults to `Backend::OpenGL`
+- Vulkan remains opt-in until Android device-side validation is in place
 
 Suggested integration steps:
 
