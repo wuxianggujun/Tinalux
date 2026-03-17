@@ -121,6 +121,11 @@ tinalux_add_smoke_test(TinaluxUITextInputSmoke
     LINK_LIBS Tinalux::App
 )
 
+tinalux_add_smoke_test(TinaluxUITextInputModelSmoke
+    SOURCE ui/text_input_model_smoke.cpp
+    LINK_LIBS Tinalux::UI
+)
+
 tinalux_add_smoke_test(TinaluxUITextInputStyleSmoke
     SOURCE ui/text_input_style_smoke.cpp
     LINK_LIBS Tinalux::UI

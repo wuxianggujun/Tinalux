@@ -47,6 +47,8 @@ add_library(TinaluxUI STATIC
     widgets/ScrollView.cpp
     widgets/Slider.cpp
     widgets/ListView.cpp
+    widgets/text_input/TextInputLayoutCache.cpp
+    widgets/text_input/TextInputModel.cpp
     widgets/TextInput.cpp
     widgets/Toggle.cpp
 )

@@ -5,7 +5,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <vector>
 
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Animation.h"
@@ -15,6 +14,11 @@
 #include "tinalux/ui/Widget.h"
 
 namespace tinalux::ui {
+
+namespace detail {
+class TextInputLayoutCache;
+class TextInputModel;
+}  // namespace detail
 
 enum class TextInputIconLoadState {
     Idle,
@@ -72,28 +76,17 @@ private:
     WidgetState currentState() const;
     void invalidateTextLayoutCache();
     void ensureTextLayout(float fontSize);
-    bool hasSelection() const;
-    std::size_t selectionStart() const;
-    std::size_t selectionEnd() const;
     float prefixWidth(std::size_t cursorPos, float fontSize);
     std::size_t cursorFromLocalX(float localX, float fontSize);
-    void collapseSelection(std::size_t caret);
-    bool hasCompositionReplacement() const;
-    std::string displayText() const;
-    void clearCompositionState();
-    void replaceRange(std::size_t start, std::size_t end, const std::string& replacement);
     float compositionPrefixWidth(std::size_t utf8Offset, float fontSize);
     std::size_t compositionCursorFromLocalX(float localX, float fontSize);
     float leadingIconSlotWidth(const TextInputStyle& style) const;
     float trailingIconSlotWidth(const TextInputStyle& style) const;
     core::Rect leadingIconBounds(const TextInputStyle& style) const;
     core::Rect trailingIconBounds(const TextInputStyle& style) const;
+    void notifyTextChanged() const;
 
-    std::string text_;
     std::string placeholder_;
-    std::string cachedDisplayText_;
-    std::vector<std::size_t> cachedCaretOffsets_;
-    std::vector<float> cachedCaretXs_;
     rendering::Image leadingIcon_;
     ResourceHandle<rendering::Image> pendingLeadingIcon_;
     std::shared_ptr<bool> leadingIconLoadAlive_ = std::make_shared<bool>(true);
@@ -119,29 +112,13 @@ private:
     AnimationHandle focusAnimation_ = 0;
     std::shared_ptr<float> animatedFocusProgress_ = std::make_shared<float>(0.0f);
     std::shared_ptr<bool> animationAlive_ = std::make_shared<bool>(true);
-    std::size_t cursorPos_ = 0;
-    std::size_t selectionAnchor_ = 0;
-    std::size_t selectionExtent_ = 0;
-    std::string compositionText_;
-    std::size_t compositionReplaceStart_ = 0;
-    std::size_t compositionReplaceEnd_ = 0;
-    std::size_t compositionCaretOffset_ = 0;
-    std::optional<std::size_t> compositionTargetStart_;
-    std::optional<std::size_t> compositionTargetEnd_;
-    float cachedFontSize_ = 0.0f;
-    float cachedTextWidth_ = 0.0f;
-    float cachedTextHeight_ = 0.0f;
-    float cachedBaseline_ = 0.0f;
-    float cachedDrawX_ = 0.0f;
+    std::unique_ptr<detail::TextInputModel> model_;
+    std::unique_ptr<detail::TextInputLayoutCache> layoutCache_;
     bool obscured_ = false;
     bool hovered_ = false;
     bool draggingSelection_ = false;
     bool leadingIconPressed_ = false;
     bool trailingIconPressed_ = false;
-    bool compositionActive_ = false;
-    bool compositionReplacePending_ = false;
-    bool compositionManagedByPlatform_ = false;
-    bool textLayoutCacheDirty_ = true;
 };
 
 }  // namespace tinalux::ui
