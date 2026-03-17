@@ -43,6 +43,12 @@ public:
     std::optional<core::Rect> textInputCursorRect() const override;
     void setEventCallback(EventCallback callback) override;
     GLGetProcFn glGetProcAddress() const override;
+    bool vulkanSupported() const override;
+    std::vector<std::string> requiredVulkanInstanceExtensions() const override;
+    VulkanGetInstanceProcFn vulkanGetInstanceProcAddress() const override;
+    bool vulkanPresentationSupported(void* instance, void* physicalDevice, uint32_t queueFamilyIndex) const override;
+    void* createVulkanWindowSurface(void* instance) const override;
+    void destroyVulkanWindowSurface(void* instance, void* surface) const override;
 
 private:
     bool initialize(const WindowConfig& config);

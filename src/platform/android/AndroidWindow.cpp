@@ -2,13 +2,19 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <vector>
 #include <utility>
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <android/native_window.h>
+#include <glad/vulkan.h>
 
 #include "tinalux/core/Log.h"
+#include "../../rendering/HandleCast.h"
+
+using tinalux::rendering::handleFromOpaque;
+using tinalux::rendering::opaqueHandle;
 
 namespace {
 
@@ -190,6 +196,131 @@ GLGetProcFn AndroidWindow::glGetProcAddress() const
     return graphicsApi_ == GraphicsAPI::OpenGL && eglReady_
         ? &AndroidWindow::eglProcAddress
         : nullptr;
+}
+
+bool AndroidWindow::vulkanSupported() const
+{
+    return nativeWindow_ != nullptr && vkGetInstanceProcAddr != nullptr;
+}
+
+std::vector<std::string> AndroidWindow::requiredVulkanInstanceExtensions() const
+{
+    return {
+        VK_KHR_SURFACE_EXTENSION_NAME,
+        VK_KHR_ANDROID_SURFACE_EXTENSION_NAME,
+    };
+}
+
+VulkanGetInstanceProcFn AndroidWindow::vulkanGetInstanceProcAddress() const
+{
+    return [](void* instance, const char* name) -> void* {
+        const auto proc =
+            vkGetInstanceProcAddr(handleFromOpaque<VkInstance>(instance), name);
+        return proc != nullptr
+            ? reinterpret_cast<void*>(reinterpret_cast<std::uintptr_t>(proc))
+            : nullptr;
+    };
+}
+
+bool AndroidWindow::vulkanPresentationSupported(
+    void* instance,
+    void* physicalDevice,
+    uint32_t queueFamilyIndex) const
+{
+    if (nativeWindow_ == nullptr || instance == nullptr || physicalDevice == nullptr) {
+        return false;
+    }
+
+    const VkInstance vkInstance = handleFromOpaque<VkInstance>(instance);
+    const auto createSurface = reinterpret_cast<PFN_vkCreateAndroidSurfaceKHR>(
+        vkGetInstanceProcAddr(vkInstance, "vkCreateAndroidSurfaceKHR"));
+    const auto destroySurface = reinterpret_cast<PFN_vkDestroySurfaceKHR>(
+        vkGetInstanceProcAddr(vkInstance, "vkDestroySurfaceKHR"));
+    const auto getSurfaceSupport = reinterpret_cast<PFN_vkGetPhysicalDeviceSurfaceSupportKHR>(
+        vkGetInstanceProcAddr(vkInstance, "vkGetPhysicalDeviceSurfaceSupportKHR"));
+    if (createSurface == nullptr || destroySurface == nullptr || getSurfaceSupport == nullptr) {
+        core::logErrorCat(
+            "platform",
+            "Android Vulkan presentation query failed because required surface functions are unavailable");
+        return false;
+    }
+
+    const VkAndroidSurfaceCreateInfoKHR createInfo {
+        .sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
+        .pNext = nullptr,
+        .flags = 0,
+        .window = nativeWindow_,
+    };
+    VkSurfaceKHR surface = VK_NULL_HANDLE;
+    if (createSurface(vkInstance, &createInfo, nullptr, &surface) != VK_SUCCESS
+        || surface == VK_NULL_HANDLE) {
+        return false;
+    }
+
+    VkBool32 supported = VK_FALSE;
+    const VkResult result = getSurfaceSupport(
+        handleFromOpaque<VkPhysicalDevice>(physicalDevice),
+        queueFamilyIndex,
+        surface,
+        &supported);
+    destroySurface(vkInstance, surface, nullptr);
+    return result == VK_SUCCESS && supported == VK_TRUE;
+}
+
+void* AndroidWindow::createVulkanWindowSurface(void* instance) const
+{
+    if (nativeWindow_ == nullptr || instance == nullptr) {
+        return nullptr;
+    }
+
+    const VkInstance vkInstance = handleFromOpaque<VkInstance>(instance);
+    const auto createSurface = reinterpret_cast<PFN_vkCreateAndroidSurfaceKHR>(
+        vkGetInstanceProcAddr(vkInstance, "vkCreateAndroidSurfaceKHR"));
+    if (createSurface == nullptr) {
+        core::logErrorCat(
+            "platform",
+            "Failed to load vkCreateAndroidSurfaceKHR while creating Android Vulkan window surface");
+        return nullptr;
+    }
+
+    const VkAndroidSurfaceCreateInfoKHR createInfo {
+        .sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
+        .pNext = nullptr,
+        .flags = 0,
+        .window = nativeWindow_,
+    };
+    VkSurfaceKHR surface = VK_NULL_HANDLE;
+    const VkResult result = createSurface(vkInstance, &createInfo, nullptr, &surface);
+    if (result != VK_SUCCESS || surface == VK_NULL_HANDLE) {
+        core::logErrorCat(
+            "platform",
+            "vkCreateAndroidSurfaceKHR failed with result {}",
+            static_cast<int>(result));
+        return nullptr;
+    }
+
+    return opaqueHandle(surface);
+}
+
+void AndroidWindow::destroyVulkanWindowSurface(void* instance, void* surface) const
+{
+    if (instance == nullptr || surface == nullptr) {
+        return;
+    }
+
+    const auto destroySurface = reinterpret_cast<PFN_vkDestroySurfaceKHR>(
+        vkGetInstanceProcAddr(handleFromOpaque<VkInstance>(instance), "vkDestroySurfaceKHR"));
+    if (destroySurface == nullptr) {
+        core::logErrorCat(
+            "platform",
+            "Failed to load vkDestroySurfaceKHR while destroying Android Vulkan window surface");
+        return;
+    }
+
+    destroySurface(
+        handleFromOpaque<VkInstance>(instance),
+        handleFromOpaque<VkSurfaceKHR>(surface),
+        nullptr);
 }
 
 bool AndroidWindow::initialize(const WindowConfig& config)

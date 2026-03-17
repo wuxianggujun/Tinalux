@@ -21,6 +21,7 @@ if(ANDROID)
     target_link_libraries(TinaluxPlatform PRIVATE
         android
         EGL
+        vulkan
     )
     target_compile_definitions(TinaluxPlatform PRIVATE TINALUX_PLATFORM_ANDROID)
 else()
