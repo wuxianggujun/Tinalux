@@ -11,9 +11,8 @@ Current entry points:
 How to use:
 
 1. Build `libtinalux_native.so` for your target ABI with the Android toolchain.
-2. Copy the library into:
-   - `app/src/main/jniLibs/arm64-v8a/libtinalux_native.so`
-   - or another ABI folder under `jniLibs`
+2. Stage the artifact with:
+   - `powershell -ExecutionPolicy Bypass -File scripts/stage_android_validation_artifacts.ps1 -SourceLibrary <path-to-libtinalux_native.so> -Abi arm64-v8a`
 3. Open `android/validation-app` in Android Studio.
 4. Run `MainActivity` for the default Android OpenGL backend.
 5. Launch `VulkanValidationActivity` manually when you want to validate the
@@ -22,5 +21,5 @@ How to use:
 Current scope:
 
 - Uses the shared host code from `../host/src/main/kotlin`
-- Does not yet bundle Skia runtime data automatically
+- Can stage optional runtime data into `app/src/main/assets`
 - Assumes the native shared library is provided as a prebuilt artifact

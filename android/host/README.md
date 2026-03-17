@@ -31,6 +31,8 @@ Validation app:
 - It reuses the host runtime sources from `../host/src/main/kotlin`
 - `MainActivity` validates the default OpenGL path
 - `VulkanValidationActivity` is the explicit Vulkan validation entry
+- `scripts/stage_android_validation_artifacts.ps1` stages `libtinalux_native.so`
+  into the validation app's `jniLibs/<abi>` folder
 
 Suggested integration steps:
 
