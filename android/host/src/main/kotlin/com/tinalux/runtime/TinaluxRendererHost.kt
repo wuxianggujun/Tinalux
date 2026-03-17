@@ -47,6 +47,27 @@ class TinaluxRendererHost(
         return TinaluxNativeBridge.nativeRenderOnce(runtimeHandle)
     }
 
+    fun dispatchPointerMove(x: Float, y: Float): Boolean {
+        if (runtimeHandle == 0L || !surfaceAttached) {
+            return false
+        }
+        return TinaluxNativeBridge.nativeDispatchPointerMove(runtimeHandle, x, y)
+    }
+
+    fun dispatchPointerDown(x: Float, y: Float): Boolean {
+        if (runtimeHandle == 0L || !surfaceAttached) {
+            return false
+        }
+        return TinaluxNativeBridge.nativeDispatchPointerDown(runtimeHandle, x, y)
+    }
+
+    fun dispatchPointerUp(x: Float, y: Float): Boolean {
+        if (runtimeHandle == 0L || !surfaceAttached) {
+            return false
+        }
+        return TinaluxNativeBridge.nativeDispatchPointerUp(runtimeHandle, x, y)
+    }
+
     override fun close() {
         detachSurface()
         if (runtimeHandle == 0L) {

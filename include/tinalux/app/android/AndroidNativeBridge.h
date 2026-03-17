@@ -25,6 +25,18 @@ TINALUX_ANDROID_API bool tinaluxAndroidAttachWindow(
 TINALUX_ANDROID_API void tinaluxAndroidDetachWindow(void* runtimeHandle);
 TINALUX_ANDROID_API bool tinaluxAndroidRenderOnce(void* runtimeHandle);
 TINALUX_ANDROID_API bool tinaluxAndroidInstallDemoScene(void* runtimeHandle);
+TINALUX_ANDROID_API bool tinaluxAndroidDispatchPointerMove(
+    void* runtimeHandle,
+    double x,
+    double y);
+TINALUX_ANDROID_API bool tinaluxAndroidDispatchPointerDown(
+    void* runtimeHandle,
+    double x,
+    double y);
+TINALUX_ANDROID_API bool tinaluxAndroidDispatchPointerUp(
+    void* runtimeHandle,
+    double x,
+    double y);
 
 #ifdef __cplusplus
 }

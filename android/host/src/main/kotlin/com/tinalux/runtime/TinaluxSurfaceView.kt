@@ -3,6 +3,7 @@ package com.tinalux.runtime
 import android.content.Context
 import android.util.AttributeSet
 import android.view.Choreographer
+import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 
@@ -54,6 +55,34 @@ class TinaluxSurfaceView @JvmOverloads constructor(
         if (rendererHost.renderOnce()) {
             scheduleFrame()
         }
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (!surfaceReady) {
+            return false
+        }
+
+        val pointerIndex = event.actionIndex.coerceAtLeast(0)
+        val x = event.getX(pointerIndex)
+        val y = event.getY(pointerIndex)
+        val handled = when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN,
+            MotionEvent.ACTION_POINTER_DOWN -> rendererHost.dispatchPointerDown(x, y)
+
+            MotionEvent.ACTION_MOVE -> rendererHost.dispatchPointerMove(x, y)
+
+            MotionEvent.ACTION_UP,
+            MotionEvent.ACTION_POINTER_UP,
+            MotionEvent.ACTION_CANCEL -> rendererHost.dispatchPointerUp(x, y)
+
+            else -> false
+        }
+
+        if (handled) {
+            scheduleFrame()
+            return true
+        }
+        return super.onTouchEvent(event)
     }
 
     fun release() {

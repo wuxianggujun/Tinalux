@@ -93,3 +93,42 @@ bool tinaluxAndroidInstallDemoScene(void* runtimeHandle)
         tinalux::ui::createDemoScene(theme, application->animationSink()));
     return true;
 }
+
+bool tinaluxAndroidDispatchPointerMove(void* runtimeHandle, double x, double y)
+{
+    auto* runtime = runtimeFromHandle(runtimeHandle);
+    if (runtime == nullptr) {
+        tinalux::core::logErrorCat(
+            "app.android",
+            "DispatchPointerMove ignored because runtime handle is null");
+        return false;
+    }
+
+    return runtime->dispatchPointerMove(x, y);
+}
+
+bool tinaluxAndroidDispatchPointerDown(void* runtimeHandle, double x, double y)
+{
+    auto* runtime = runtimeFromHandle(runtimeHandle);
+    if (runtime == nullptr) {
+        tinalux::core::logErrorCat(
+            "app.android",
+            "DispatchPointerDown ignored because runtime handle is null");
+        return false;
+    }
+
+    return runtime->dispatchPointerDown(x, y);
+}
+
+bool tinaluxAndroidDispatchPointerUp(void* runtimeHandle, double x, double y)
+{
+    auto* runtime = runtimeFromHandle(runtimeHandle);
+    if (runtime == nullptr) {
+        tinalux::core::logErrorCat(
+            "app.android",
+            "DispatchPointerUp ignored because runtime handle is null");
+        return false;
+    }
+
+    return runtime->dispatchPointerUp(x, y);
+}

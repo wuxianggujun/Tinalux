@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <utility>
 
+#include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/Log.h"
+#include "tinalux/core/events/Event.h"
 
 namespace tinalux::app::android {
 
@@ -128,6 +130,55 @@ bool AndroidRuntime::renderOnce()
         impl_->application.shutdown();
     }
     return keepRunning;
+}
+
+bool AndroidRuntime::dispatchPointerMove(double x, double y)
+{
+    if (!impl_ || !ready()) {
+        return false;
+    }
+
+    core::MouseMoveEvent event(x, y);
+    impl_->application.handleEvent(event);
+    return true;
+}
+
+bool AndroidRuntime::dispatchPointerDown(double x, double y)
+{
+    if (!impl_ || !ready()) {
+        return false;
+    }
+
+    core::MouseMoveEvent moveEvent(x, y);
+    impl_->application.handleEvent(moveEvent);
+
+    core::MouseButtonEvent buttonEvent(
+        core::mouse::kLeft,
+        0,
+        x,
+        y,
+        core::EventType::MouseButtonPress);
+    impl_->application.handleEvent(buttonEvent);
+    return true;
+}
+
+bool AndroidRuntime::dispatchPointerUp(double x, double y)
+{
+    if (!impl_ || !ready()) {
+        return false;
+    }
+
+    core::MouseMoveEvent moveEvent(x, y);
+    impl_->application.handleEvent(moveEvent);
+
+    core::MouseButtonEvent buttonEvent(
+        core::mouse::kLeft,
+        0,
+        x,
+        y,
+        core::EventType::MouseButtonRelease);
+    impl_->application.handleEvent(buttonEvent);
+    return true;
 }
 
 void AndroidRuntime::shutdown()

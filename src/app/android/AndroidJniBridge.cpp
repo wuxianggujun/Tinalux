@@ -119,4 +119,52 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeInstallDemoScene(JNIEnv*, jcl
     return tinaluxAndroidInstallDemoScene(fromJLong(runtimeHandle)) ? JNI_TRUE : JNI_FALSE;
 }
 
+JNIEXPORT jboolean JNICALL
+Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchPointerMove(
+    JNIEnv*,
+    jclass,
+    jlong runtimeHandle,
+    jfloat x,
+    jfloat y)
+{
+    return tinaluxAndroidDispatchPointerMove(
+               fromJLong(runtimeHandle),
+               static_cast<double>(x),
+               static_cast<double>(y))
+        ? JNI_TRUE
+        : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchPointerDown(
+    JNIEnv*,
+    jclass,
+    jlong runtimeHandle,
+    jfloat x,
+    jfloat y)
+{
+    return tinaluxAndroidDispatchPointerDown(
+               fromJLong(runtimeHandle),
+               static_cast<double>(x),
+               static_cast<double>(y))
+        ? JNI_TRUE
+        : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchPointerUp(
+    JNIEnv*,
+    jclass,
+    jlong runtimeHandle,
+    jfloat x,
+    jfloat y)
+{
+    return tinaluxAndroidDispatchPointerUp(
+               fromJLong(runtimeHandle),
+               static_cast<double>(x),
+               static_cast<double>(y))
+        ? JNI_TRUE
+        : JNI_FALSE;
+}
+
 }  // extern "C"

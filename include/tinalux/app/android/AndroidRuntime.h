@@ -24,6 +24,9 @@ public:
     bool attachWindow(void* nativeWindow, float dpiScale = 1.0f);
     void detachWindow();
     bool renderOnce();
+    bool dispatchPointerMove(double x, double y);
+    bool dispatchPointerDown(double x, double y);
+    bool dispatchPointerUp(double x, double y);
     void shutdown();
 
     Application* application();

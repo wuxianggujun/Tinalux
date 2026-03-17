@@ -22,4 +22,22 @@ object TinaluxNativeBridge {
     @JvmStatic external fun nativeRenderOnce(runtimeHandle: Long): Boolean
 
     @JvmStatic external fun nativeInstallDemoScene(runtimeHandle: Long): Boolean
+
+    @JvmStatic external fun nativeDispatchPointerMove(
+        runtimeHandle: Long,
+        x: Float,
+        y: Float,
+    ): Boolean
+
+    @JvmStatic external fun nativeDispatchPointerDown(
+        runtimeHandle: Long,
+        x: Float,
+        y: Float,
+    ): Boolean
+
+    @JvmStatic external fun nativeDispatchPointerUp(
+        runtimeHandle: Long,
+        x: Float,
+        y: Float,
+    ): Boolean
 }
