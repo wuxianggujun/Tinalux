@@ -94,17 +94,19 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # --- GLFW (轻量窗口管理) ---
-set(TINALUX_GLFW_SOURCE_DIR "${PROJECT_SOURCE_DIR}/3rdparty/tina_glfw")
-if(NOT EXISTS "${TINALUX_GLFW_SOURCE_DIR}/CMakeLists.txt")
-    message(FATAL_ERROR
-        "Missing tina_glfw checkout at ${TINALUX_GLFW_SOURCE_DIR}. "
-        "Clone https://github.com/wuxianggujun/tina_glfw.git first.")
-endif()
+if(NOT ANDROID)
+    set(TINALUX_GLFW_SOURCE_DIR "${PROJECT_SOURCE_DIR}/3rdparty/tina_glfw")
+    if(NOT EXISTS "${TINALUX_GLFW_SOURCE_DIR}/CMakeLists.txt")
+        message(FATAL_ERROR
+            "Missing tina_glfw checkout at ${TINALUX_GLFW_SOURCE_DIR}. "
+            "Clone https://github.com/wuxianggujun/tina_glfw.git first.")
+    endif()
 
-set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-add_subdirectory("${TINALUX_GLFW_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/tina_glfw-build")
+    set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    add_subdirectory("${TINALUX_GLFW_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/tina_glfw-build")
+endif()
 
 # --- spdlog (日志后端) ---
 set(TINALUX_SPDLOG_SOURCE_DIR "${PROJECT_SOURCE_DIR}/3rdparty/spdlog")

@@ -7,8 +7,6 @@ add_library(Tinalux::Platform ALIAS TinaluxPlatform)
 target_include_directories(TinaluxPlatform
     PUBLIC
         ${PROJECT_SOURCE_DIR}/include
-    PRIVATE
-        ${TINALUX_GLFW_SOURCE_DIR}/deps
 )
 
 target_link_libraries(TinaluxPlatform
@@ -28,6 +26,9 @@ if(ANDROID)
 else()
     target_sources(TinaluxPlatform PRIVATE
         glfw/GLFWWindow.cpp
+    )
+    target_include_directories(TinaluxPlatform PRIVATE
+        ${TINALUX_GLFW_SOURCE_DIR}/deps
     )
     target_link_libraries(TinaluxPlatform PRIVATE glfw)
     if(APPLE)
