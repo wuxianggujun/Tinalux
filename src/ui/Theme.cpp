@@ -131,6 +131,18 @@ Theme& Theme::syncStructuredTokens()
     spacingScale.md = padding;
     spacingScale.radiusXl = cornerRadius;
     spacingScale.sm = std::max(0.0f, spacing * 2.0f - spacingScale.md);
+
+    buttonStyle = ButtonStyle::primary(colors, typography, spacingScale);
+    textInputStyle = TextInputStyle::standard(colors, typography, spacingScale);
+    checkboxStyle = CheckboxStyle::standard(colors, typography, spacingScale);
+    radioStyle = RadioStyle::standard(colors, typography, spacingScale);
+    toggleStyle = ToggleStyle::standard(colors, typography, spacingScale);
+    sliderStyle = SliderStyle::standard(colors, typography, spacingScale);
+    scrollViewStyle = ScrollViewStyle::standard(colors, typography, spacingScale);
+    dialogStyle = DialogStyle::standard(colors, typography, spacingScale);
+    panelStyle = PanelStyle::standard(colors, typography, spacingScale);
+    listViewStyle = ListViewStyle::standard(colors, typography, spacingScale);
+    richTextStyle = RichTextStyle::standard(colors, typography, spacingScale);
     return *this;
 }
 

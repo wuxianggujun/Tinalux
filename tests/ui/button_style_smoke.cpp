@@ -89,6 +89,31 @@ int main()
     expect(
         defaultSize.width() >= runtime.theme.buttonStyle.minWidth,
         "button measure should respect theme button minWidth");
+    expect(
+        button.effectiveStyle().backgroundColor.normal != runtime.theme.colors.surface,
+        "default primary button should remain visually distinct from panel surfaces");
+    expect(
+        button.effectiveStyle().textColor.normal == runtime.theme.colors.onPrimary,
+        "default primary button should use onPrimary text for contrast");
+    expect(
+        button.effectiveStyle().borderWidth.normal >= 1.0f,
+        "default primary button should expose a visible outline");
+    expect(
+        core::colorAlpha(button.effectiveStyle().borderColor.normal) > 0,
+        "default primary button border should not be transparent");
+
+    ProbeButton defaultVisualButton("");
+    defaultVisualButton.arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 96.0f, 48.0f));
+
+    const rendering::RenderSurface defaultSurface = rendering::createRasterSurface(128, 96);
+    expect(static_cast<bool>(defaultSurface), "default button test should create raster surface");
+    rendering::Canvas defaultCanvas = defaultSurface.canvas();
+    expect(static_cast<bool>(defaultCanvas), "default button test should expose canvas");
+
+    defaultVisualButton.draw(defaultCanvas);
+    expect(
+        nearlyEqualColor(readPixel(defaultSurface, 48, 24), runtime.theme.buttonStyle.backgroundColor.normal),
+        "default primary button should paint its normal background before hover");
 
     ui::ButtonStyle customStyle = runtime.theme.buttonStyle;
     customStyle.paddingHorizontal = 36.0f;

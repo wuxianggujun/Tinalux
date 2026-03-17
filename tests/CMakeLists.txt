@@ -76,6 +76,11 @@ tinalux_add_smoke_test(TinaluxAppAndroidRuntimeLifecycleSmoke
     LINK_LIBS Tinalux::App
 )
 
+tinalux_add_smoke_test(TinaluxAppDpiSmoke
+    SOURCE app/application_dpi_smoke.cpp
+    LINK_LIBS Tinalux::App
+)
+
 tinalux_add_smoke_test(TinaluxUILayoutSmoke
     SOURCE ui/layout_smoke.cpp
     LINK_LIBS Tinalux::UI
@@ -98,6 +103,11 @@ tinalux_add_smoke_test(TinaluxUIResponsiveLayoutSmoke
 
 tinalux_add_smoke_test(TinaluxUIEventSmoke
     SOURCE ui/event_smoke.cpp
+    LINK_LIBS Tinalux::App
+)
+
+tinalux_add_smoke_test(TinaluxUIDpiSmoke
+    SOURCE ui/dpi_smoke.cpp
     LINK_LIBS Tinalux::App
 )
 

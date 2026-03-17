@@ -103,6 +103,77 @@ private:
     std::string prefix_;
 };
 
+class RebuildLeaf final : public tinalux::ui::Widget {
+public:
+    explicit RebuildLeaf(std::vector<std::string>* trace, std::function<void()> onTargetEvent)
+        : trace_(trace)
+        , onTargetEvent_(std::move(onTargetEvent))
+    {
+    }
+
+    tinalux::core::Size measure(const tinalux::ui::Constraints& constraints) override
+    {
+        return constraints.constrain(tinalux::core::Size::Make(90.0f, 40.0f));
+    }
+
+    bool onEvent(tinalux::core::Event&) override
+    {
+        trace_->push_back("rebuild-target");
+        if (onTargetEvent_) {
+            onTargetEvent_();
+        }
+        return false;
+    }
+
+    void onDraw(tinalux::rendering::Canvas&) override {}
+
+private:
+    std::vector<std::string>* trace_;
+    std::function<void()> onTargetEvent_;
+};
+
+class HoverRebuildLeaf final : public tinalux::ui::Widget {
+public:
+    explicit HoverRebuildLeaf(
+        std::vector<std::string>* trace,
+        std::string prefix,
+        std::function<void()> onLeave = {})
+        : trace_(trace)
+        , prefix_(std::move(prefix))
+        , onLeave_(std::move(onLeave))
+    {
+    }
+
+    tinalux::core::Size measure(const tinalux::ui::Constraints& constraints) override
+    {
+        return constraints.constrain(tinalux::core::Size::Make(90.0f, 40.0f));
+    }
+
+    bool onEvent(tinalux::core::Event& event) override
+    {
+        switch (event.type()) {
+        case tinalux::core::EventType::MouseEnter:
+            trace_->push_back(prefix_ + "-enter");
+            return false;
+        case tinalux::core::EventType::MouseLeave:
+            trace_->push_back(prefix_ + "-leave");
+            if (onLeave_) {
+                onLeave_();
+            }
+            return false;
+        default:
+            return false;
+        }
+    }
+
+    void onDraw(tinalux::rendering::Canvas&) override {}
+
+private:
+    std::vector<std::string>* trace_;
+    std::string prefix_;
+    std::function<void()> onLeave_;
+};
+
 }  // namespace
 
 int main()
@@ -156,6 +227,33 @@ int main()
         expect(trace[0] == "root-capture", "capture order mismatch");
         expect(trace[1] == "leaf-target", "target order mismatch");
         expect(trace[2] == "root-bubble", "bubble order mismatch");
+    }
+
+    {
+        tinalux::app::UIContext context;
+        std::vector<std::string> trace;
+        auto root = std::make_shared<TraceContainer>(&trace);
+        auto replacement = std::make_shared<tinalux::ui::Panel>();
+        auto leaf = std::make_shared<RebuildLeaf>(&trace, [&context, replacement] {
+            context.setRootWidget(replacement);
+        });
+        root->addChild(leaf);
+        root->arrange(tinalux::core::Rect::MakeXYWH(0.0f, 0.0f, 240.0f, 160.0f));
+        leaf->arrange(tinalux::core::Rect::MakeXYWH(24.0f, 20.0f, 90.0f, 40.0f));
+        context.setRootWidget(root);
+
+        tinalux::core::MouseButtonEvent press(
+            0,
+            0,
+            40.0,
+            30.0,
+            tinalux::core::EventType::MouseButtonPress);
+        context.handleEvent(press, [] {});
+
+        expect(trace.size() == 3, "event dispatch should stay valid when target rebuilds the widget tree");
+        expect(trace[0] == "root-capture", "rebuild capture order mismatch");
+        expect(trace[1] == "rebuild-target", "rebuild target should still receive the event");
+        expect(trace[2] == "root-bubble", "rebuild bubble should still reach the original parent");
     }
 
     {
@@ -216,6 +314,37 @@ int main()
         expect(trace.size() == 2, "window cursor enter/leave should update hovered widget");
         expect(trace[0] == "leaf-enter", "window enter should produce widget enter");
         expect(trace[1] == "leaf-leave", "window leave should clear widget hover");
+    }
+
+    {
+        tinalux::app::UIContext context;
+        std::vector<std::string> trace;
+        auto replacement = std::make_shared<tinalux::ui::Panel>();
+        auto root = std::make_shared<tinalux::ui::Panel>();
+        auto left = std::make_shared<HoverRebuildLeaf>(
+            &trace,
+            "left",
+            [&context, replacement] {
+                context.setRootWidget(replacement);
+            });
+        auto right = std::make_shared<HoverRebuildLeaf>(&trace, "right");
+        root->addChild(left);
+        root->addChild(right);
+        root->arrange(tinalux::core::Rect::MakeXYWH(0.0f, 0.0f, 240.0f, 160.0f));
+        left->arrange(tinalux::core::Rect::MakeXYWH(24.0f, 20.0f, 90.0f, 40.0f));
+        right->arrange(tinalux::core::Rect::MakeXYWH(130.0f, 20.0f, 90.0f, 40.0f));
+        context.setRootWidget(root);
+
+        tinalux::core::MouseMoveEvent moveLeft(40.0, 30.0);
+        tinalux::core::MouseMoveEvent moveRight(150.0, 30.0);
+        context.handleEvent(moveLeft, [] {});
+        context.handleEvent(moveRight, [] {});
+
+        expect(
+            trace.size() == 2,
+            "hover transition should stay safe when MouseLeave rebuilds the widget tree");
+        expect(trace[0] == "left-enter", "initial hover should reach the original target");
+        expect(trace[1] == "left-leave", "rebuilding leave should not dispatch enter to a detached target");
     }
 
     {
@@ -386,6 +515,52 @@ int main()
         expect(root->children().front().get() == second.get(), "removeChild should keep later children intact");
         expect(first->parent() == nullptr, "removed child parent should be cleared");
         expect(second->parent() == root.get(), "remaining child parent should stay intact");
+    }
+
+    {
+        auto firstParent = std::make_shared<tinalux::ui::Panel>();
+        auto secondParent = std::make_shared<tinalux::ui::Panel>();
+        auto child = std::make_shared<tinalux::ui::Button>("Shared");
+
+        firstParent->addChild(child);
+        expect(firstParent->children().size() == 1, "initial parent should accept child");
+        expect(child->parent() == firstParent.get(), "initial parent should own child");
+
+        secondParent->addChild(child);
+        expect(firstParent->children().empty(), "reparenting should detach child from the previous parent");
+        expect(secondParent->children().size() == 1, "reparenting should attach child to the new parent");
+        expect(child->parent() == secondParent.get(), "reparented child should point at the new parent");
+
+        secondParent->addChild(child);
+        expect(secondParent->children().size() == 1, "adding the same child twice should not duplicate entries");
+    }
+
+    {
+        tinalux::app::UIContext context;
+        auto root = std::make_shared<tinalux::ui::Panel>();
+        auto input = std::make_shared<tinalux::ui::TextInput>("lifetime");
+        auto retainedInput = input;
+        root->addChild(input);
+        root->arrange(tinalux::core::Rect::MakeXYWH(0.0f, 0.0f, 320.0f, 120.0f));
+        input->arrange(tinalux::core::Rect::MakeXYWH(12.0f, 12.0f, 240.0f, 48.0f));
+        context.setRootWidget(root);
+
+        tinalux::core::KeyEvent tabForward(
+            tinalux::core::keys::kTab,
+            0,
+            0,
+            tinalux::core::EventType::KeyPress);
+        context.handleEvent(tabForward, [] {});
+        expect(context.textInputActive(), "focused text input should activate text input state");
+
+        root->removeChild(input.get());
+
+        expect(!context.textInputActive(), "detached focused widget should not stay active when still retained externally");
+        expect(!context.imeCursorRect().has_value(), "detached focused widget should not leave a retained IME pointer");
+        expect(!retainedInput->focused(), "detached focused widget should clear its own focus state");
+
+        input.reset();
+        retainedInput.reset();
     }
 
     {

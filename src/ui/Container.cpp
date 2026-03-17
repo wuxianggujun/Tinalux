@@ -7,6 +7,27 @@
 
 namespace tinalux::ui {
 
+namespace {
+
+void clearFocusRecursive(Widget* widget)
+{
+    if (widget == nullptr) {
+        return;
+    }
+
+    if (widget->focused()) {
+        widget->setFocused(false);
+    }
+
+    if (auto* container = dynamic_cast<Container*>(widget); container != nullptr) {
+        for (const auto& child : container->children()) {
+            clearFocusRecursive(child.get());
+        }
+    }
+}
+
+}  // namespace
+
 Container::~Container() = default;
 
 void Container::addChild(std::shared_ptr<Widget> child)
@@ -15,12 +36,38 @@ void Container::addChild(std::shared_ptr<Widget> child)
         return;
     }
 
+    if (child->parent() == this) {
+        const auto existing = std::find_if(
+            children_.begin(),
+            children_.end(),
+            [&child](const std::shared_ptr<Widget>& candidate) {
+                return candidate.get() == child.get();
+            });
+        if (existing != children_.end()) {
+            return;
+        }
+    }
+    if (Widget* existingParent = child->parent();
+        existingParent != nullptr && existingParent != this) {
+        if (auto* existingContainer = dynamic_cast<Container*>(existingParent);
+            existingContainer != nullptr) {
+            existingContainer->removeChildInternal(child.get(), true);
+        } else {
+            child->setParent(nullptr);
+        }
+    }
+
     child->setParent(this);
     children_.push_back(std::move(child));
     markLayoutDirty();
 }
 
 void Container::removeChild(Widget* child)
+{
+    removeChildInternal(child, false);
+}
+
+void Container::removeChildInternal(Widget* child, bool preserveFocusState)
 {
     if (child == nullptr) {
         return;
@@ -34,6 +81,9 @@ void Container::removeChild(Widget* child)
         });
 
     if (it != children_.end()) {
+        if (!preserveFocusState) {
+            clearFocusRecursive(it->get());
+        }
         (*it)->setParent(nullptr);
         children_.erase(it);
         markLayoutDirty();
@@ -111,6 +161,12 @@ const std::vector<std::shared_ptr<Widget>>& Container::children() const
 void Container::drawChildren(rendering::Canvas& canvas)
 {
     for (const auto& child : children_) {
+        if (child == nullptr
+            || !child->visible()
+            || child->bounds().isEmpty()
+            || canvas.quickReject(child->bounds())) {
+            continue;
+        }
         child->draw(canvas);
     }
 }

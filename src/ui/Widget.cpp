@@ -31,6 +31,16 @@ AnimationSink& Widget::animationSink() const
     return runtimeAnimationSink();
 }
 
+float Widget::resolvedDevicePixelRatio() const
+{
+    return runtimeDevicePixelRatio();
+}
+
+std::uint64_t Widget::resolvedThemeGeneration() const
+{
+    return runtimeThemeGeneration();
+}
+
 core::Point Widget::childOffsetAdjustment(const Widget&) const
 {
     return core::Point::Make(0.0f, 0.0f);
@@ -249,6 +259,16 @@ core::Rect Widget::dirtyRegion() const
 Widget* Widget::parent() const
 {
     return parent_;
+}
+
+std::shared_ptr<Widget> Widget::sharedHandle()
+{
+    return weak_from_this().lock();
+}
+
+std::weak_ptr<Widget> Widget::weakHandle()
+{
+    return weak_from_this();
 }
 
 void Widget::markDirtyRect(const core::Rect& rect)

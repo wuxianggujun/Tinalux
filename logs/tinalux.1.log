@@ -1,1 +1,0 @@
-[2026-03-17 10:00:29.841] [error] [render] Render backend selection requested 'Metal', but Metal is only available on Apple platforms

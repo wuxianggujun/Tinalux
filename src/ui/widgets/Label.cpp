@@ -1,6 +1,7 @@
 #include "tinalux/ui/Label.h"
 
 #include "tinalux/rendering/rendering.h"
+#include "tinalux/ui/Theme.h"
 #include "../TextPrimitives.h"
 
 namespace tinalux::ui {
@@ -33,11 +34,21 @@ void Label::setFontSize(float size)
 
 void Label::setColor(core::Color color)
 {
-    if (color_ == color) {
+    if (color_ && *color_ == color) {
         return;
     }
 
     color_ = color;
+    markPaintDirty();
+}
+
+void Label::clearColor()
+{
+    if (!color_.has_value()) {
+        return;
+    }
+
+    color_.reset();
     markPaintDirty();
 }
 
@@ -54,7 +65,12 @@ void Label::onDraw(rendering::Canvas& canvas)
     }
 
     const TextMetrics metrics = measureTextMetrics(text_, fontSize_);
-    canvas.drawText(text_, metrics.drawX, metrics.baseline, fontSize_, color_);
+    canvas.drawText(text_, metrics.drawX, metrics.baseline, fontSize_, resolvedColor());
+}
+
+core::Color Label::resolvedColor() const
+{
+    return color_.value_or(resolvedTheme().text);
 }
 
 }  // namespace tinalux::ui

@@ -115,6 +115,13 @@ void Canvas::translate(float dx, float dy)
     }
 }
 
+void Canvas::scale(float sx, float sy)
+{
+    if (auto* skia = RenderAccess::skiaCanvas(*this); skia != nullptr) {
+        skia->scale(sx, sy);
+    }
+}
+
 void Canvas::clipRect(core::Rect rect)
 {
     if (auto* skia = RenderAccess::skiaCanvas(*this); skia != nullptr) {

@@ -3,10 +3,25 @@
 #include <algorithm>
 #include <cmath>
 
+#include "../RuntimeState.h"
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Theme.h"
 
 namespace tinalux::ui {
+
+namespace {
+
+bool nearlyEqual(float lhs, float rhs)
+{
+    return std::abs(lhs - rhs) <= 0.001f;
+}
+
+float sanitizeDevicePixelRatio(float ratio)
+{
+    return std::isfinite(ratio) && ratio > 0.0f ? ratio : 1.0f;
+}
+
+}  // namespace
 
 void Panel::setBackgroundColor(core::Color color)
 {
@@ -30,6 +45,8 @@ void Panel::setRenderCacheEnabled(bool enabled)
         cachedImage_ = {};
         cachedSurfaceWidth_ = 0;
         cachedSurfaceHeight_ = 0;
+        cachedDevicePixelRatio_ = 1.0f;
+        cachedThemeGeneration_ = 0;
     }
     markPaintDirty();
 }
@@ -89,27 +106,40 @@ void Panel::onDraw(rendering::Canvas& canvas)
         return;
     }
 
-    const int targetWidth = std::max(1, static_cast<int>(std::ceil(bounds_.width())));
-    const int targetHeight = std::max(1, static_cast<int>(std::ceil(bounds_.height())));
+    const float devicePixelRatio = sanitizeDevicePixelRatio(resolvedDevicePixelRatio());
+    const std::uint64_t themeGeneration = resolvedThemeGeneration();
+    const int targetWidth =
+        std::max(1, static_cast<int>(std::ceil(bounds_.width() * devicePixelRatio)));
+    const int targetHeight =
+        std::max(1, static_cast<int>(std::ceil(bounds_.height() * devicePixelRatio)));
     if (renderCacheEnabled_) {
         const bool needsCacheRefresh = !cachedImage_
             || !cachedSurface_
             || dirty_
             || layoutDirty_
             || cachedSurfaceWidth_ != targetWidth
-            || cachedSurfaceHeight_ != targetHeight;
+            || cachedSurfaceHeight_ != targetHeight
+            || !nearlyEqual(cachedDevicePixelRatio_, devicePixelRatio)
+            || cachedThemeGeneration_ != themeGeneration;
         if (needsCacheRefresh) {
             cachedSurface_ = rendering::createRasterSurface(targetWidth, targetHeight);
             cachedImage_ = {};
             cachedSurfaceWidth_ = 0;
             cachedSurfaceHeight_ = 0;
+            cachedDevicePixelRatio_ = 1.0f;
+            cachedThemeGeneration_ = 0;
             if (cachedSurface_) {
                 rendering::Canvas cacheCanvas = cachedSurface_.canvas();
                 cacheCanvas.clear(core::colorARGB(0, 0, 0, 0));
+                cacheCanvas.save();
+                cacheCanvas.scale(devicePixelRatio, devicePixelRatio);
                 drawPanelContents(cacheCanvas);
+                cacheCanvas.restore();
                 cachedImage_ = cachedSurface_.snapshotImage();
                 cachedSurfaceWidth_ = targetWidth;
                 cachedSurfaceHeight_ = targetHeight;
+                cachedDevicePixelRatio_ = devicePixelRatio;
+                cachedThemeGeneration_ = themeGeneration;
             }
         }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 
 #include "tinalux/core/Geometry.h"
@@ -21,7 +22,7 @@ class Container;
 class ScrollView;
 struct Theme;
 
-class Widget {
+class Widget : public std::enable_shared_from_this<Widget> {
 public:
     virtual ~Widget() = default;
 
@@ -62,12 +63,16 @@ public:
     bool hasDirtyRegion() const;
     core::Rect dirtyRegion() const;
     Widget* parent() const;
+    std::shared_ptr<Widget> sharedHandle();
+    std::weak_ptr<Widget> weakHandle();
 
 protected:
     friend class Container;
     friend class ScrollView;
     const Theme& resolvedTheme() const;
     AnimationSink& animationSink() const;
+    float resolvedDevicePixelRatio() const;
+    std::uint64_t resolvedThemeGeneration() const;
     virtual core::Point childOffsetAdjustment(const Widget& child) const;
     core::Point parentAdjustedOrigin() const;
     void markPaintDirty();

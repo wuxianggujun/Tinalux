@@ -1,10 +1,32 @@
 #include "tinalux/ui/ButtonStyle.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace tinalux::ui {
 
 namespace {
+
+float clampUnit(float value)
+{
+    return std::clamp(value, 0.0f, 1.0f);
+}
+
+core::Color mixColor(core::Color lhs, core::Color rhs, float t)
+{
+    const float progress = clampUnit(t);
+    const auto mixChannel = [progress](core::Color::Channel from, core::Color::Channel to) {
+        return static_cast<core::Color::Channel>(std::lround(
+            static_cast<float>(from)
+            + (static_cast<float>(to) - static_cast<float>(from)) * progress));
+    };
+
+    return core::colorARGB(
+        mixChannel(lhs.alpha(), rhs.alpha()),
+        mixChannel(lhs.red(), rhs.red()),
+        mixChannel(lhs.green(), rhs.green()),
+        mixChannel(lhs.blue(), rhs.blue()));
+}
 
 float resolveVerticalPadding(const Spacing& spacing)
 {
@@ -37,18 +59,24 @@ ButtonStyle ButtonStyle::primary(
     const Spacing& spacing)
 {
     ButtonStyle style = makeBaseButtonStyle(colors, typography, spacing);
-    style.backgroundColor.normal = colors.surface;
-    style.backgroundColor.hovered = colors.border;
-    style.backgroundColor.pressed = colors.primary;
-    style.backgroundColor.focused = colors.primaryVariant;
+    style.backgroundColor.normal = colors.primary;
+    style.backgroundColor.hovered = mixColor(colors.primary, colors.primaryVariant, 0.18f);
+    style.backgroundColor.pressed = colors.primaryVariant;
+    style.backgroundColor.focused = style.backgroundColor.hovered;
 
-    style.textColor.normal = colors.onSurface;
-    style.textColor.hovered = colors.onSurface;
+    style.textColor.normal = colors.onPrimary;
+    style.textColor.hovered = colors.onPrimary;
     style.textColor.pressed = colors.onPrimary;
     style.textColor.focused = colors.onPrimary;
 
-    style.borderColor.normal = core::colorARGB(0, 0, 0, 0);
-    style.borderWidth.normal = 0.0f;
+    style.borderColor.normal = mixColor(colors.primaryVariant, colors.surfaceVariant, 0.18f);
+    style.borderColor.hovered = colors.primaryVariant;
+    style.borderColor.pressed = colors.primaryVariant;
+    style.borderColor.focused = colors.primaryVariant;
+    style.borderWidth.normal = 1.0f;
+    style.borderWidth.hovered = 1.0f;
+    style.borderWidth.pressed = 1.0f;
+    style.borderWidth.focused = 1.0f;
     return style;
 }
 

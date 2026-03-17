@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <vector>
 
 #include "tinalux/ui/Animation.h"
@@ -43,10 +44,14 @@ private:
 struct RuntimeState {
     Theme theme = Theme::dark();
     AnimationScheduler animationScheduler;
+    float devicePixelRatio = 1.0f;
+    std::uint64_t themeGeneration = 1;
 };
 
 const Theme& runtimeTheme();
 AnimationSink& runtimeAnimationSink();
+float runtimeDevicePixelRatio();
+std::uint64_t runtimeThemeGeneration();
 
 class ScopedRuntimeState final {
 public:

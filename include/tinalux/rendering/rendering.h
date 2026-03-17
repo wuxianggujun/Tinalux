@@ -87,6 +87,7 @@ public:
     void save();
     void restore();
     void translate(float dx, float dy);
+    void scale(float sx, float sy);
     void clipRect(core::Rect rect);
     void clear(core::Color color);
     void clearRect(core::Rect rect, core::Color color);

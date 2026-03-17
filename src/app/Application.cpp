@@ -1,5 +1,6 @@
 #include "tinalux/app/Application.h"
 
+#include <cmath>
 #include <chrono>
 #include <string>
 
@@ -12,8 +13,58 @@
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Animation.h"
 #include "tinalux/ui/Clipboard.h"
+#include "tinalux/ui/ResourceManager.h"
 
 namespace tinalux::app {
+
+namespace {
+
+constexpr double kIdleWaitSeconds = 0.05;
+
+float sanitizeDpiScale(float dpiScale)
+{
+    return std::isfinite(dpiScale) && dpiScale > 0.0f ? dpiScale : 1.0f;
+}
+
+bool nearlyEqual(float lhs, float rhs)
+{
+    return std::abs(lhs - rhs) <= 0.001f;
+}
+
+core::Rect scaleRect(const core::Rect& rect, float scale)
+{
+    return core::Rect::MakeLTRB(
+        rect.left() * scale,
+        rect.top() * scale,
+        rect.right() * scale,
+        rect.bottom() * scale);
+}
+
+std::optional<core::Rect> logicalToPhysicalRect(
+    const std::optional<core::Rect>& rect,
+    float dpiScale)
+{
+    if (!rect.has_value()) {
+        return std::nullopt;
+    }
+    return scaleRect(*rect, sanitizeDpiScale(dpiScale));
+}
+
+void syncResourceManagerDevicePixelRatio(
+    platform::Window* window,
+    float& syncedDevicePixelRatio)
+{
+    const float targetRatio =
+        window != nullptr ? sanitizeDpiScale(window->dpiScale()) : 1.0f;
+    if (nearlyEqual(syncedDevicePixelRatio, targetRatio)) {
+        return;
+    }
+
+    ui::ResourceManager::instance().setDevicePixelRatio(targetRatio);
+    syncedDevicePixelRatio = targetRatio;
+}
+
+}  // namespace
 
 struct Application::Impl {
     ApplicationConfig config;
@@ -25,6 +76,7 @@ struct Application::Impl {
     bool skiaInitialized = false;
     int surfaceWidth = 0;
     int surfaceHeight = 0;
+    float syncedDevicePixelRatio = 0.0f;
 };
 
 Application::Application()
@@ -240,6 +292,9 @@ bool Application::tryInitializeBackend(
     impl_->surfaceWidth = candidateSurfaceWidth;
     impl_->surfaceHeight = candidateSurfaceHeight;
     impl_->backendPlan.activate(backendIndex);
+    syncResourceManagerDevicePixelRatio(
+        impl_->window.get(),
+        impl_->syncedDevicePixelRatio);
     return true;
 }
 
@@ -309,6 +364,7 @@ void Application::resetRenderState()
     impl_->surfaceWidth = 0;
     impl_->surfaceHeight = 0;
     impl_->backendPlan.reset(impl_->config.backend);
+    syncResourceManagerDevicePixelRatio(nullptr, impl_->syncedDevicePixelRatio);
 }
 
 bool Application::pumpOnce()
@@ -323,7 +379,7 @@ bool Application::pumpOnce()
 
     if (!impl_->uiContext.shouldRender()) {
         impl_->uiContext.noteWaitLoop();
-        impl_->window->waitEventsTimeout(0.008);
+        impl_->window->waitEventsTimeout(kIdleWaitSeconds);
     } else {
         impl_->uiContext.notePollLoop();
         impl_->window->pollEvents();
@@ -388,7 +444,13 @@ void Application::handleEvent(core::Event& event)
         return;
     }
 
-    impl_->uiContext.handleEvent(event, [this] { requestClose(); });
+    const float dpiScale = impl_->window != nullptr
+        ? sanitizeDpiScale(impl_->window->dpiScale())
+        : 1.0f;
+    syncResourceManagerDevicePixelRatio(
+        impl_->window.get(),
+        impl_->syncedDevicePixelRatio);
+    impl_->uiContext.handleEvent(event, [this] { requestClose(); }, dpiScale);
     syncTextInputState();
 }
 
@@ -524,6 +586,7 @@ bool Application::renderFrame()
 
     const int framebufferWidth = impl_->window->framebufferWidth();
     const int framebufferHeight = impl_->window->framebufferHeight();
+    const float dpiScale = sanitizeDpiScale(impl_->window->dpiScale());
     if (framebufferWidth <= 0 || framebufferHeight <= 0) {
         return true;
     }
@@ -594,8 +657,11 @@ bool Application::renderFrame()
         syncTextInputState();
         return true;
     }
+    syncResourceManagerDevicePixelRatio(
+        impl_->window.get(),
+        impl_->syncedDevicePixelRatio);
     const bool fullRedraw =
-        impl_->uiContext.render(canvas, framebufferWidth, framebufferHeight);
+        impl_->uiContext.render(canvas, framebufferWidth, framebufferHeight, dpiScale);
 
     syncTextInputState();
     rendering::flushFrame(impl_->context, impl_->surface);
@@ -610,7 +676,9 @@ void Application::syncTextInputState()
     }
 
     impl_->window->setTextInputActive(impl_->uiContext.textInputActive());
-    impl_->window->setTextInputCursorRect(impl_->uiContext.imeCursorRect());
+    impl_->window->setTextInputCursorRect(logicalToPhysicalRect(
+        impl_->uiContext.imeCursorRect(),
+        impl_->window->dpiScale()));
 }
 
 }  // namespace tinalux::app

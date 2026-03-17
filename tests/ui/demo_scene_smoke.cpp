@@ -11,6 +11,7 @@
 #include "tinalux/ui/Panel.h"
 #include "tinalux/ui/ParagraphLabel.h"
 #include "tinalux/ui/Theme.h"
+#include "tinalux/ui/ThemeManager.h"
 
 namespace {
 
@@ -101,6 +102,27 @@ int main()
     expect(
         shell->children()[1]->bounds().x() > shell->children()[0]->bounds().x(),
         "wide demo scene should place content beside navigation");
+
+    ui::ThemeManager::instance().setTheme(ui::Theme::light(), false);
+    auto rebuiltShell = std::dynamic_pointer_cast<ui::Container>(root->children().back());
+    expect(rebuiltShell != nullptr, "theme change should preserve showcase shell container");
+
+    auto rebuiltNavPanel = std::dynamic_pointer_cast<ui::Panel>(rebuiltShell->children()[0]);
+    auto rebuiltNavButtons = std::dynamic_pointer_cast<ui::Container>(rebuiltNavPanel->children()[2]);
+    expect(rebuiltNavButtons != nullptr, "theme change should rebuild navigation button column");
+
+    std::shared_ptr<ui::Button> firstNavButton;
+    for (const auto& child : rebuiltNavButtons->children()) {
+        firstNavButton = std::dynamic_pointer_cast<ui::Button>(child);
+        if (firstNavButton != nullptr) {
+            break;
+        }
+    }
+    expect(firstNavButton != nullptr, "rebuilt navigation should still expose page buttons");
+    expect(firstNavButton->style() != nullptr, "rebuilt navigation buttons should keep custom styles");
+    expect(
+        firstNavButton->style()->backgroundColor.normal == ui::Theme::light().colors.primary,
+        "theme change should rebuild selected navigation button style from the new theme");
 
     return 0;
 }

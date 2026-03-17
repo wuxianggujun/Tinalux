@@ -30,7 +30,10 @@ public:
     void initializeFromEnvironment();
     void shutdown();
 
-    void handleEvent(core::Event& event, const std::function<void()>& requestClose);
+    void handleEvent(
+        core::Event& event,
+        const std::function<void()>& requestClose,
+        float dpiScale = 1.0f);
     void setRootWidget(std::shared_ptr<ui::Widget> root);
     void setOverlayWidget(std::shared_ptr<ui::Widget> overlay);
     void clearOverlayWidget();
@@ -60,7 +63,11 @@ public:
     bool hasActiveAnimations() const;
 
     bool shouldRender() const;
-    bool render(rendering::Canvas& canvas, int framebufferWidth, int framebufferHeight);
+    bool render(
+        rendering::Canvas& canvas,
+        int framebufferWidth,
+        int framebufferHeight,
+        float dpiScale = 1.0f);
     void clearNeedsRedraw();
 
 private:
@@ -79,26 +86,31 @@ private:
     void dispatchEvent(core::Event& event);
     ui::Widget* hitTestTopLevel(float x, float y) const;
     void collectActiveFocusables(std::vector<ui::Widget*>& out) const;
-    void setFocus(ui::Widget* widget);
+    void setFocus(const std::shared_ptr<ui::Widget>& widget);
     void advanceFocus(bool reverse = false);
     void maybeLogPeriodicPerfSummary();
     void logPeriodicPerfSummary(const char* reason);
-    core::Rect debugHudBounds(int framebufferWidth, int framebufferHeight) const;
+    core::Rect debugHudBounds(float logicalWidth, float logicalHeight) const;
     void drawDebugHud(
         rendering::Canvas& canvas,
-        int framebufferWidth,
-        int framebufferHeight,
+        float logicalWidth,
+        float logicalHeight,
         bool fullRedraw,
         const core::Rect& dirtyRegion);
+    bool isInActiveTree(const ui::Widget* widget) const;
+    std::shared_ptr<ui::Widget> lockActiveWidget(ui::Widget* widget) const;
+    std::shared_ptr<ui::Widget> lockWidget(
+        const std::weak_ptr<ui::Widget>& widget) const;
 
     std::shared_ptr<ui::Widget> rootWidget_;
     std::shared_ptr<ui::Widget> overlayWidget_;
-    ui::Widget* focusedWidget_ = nullptr;
-    ui::Widget* hoveredWidget_ = nullptr;
-    ui::Widget* mouseCaptureWidget_ = nullptr;
+    std::weak_ptr<ui::Widget> focusedWidget_;
+    std::weak_ptr<ui::Widget> hoveredWidget_;
+    std::weak_ptr<ui::Widget> mouseCaptureWidget_;
     bool needsRedraw_ = true;
-    int layoutWidth_ = 0;
-    int layoutHeight_ = 0;
+    float layoutWidth_ = 0.0f;
+    float layoutHeight_ = 0.0f;
+    float lastDpiScale_ = 1.0f;
     FrameStats frameStats_ {};
     PerfLogConfig perfLogConfig_ {};
     PerfLogIntervalStats perfLogIntervalStats_ {};
@@ -108,6 +120,7 @@ private:
     std::uint64_t themeListenerId_ = 0;
     bool loggedEmptyScene_ = false;
     bool loggedSceneReady_ = false;
+    bool shutdown_ = false;
     std::unique_ptr<ui::RuntimeState> runtimeState_;
 };
 

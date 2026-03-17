@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <optional>
 
 #include "tinalux/rendering/rendering.h"
@@ -34,6 +35,8 @@ private:
     rendering::Image cachedImage_ {};
     int cachedSurfaceWidth_ = 0;
     int cachedSurfaceHeight_ = 0;
+    float cachedDevicePixelRatio_ = 1.0f;
+    std::uint64_t cachedThemeGeneration_ = 0;
 };
 
 }  // namespace tinalux::ui

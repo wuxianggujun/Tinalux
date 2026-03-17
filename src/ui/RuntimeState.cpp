@@ -60,6 +60,16 @@ AnimationSink& runtimeAnimationSink()
     return activeRuntimeState().animationScheduler;
 }
 
+float runtimeDevicePixelRatio()
+{
+    return activeRuntimeState().devicePixelRatio;
+}
+
+std::uint64_t runtimeThemeGeneration()
+{
+    return activeRuntimeState().themeGeneration;
+}
+
 ScopedRuntimeState::ScopedRuntimeState(RuntimeState& runtimeState)
     : previous_(gBoundRuntimeState)
 {

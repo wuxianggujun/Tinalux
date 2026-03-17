@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cmath>
 #include <cstdlib>
 #include <optional>
 #include <string>
@@ -24,6 +25,58 @@ namespace tinalux::app {
 
 namespace {
 
+constexpr float kGeometryTolerance = 0.001f;
+
+float sanitizeDpiScale(float dpiScale)
+{
+    return std::isfinite(dpiScale) && dpiScale > 0.0f ? dpiScale : 1.0f;
+}
+
+bool nearlyEqual(float lhs, float rhs)
+{
+    return std::abs(lhs - rhs) <= kGeometryTolerance;
+}
+
+core::Size logicalFramebufferSize(
+    int framebufferWidth,
+    int framebufferHeight,
+    float dpiScale)
+{
+    const float sanitizedScale = sanitizeDpiScale(dpiScale);
+    return core::Size::Make(
+        static_cast<float>(framebufferWidth) / sanitizedScale,
+        static_cast<float>(framebufferHeight) / sanitizedScale);
+}
+
+void normalizePointerEventCoordinates(core::Event& event, float dpiScale)
+{
+    const double inverseScale = 1.0 / static_cast<double>(sanitizeDpiScale(dpiScale));
+    switch (event.type()) {
+    case core::EventType::MouseMove: {
+        auto& mouseEvent = static_cast<core::MouseMoveEvent&>(event);
+        mouseEvent.x *= inverseScale;
+        mouseEvent.y *= inverseScale;
+        break;
+    }
+    case core::EventType::MouseEnter:
+    case core::EventType::MouseLeave: {
+        auto& mouseEvent = static_cast<core::MouseCrossEvent&>(event);
+        mouseEvent.x *= inverseScale;
+        mouseEvent.y *= inverseScale;
+        break;
+    }
+    case core::EventType::MouseButtonPress:
+    case core::EventType::MouseButtonRelease: {
+        auto& mouseEvent = static_cast<core::MouseButtonEvent&>(event);
+        mouseEvent.x *= inverseScale;
+        mouseEvent.y *= inverseScale;
+        break;
+    }
+    default:
+        break;
+    }
+}
+
 bool isKeyboardEvent(core::EventType type)
 {
     return type == core::EventType::KeyPress
@@ -35,10 +88,13 @@ bool isKeyboardEvent(core::EventType type)
         || type == core::EventType::TextCompositionEnd;
 }
 
-std::vector<ui::Widget*> buildEventPath(ui::Widget* target)
+std::vector<std::shared_ptr<ui::Widget>> buildEventPath(
+    const std::shared_ptr<ui::Widget>& target)
 {
-    std::vector<ui::Widget*> path;
-    for (ui::Widget* current = target; current != nullptr; current = current->parent()) {
+    std::vector<std::shared_ptr<ui::Widget>> path;
+    for (std::shared_ptr<ui::Widget> current = target;
+         current != nullptr;
+         current = current->parent() != nullptr ? current->parent()->sharedHandle() : nullptr) {
         path.push_back(current);
     }
     std::reverse(path.begin(), path.end());
@@ -72,13 +128,13 @@ void collectFocusableWidgets(ui::Widget* widget, std::vector<ui::Widget*>& out)
     }
 }
 
-bool dispatchAlongPath(core::Event& event, ui::Widget* target)
+bool dispatchAlongPath(core::Event& event, const std::shared_ptr<ui::Widget>& target)
 {
     if (target == nullptr) {
         return false;
     }
 
-    const std::vector<ui::Widget*> path = buildEventPath(target);
+    const std::vector<std::shared_ptr<ui::Widget>> path = buildEventPath(target);
     if (path.empty()) {
         return false;
     }
@@ -99,8 +155,7 @@ bool dispatchAlongPath(core::Event& event, ui::Widget* target)
     }
 
     for (std::size_t i = path.size() - 1; i > 0; --i) {
-        ui::Widget* current = path[i - 1];
-        event.handled = current->onEvent(event) || event.handled;
+        event.handled = path[i - 1]->onEvent(event) || event.handled;
         if (event.handled || event.stopPropagation) {
             return true;
         }
@@ -109,7 +164,11 @@ bool dispatchAlongPath(core::Event& event, ui::Widget* target)
     return event.handled;
 }
 
-void sendMouseCrossEvent(core::EventType type, ui::Widget* widget, float x, float y)
+void sendMouseCrossEvent(
+    core::EventType type,
+    const std::shared_ptr<ui::Widget>& widget,
+    float x,
+    float y)
 {
     if (widget == nullptr) {
         return;
@@ -239,6 +298,7 @@ UIContext::UIContext()
         }
 
         runtimeState_->theme = theme;
+        ++runtimeState_->themeGeneration;
         needsRedraw_ = true;
     });
     themeManager.setAnimationSink(&runtimeState_->animationScheduler);
@@ -247,6 +307,7 @@ UIContext::UIContext()
 
 UIContext::~UIContext()
 {
+    shutdown();
     ui::ThemeManager& themeManager = ui::ThemeManager::instance();
     themeManager.removeThemeChangeListener(themeListenerId_);
     themeManager.setAnimationSink(nullptr);
@@ -275,6 +336,11 @@ void UIContext::initializeFromEnvironment()
 
 void UIContext::shutdown()
 {
+    if (shutdown_) {
+        return;
+    }
+    shutdown_ = true;
+
     ui::ScopedRuntimeState runtimeScope(*runtimeState_);
 
     if (perfLogConfig_.enabled && perfLogIntervalStats_.renderedFrames > 0) {
@@ -300,24 +366,28 @@ void UIContext::shutdown()
     ui::ResourceLoader::instance().clear();
     ui::clearClipboardHandlers();
 
-    if (focusedWidget_ != nullptr) {
-        focusedWidget_->setFocused(false);
+    if (const auto focused = lockWidget(focusedWidget_)) {
+        focused->setFocused(false);
     }
 
     rootWidget_.reset();
     overlayWidget_.reset();
-    focusedWidget_ = nullptr;
-    hoveredWidget_ = nullptr;
-    mouseCaptureWidget_ = nullptr;
+    focusedWidget_.reset();
+    hoveredWidget_.reset();
+    mouseCaptureWidget_.reset();
     needsRedraw_ = true;
     layoutWidth_ = 0;
     layoutHeight_ = 0;
     perfLogIntervalStats_ = {};
 }
 
-void UIContext::handleEvent(core::Event& event, const std::function<void()>& requestClose)
+void UIContext::handleEvent(
+    core::Event& event,
+    const std::function<void()>& requestClose,
+    float dpiScale)
 {
     ui::ScopedRuntimeState runtimeScope(*runtimeState_);
+    normalizePointerEventCoordinates(event, dpiScale);
 
     switch (event.type()) {
     case core::EventType::WindowClose:
@@ -335,17 +405,17 @@ void UIContext::handleEvent(core::Event& event, const std::function<void()>& req
         const auto& focusEvent = static_cast<const core::WindowFocusEvent&>(event);
         core::logDebugCat("app", "Handling WindowFocus event focused={}", focusEvent.focused);
         if (!focusEvent.focused) {
-            if (hoveredWidget_ != nullptr) {
-                const core::Rect hoveredBounds = hoveredWidget_->globalBounds();
+            if (const auto hovered = lockWidget(hoveredWidget_)) {
+                const core::Rect hoveredBounds = hovered->globalBounds();
                 sendMouseCrossEvent(
                     core::EventType::MouseLeave,
-                    hoveredWidget_,
+                    hovered,
                     hoveredBounds.centerX(),
                     hoveredBounds.centerY());
             }
             setFocus(nullptr);
-            hoveredWidget_ = nullptr;
-            mouseCaptureWidget_ = nullptr;
+            hoveredWidget_.reset();
+            mouseCaptureWidget_.reset();
         }
         break;
     }
@@ -381,14 +451,14 @@ void UIContext::setRootWidget(std::shared_ptr<ui::Widget> root)
     ui::ScopedRuntimeState runtimeScope(*runtimeState_);
     runtimeState_->animationScheduler.clear();
 
-    if (focusedWidget_ != nullptr) {
-        focusedWidget_->setFocused(false);
+    if (const auto focused = lockWidget(focusedWidget_)) {
+        focused->setFocused(false);
     }
 
     rootWidget_ = std::move(root);
-    focusedWidget_ = nullptr;
-    hoveredWidget_ = nullptr;
-    mouseCaptureWidget_ = nullptr;
+    focusedWidget_.reset();
+    hoveredWidget_.reset();
+    mouseCaptureWidget_.reset();
     needsRedraw_ = true;
     layoutWidth_ = 0;
     layoutHeight_ = 0;
@@ -404,18 +474,18 @@ void UIContext::setOverlayWidget(std::shared_ptr<ui::Widget> overlay)
 {
     ui::ScopedRuntimeState runtimeScope(*runtimeState_);
 
-    if (hoveredWidget_ != nullptr) {
-        const core::Rect hoveredBounds = hoveredWidget_->globalBounds();
+    if (const auto hovered = lockWidget(hoveredWidget_)) {
+        const core::Rect hoveredBounds = hovered->globalBounds();
         sendMouseCrossEvent(
             core::EventType::MouseLeave,
-            hoveredWidget_,
+            hovered,
             hoveredBounds.centerX(),
             hoveredBounds.centerY());
     }
 
     setFocus(nullptr);
-    hoveredWidget_ = nullptr;
-    mouseCaptureWidget_ = nullptr;
+    hoveredWidget_.reset();
+    mouseCaptureWidget_.reset();
     overlayWidget_ = std::move(overlay);
     if (overlayWidget_ != nullptr) {
         overlayWidget_->markLayoutDirty();
@@ -442,16 +512,20 @@ ui::AnimationSink& UIContext::animationSink()
 
 bool UIContext::textInputActive()
 {
-    return focusedWidget_ != nullptr && focusedWidget_->wantsTextInput();
+    if (const auto focused = lockWidget(focusedWidget_)) {
+        return focused->wantsTextInput();
+    }
+    return false;
 }
 
 std::optional<core::Rect> UIContext::imeCursorRect()
 {
     ui::ScopedRuntimeState runtimeScope(*runtimeState_);
-    if (focusedWidget_ == nullptr) {
+    const auto focused = lockWidget(focusedWidget_);
+    if (focused == nullptr) {
         return std::nullopt;
     }
-    return focusedWidget_->imeCursorRect();
+    return focused->imeCursorRect();
 }
 
 FrameStats UIContext::frameStats() const
@@ -595,12 +669,24 @@ bool UIContext::shouldRender() const
         || (overlayWidget_ != nullptr && overlayWidget_->isDirty());
 }
 
-bool UIContext::render(rendering::Canvas& canvas, int framebufferWidth, int framebufferHeight)
+bool UIContext::render(
+    rendering::Canvas& canvas,
+    int framebufferWidth,
+    int framebufferHeight,
+    float dpiScale)
 {
     ui::ScopedRuntimeState runtimeScope(*runtimeState_);
     if (!canvas || framebufferWidth <= 0 || framebufferHeight <= 0) {
         return true;
     }
+
+    const float deviceScale = sanitizeDpiScale(dpiScale);
+    runtimeState_->devicePixelRatio = deviceScale;
+    const core::Size logicalSize =
+        logicalFramebufferSize(framebufferWidth, framebufferHeight, deviceScale);
+    const bool logicalSizeChanged = !nearlyEqual(layoutWidth_, logicalSize.width())
+        || !nearlyEqual(layoutHeight_, logicalSize.height());
+    const bool dpiChanged = !nearlyEqual(lastDpiScale_, deviceScale);
 
     const bool hasScene = rootWidget_ != nullptr || overlayWidget_ != nullptr;
     if (!hasScene && !loggedEmptyScene_) {
@@ -629,8 +715,8 @@ bool UIContext::render(rendering::Canvas& canvas, int framebufferWidth, int fram
             && (rootWidget_->isLayoutDirty() || !rootWidget_->hasDirtyRegion()))
         || (overlayWidget_ != nullptr
             && (overlayWidget_->isLayoutDirty() || !overlayWidget_->hasDirtyRegion()))
-        || layoutWidth_ != framebufferWidth
-        || layoutHeight_ != framebufferHeight;
+        || logicalSizeChanged
+        || dpiChanged;
     core::Rect redrawRegion = core::Rect::MakeEmpty();
     if (!fullRedraw) {
         if (rootWidget_ != nullptr && rootWidget_->hasDirtyRegion()) {
@@ -645,7 +731,8 @@ bool UIContext::render(rendering::Canvas& canvas, int framebufferWidth, int fram
         }
     }
     if (debugHudConfig_.enabled) {
-        const core::Rect hudBounds = debugHudBounds(framebufferWidth, framebufferHeight);
+        const core::Rect hudBounds =
+            debugHudBounds(logicalSize.width(), logicalSize.height());
         if (redrawRegion.isEmpty()) {
             redrawRegion = hudBounds;
         } else {
@@ -655,37 +742,37 @@ bool UIContext::render(rendering::Canvas& canvas, int framebufferWidth, int fram
 
     if (fullRedraw) {
         canvas.clear(kClearColor);
-    } else {
+    }
+    canvas.save();
+    // 布局统一使用逻辑像素，最终在这里一次性映射到物理像素。
+    canvas.scale(deviceScale, deviceScale);
+    if (!fullRedraw) {
         canvas.clearRect(redrawRegion, kClearColor);
     }
 
     const auto fullBounds = core::Rect::MakeXYWH(
         0.0f,
         0.0f,
-        static_cast<float>(framebufferWidth),
-        static_cast<float>(framebufferHeight));
-    const auto tightConstraints = ui::Constraints::tight(
-        static_cast<float>(framebufferWidth),
-        static_cast<float>(framebufferHeight));
+        logicalSize.width(),
+        logicalSize.height());
+    const auto tightConstraints =
+        ui::Constraints::tight(logicalSize.width(), logicalSize.height());
 
     if (rootWidget_ != nullptr) {
-        if (rootWidget_->isLayoutDirty()
-            || layoutWidth_ != framebufferWidth
-            || layoutHeight_ != framebufferHeight) {
+        if (rootWidget_->isLayoutDirty() || logicalSizeChanged) {
             rootWidget_->measure(tightConstraints);
             rootWidget_->arrange(fullBounds);
         }
     }
     if (overlayWidget_ != nullptr) {
-        if (overlayWidget_->isLayoutDirty()
-            || layoutWidth_ != framebufferWidth
-            || layoutHeight_ != framebufferHeight) {
+        if (overlayWidget_->isLayoutDirty() || logicalSizeChanged) {
             overlayWidget_->measure(tightConstraints);
             overlayWidget_->arrange(fullBounds);
         }
     }
-    layoutWidth_ = framebufferWidth;
-    layoutHeight_ = framebufferHeight;
+    layoutWidth_ = logicalSize.width();
+    layoutHeight_ = logicalSize.height();
+    lastDpiScale_ = deviceScale;
 
     if (rootWidget_ != nullptr) {
         if (fullRedraw) {
@@ -709,8 +796,14 @@ bool UIContext::render(rendering::Canvas& canvas, int framebufferWidth, int fram
     }
 
     if (debugHudConfig_.enabled) {
-        drawDebugHud(canvas, framebufferWidth, framebufferHeight, fullRedraw, redrawRegion);
+        drawDebugHud(
+            canvas,
+            logicalSize.width(),
+            logicalSize.height(),
+            fullRedraw,
+            redrawRegion);
     }
+    canvas.restore();
 
     return fullRedraw;
 }
@@ -752,19 +845,21 @@ void UIContext::dispatchEvent(core::Event& event)
     switch (event.type()) {
     case core::EventType::MouseEnter: {
         auto& mouseEvent = static_cast<core::MouseCrossEvent&>(event);
-        ui::Widget* target = hitTestTopLevel(
+        const auto hovered = lockWidget(hoveredWidget_);
+        auto target = lockActiveWidget(hitTestTopLevel(
             static_cast<float>(mouseEvent.x),
-            static_cast<float>(mouseEvent.y));
-        if (target != hoveredWidget_) {
+            static_cast<float>(mouseEvent.y)));
+        if (target != hovered) {
             sendMouseCrossEvent(
                 core::EventType::MouseLeave,
-                hoveredWidget_,
+                hovered,
                 static_cast<float>(mouseEvent.x),
                 static_cast<float>(mouseEvent.y));
-            hoveredWidget_ = target;
+            target = lockActiveWidget(target.get());
+            hoveredWidget_ = target != nullptr ? target->weakHandle() : std::weak_ptr<ui::Widget> {};
             sendMouseCrossEvent(
                 core::EventType::MouseEnter,
-                hoveredWidget_,
+                target,
                 static_cast<float>(mouseEvent.x),
                 static_cast<float>(mouseEvent.y));
         }
@@ -772,38 +867,43 @@ void UIContext::dispatchEvent(core::Event& event)
     }
     case core::EventType::MouseLeave: {
         auto& mouseEvent = static_cast<core::MouseCrossEvent&>(event);
+        const auto hovered = lockWidget(hoveredWidget_);
         sendMouseCrossEvent(
             core::EventType::MouseLeave,
-            hoveredWidget_,
+            hovered,
             static_cast<float>(mouseEvent.x),
             static_cast<float>(mouseEvent.y));
-        hoveredWidget_ = nullptr;
+        hoveredWidget_.reset();
         return;
     }
     case core::EventType::MouseMove: {
         auto& mouseEvent = static_cast<core::MouseMoveEvent&>(event);
-        ui::Widget* target = hitTestTopLevel(
+        const auto hovered = lockWidget(hoveredWidget_);
+        auto target = lockActiveWidget(hitTestTopLevel(
             static_cast<float>(mouseEvent.x),
-            static_cast<float>(mouseEvent.y));
+            static_cast<float>(mouseEvent.y)));
 
-        if (target != hoveredWidget_) {
+        if (target != hovered) {
             sendMouseCrossEvent(
                 core::EventType::MouseLeave,
-                hoveredWidget_,
+                hovered,
                 static_cast<float>(mouseEvent.x),
                 static_cast<float>(mouseEvent.y));
-            hoveredWidget_ = target;
+            target = lockActiveWidget(target.get());
+            hoveredWidget_ = target != nullptr ? target->weakHandle() : std::weak_ptr<ui::Widget> {};
             sendMouseCrossEvent(
                 core::EventType::MouseEnter,
-                hoveredWidget_,
+                target,
                 static_cast<float>(mouseEvent.x),
                 static_cast<float>(mouseEvent.y));
         }
 
-        ui::Widget* dispatchTarget = mouseCaptureWidget_ != nullptr
-            ? mouseCaptureWidget_
-            : target;
-        dispatchAlongPath(event, dispatchTarget);
+        const auto mouseCapture = lockWidget(mouseCaptureWidget_);
+        dispatchAlongPath(
+            event,
+            mouseCapture != nullptr
+                ? mouseCapture
+                : target);
         return;
     }
     case core::EventType::MouseButtonPress: {
@@ -811,27 +911,36 @@ void UIContext::dispatchEvent(core::Event& event)
         ui::Widget* target = hitTestTopLevel(
             static_cast<float>(mouseEvent.x),
             static_cast<float>(mouseEvent.y));
-        mouseCaptureWidget_ = target;
-        setFocus(findFocusableWidget(target));
-        dispatchAlongPath(event, target);
+        mouseCaptureWidget_ = target != nullptr ? target->weakHandle() : std::weak_ptr<ui::Widget> {};
+        setFocus(
+            findFocusableWidget(target) != nullptr
+                ? findFocusableWidget(target)->sharedHandle()
+                : std::shared_ptr<ui::Widget> {});
+        dispatchAlongPath(
+            event,
+            target != nullptr ? target->sharedHandle() : std::shared_ptr<ui::Widget> {});
         return;
     }
     case core::EventType::MouseButtonRelease: {
         auto& mouseEvent = static_cast<core::MouseButtonEvent&>(event);
-        ui::Widget* target = mouseCaptureWidget_;
+        auto target = lockWidget(mouseCaptureWidget_);
         if (target == nullptr) {
-            target = hitTestTopLevel(
+            if (ui::Widget* hit = hitTestTopLevel(
                 static_cast<float>(mouseEvent.x),
                 static_cast<float>(mouseEvent.y));
+                hit != nullptr) {
+                target = lockActiveWidget(hit);
+            }
         }
         dispatchAlongPath(event, target);
-        mouseCaptureWidget_ = nullptr;
+        mouseCaptureWidget_.reset();
         return;
     }
     case core::EventType::MouseScroll: {
-        ui::Widget* target = hoveredWidget_ != nullptr
-            ? hoveredWidget_
-            : (overlayWidget_ != nullptr ? overlayWidget_.get() : rootWidget_.get());
+        auto target = lockWidget(hoveredWidget_);
+        if (target == nullptr) {
+            target = overlayWidget_ != nullptr ? overlayWidget_ : rootWidget_;
+        }
         dispatchAlongPath(event, target);
         return;
     }
@@ -839,26 +948,25 @@ void UIContext::dispatchEvent(core::Event& event)
         break;
     }
 
-    if (isKeyboardEvent(event.type()) && focusedWidget_ != nullptr) {
-        dispatchAlongPath(event, focusedWidget_);
+    if (isKeyboardEvent(event.type())) {
+        dispatchAlongPath(event, lockWidget(focusedWidget_));
     }
 }
 
-void UIContext::setFocus(ui::Widget* widget)
+void UIContext::setFocus(const std::shared_ptr<ui::Widget>& widget)
 {
-    if (focusedWidget_ == widget) {
+    const auto previousFocused = lockWidget(focusedWidget_);
+    if (previousFocused == widget) {
         return;
     }
 
-    const ui::Widget* previousFocused = focusedWidget_;
-
-    if (focusedWidget_ != nullptr) {
-        focusedWidget_->setFocused(false);
+    if (previousFocused != nullptr) {
+        previousFocused->setFocused(false);
     }
 
     focusedWidget_ = widget;
-    if (focusedWidget_ != nullptr) {
-        focusedWidget_->setFocused(true);
+    if (widget != nullptr) {
+        widget->setFocused(true);
     }
 
     needsRedraw_ = true;
@@ -866,10 +974,10 @@ void UIContext::setFocus(ui::Widget* widget)
         "app",
         "Focus changed from {} to {}",
         previousFocused != nullptr
-            ? fmt::format("0x{:x}", reinterpret_cast<std::uintptr_t>(previousFocused))
+            ? fmt::format("0x{:x}", reinterpret_cast<std::uintptr_t>(previousFocused.get()))
             : std::string("null"),
-        focusedWidget_ != nullptr
-            ? fmt::format("0x{:x}", reinterpret_cast<std::uintptr_t>(focusedWidget_))
+        widget != nullptr
+            ? fmt::format("0x{:x}", reinterpret_cast<std::uintptr_t>(widget.get()))
             : std::string("null"));
 }
 
@@ -882,14 +990,15 @@ void UIContext::advanceFocus(bool reverse)
         return;
     }
 
-    if (focusedWidget_ == nullptr) {
-        setFocus(reverse ? focusables.back() : focusables.front());
+    const auto focused = lockWidget(focusedWidget_);
+    if (focused == nullptr) {
+        setFocus((reverse ? focusables.back() : focusables.front())->sharedHandle());
         return;
     }
 
-    const auto it = std::find(focusables.begin(), focusables.end(), focusedWidget_);
+    const auto it = std::find(focusables.begin(), focusables.end(), focused.get());
     if (it == focusables.end()) {
-        setFocus(reverse ? focusables.back() : focusables.front());
+        setFocus((reverse ? focusables.back() : focusables.front())->sharedHandle());
         return;
     }
 
@@ -898,7 +1007,45 @@ void UIContext::advanceFocus(bool reverse)
     const std::ptrdiff_t nextIndex = reverse
         ? (currentIndex - 1 + count) % count
         : (currentIndex + 1) % count;
-    setFocus(focusables[static_cast<std::size_t>(nextIndex)]);
+    setFocus(focusables[static_cast<std::size_t>(nextIndex)]->sharedHandle());
+}
+
+std::shared_ptr<ui::Widget> UIContext::lockActiveWidget(ui::Widget* widget) const
+{
+    if (widget == nullptr) {
+        return {};
+    }
+
+    const auto locked = widget->sharedHandle();
+    if (locked == nullptr || !isInActiveTree(locked.get())) {
+        return {};
+    }
+    return locked;
+}
+
+std::shared_ptr<ui::Widget> UIContext::lockWidget(
+    const std::weak_ptr<ui::Widget>& widget) const
+{
+    const auto locked = widget.lock();
+    if (locked == nullptr || !isInActiveTree(locked.get())) {
+        return {};
+    }
+    return locked;
+}
+
+bool UIContext::isInActiveTree(const ui::Widget* widget) const
+{
+    if (widget == nullptr) {
+        return false;
+    }
+
+    for (const ui::Widget* current = widget; current != nullptr; current = current->parent()) {
+        if (current == overlayWidget_.get() || current == rootWidget_.get()) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void UIContext::maybeLogPeriodicPerfSummary()
@@ -935,23 +1082,23 @@ void UIContext::logPeriodicPerfSummary(const char* reason)
     perfLogIntervalStats_ = {};
 }
 
-core::Rect UIContext::debugHudBounds(int framebufferWidth, int framebufferHeight) const
+core::Rect UIContext::debugHudBounds(float logicalWidth, float logicalHeight) const
 {
     const float scale = debugHudConfig_.scale;
     const float width = 280.0f * scale;
     const float height = 122.0f * scale;
     const float margin = 16.0f * scale;
     return core::Rect::MakeXYWH(
-        std::max(0.0f, static_cast<float>(framebufferWidth) - width - margin),
+        std::max(0.0f, logicalWidth - width - margin),
         margin,
         width,
-        std::min(height, std::max(0.0f, static_cast<float>(framebufferHeight) - margin * 2.0f)));
+        std::min(height, std::max(0.0f, logicalHeight - margin * 2.0f)));
 }
 
 void UIContext::drawDebugHud(
     rendering::Canvas& canvas,
-    int framebufferWidth,
-    int framebufferHeight,
+    float logicalWidth,
+    float logicalHeight,
     bool fullRedraw,
     const core::Rect& dirtyRegion)
 {
@@ -960,7 +1107,7 @@ void UIContext::drawDebugHud(
     }
 
     const DebugHudConfig config = debugHudConfig_;
-    const core::Rect hudBounds = debugHudBounds(framebufferWidth, framebufferHeight);
+    const core::Rect hudBounds = debugHudBounds(logicalWidth, logicalHeight);
     if (hudBounds.isEmpty()) {
         return;
     }

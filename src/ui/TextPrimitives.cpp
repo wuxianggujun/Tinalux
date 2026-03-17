@@ -2,6 +2,7 @@
 
 #include <bit>
 #include <cstdint>
+#include <deque>
 #include <string>
 #include <unordered_map>
 
@@ -36,6 +37,7 @@ struct TextMetricsCacheKeyHash {
 TextMetrics measureTextMetrics(std::string_view text, float fontSize)
 {
     static std::unordered_map<TextMetricsCacheKey, TextMetrics, TextMetricsCacheKeyHash> cache;
+    static std::deque<TextMetricsCacheKey> evictionQueue;
     constexpr std::size_t kMaxCacheEntries = 512;
     const float sanitizedFontSize = fontSize > 1.0f ? fontSize : 1.0f;
 
@@ -48,8 +50,10 @@ TextMetrics measureTextMetrics(std::string_view text, float fontSize)
     }
     const TextMetrics metrics = measureTextMetricsBackend(key.text, key.fontSize);
     if (cache.size() >= kMaxCacheEntries) {
-        cache.clear();
+        cache.erase(evictionQueue.front());
+        evictionQueue.pop_front();
     }
+    evictionQueue.push_back(key);
     cache.emplace(std::move(key), metrics);
     return metrics;
 }

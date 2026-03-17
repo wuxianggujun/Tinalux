@@ -28,6 +28,9 @@ protected:
 
     std::vector<std::shared_ptr<Widget>> children_;
     std::unique_ptr<Layout> layout_;
+
+private:
+    void removeChildInternal(Widget* child, bool preserveFocusState);
 };
 
 }  // namespace tinalux::ui

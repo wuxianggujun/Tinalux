@@ -155,13 +155,17 @@ std::shared_ptr<Widget> createThemePage(Theme theme)
         ThemeManager::instance().setTheme(Theme::light(), false);
     });
     customButton->onClick([] {
-        Theme custom = Theme::dark();
-        custom.background = core::colorRGB(12, 24, 28);
-        custom.surface = core::colorRGB(19, 41, 48);
-        custom.primary = core::colorRGB(135, 214, 181);
-        custom.text = core::colorRGB(230, 242, 238);
+        ColorScheme customColors = ColorScheme::custom(core::colorRGB(135, 214, 181));
+        customColors.background = core::colorRGB(12, 24, 28);
+        customColors.surface = core::colorRGB(19, 41, 48);
+        customColors.surfaceVariant = core::colorRGB(28, 56, 64);
+        customColors.onBackground = core::colorRGB(230, 242, 238);
+        customColors.onSurface = core::colorRGB(230, 242, 238);
+        customColors.border = core::colorRGB(78, 152, 132);
+        customColors.divider = core::colorRGB(44, 90, 83);
+        Theme custom = Theme::custom(customColors);
         custom.textSecondary = core::colorRGB(167, 196, 189);
-        custom.syncDerivedTokens();
+        custom.setName("custom");
         ThemeManager::instance().setTheme(custom, false);
     });
 

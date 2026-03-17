@@ -127,6 +127,27 @@ int main()
         expect(
             sameColor(manager.currentTheme().primary, ocean.primary),
             "switchTheme should apply registered theme");
+
+        Theme custom = Theme::dark();
+        custom.background = tinalux::core::colorRGB(10, 20, 30);
+        custom.surface = tinalux::core::colorRGB(18, 36, 44);
+        custom.primary = tinalux::core::colorRGB(90, 200, 160);
+        custom.text = tinalux::core::colorRGB(236, 245, 240);
+        custom.textSecondary = tinalux::core::colorRGB(160, 188, 178);
+        custom.border = tinalux::core::colorRGB(64, 132, 112);
+        manager.setTheme(custom, false);
+        expect(
+            sameColor(manager.currentTheme().colors.background, custom.background),
+            "theme normalization should push flat background overrides back into ColorScheme");
+        expect(
+            sameColor(manager.currentTheme().colors.surface, custom.surface),
+            "theme normalization should push flat surface overrides back into ColorScheme");
+        expect(
+            sameColor(manager.currentTheme().buttonStyle.backgroundColor.normal, custom.primary),
+            "theme normalization should refresh component styles after flat token overrides");
+        expect(
+            sameColor(manager.currentTheme().textSecondary, custom.textSecondary),
+            "theme normalization should preserve explicit secondary text overrides");
     }
 
     expect(notificationCount >= 4, "theme change listener should observe immediate and animated updates");

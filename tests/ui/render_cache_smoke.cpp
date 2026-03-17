@@ -2,6 +2,7 @@
 #include <iostream>
 #include <memory>
 
+#include "../../src/ui/RuntimeState.h"
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Panel.h"
 
@@ -56,6 +57,9 @@ int main()
 {
     using namespace tinalux;
 
+    ui::RuntimeState runtime;
+    ui::ScopedRuntimeState bind(runtime);
+
     const rendering::RenderSurface surface = rendering::createRasterSurface(256, 128);
     expect(static_cast<bool>(surface), "render cache test should create raster surface");
     rendering::Canvas canvas = surface.canvas();
@@ -78,6 +82,15 @@ int main()
         leaf->setColor(core::colorRGB(80, 180, 255));
         panel->draw(canvas);
         expect(leaf->drawCount() == 2, "child dirty should invalidate cache and redraw subtree");
+
+        runtime.theme = ui::Theme::light();
+        ++runtime.themeGeneration;
+        panel->draw(canvas);
+        expect(leaf->drawCount() == 3, "theme changes should invalidate cached panel content");
+
+        runtime.devicePixelRatio = 2.0f;
+        panel->draw(canvas);
+        expect(leaf->drawCount() == 4, "dpi changes should invalidate cached panel content");
     }
 
     {
