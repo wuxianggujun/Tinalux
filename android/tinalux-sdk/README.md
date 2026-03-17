@@ -28,6 +28,16 @@ Build guard:
 - `preBuild` verifies that `src/main/jniLibs/<abi>/libtinalux_native.so` exists
 - if the library is missing, the Gradle build fails with an actionable message
 
+Publishing:
+
+- this module now supports `maven-publish`
+- publish locally with:
+  - `./gradlew :tinalux-sdk:publishTinaluxSdkToMavenLocal`
+- default coordinates:
+  - `groupId = com.tinalux`
+  - `artifactId = tinalux-android-sdk`
+  - `version = 0.1.0-SNAPSHOT`
+
 Current limitation:
 
 - native library production is still external to Gradle

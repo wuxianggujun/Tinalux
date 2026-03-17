@@ -25,3 +25,4 @@ Current scope:
 - The SDK module reuses the shared host code from `../host/src/main/kotlin`
 - Can stage optional runtime data into `../tinalux-sdk/src/main/assets`
 - Assumes the native shared library is provided as a prebuilt artifact
+- The same SDK module can now be published as an AAR via Maven Local

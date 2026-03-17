@@ -1,8 +1,10 @@
 import org.gradle.api.GradleException
+import org.gradle.api.publish.maven.MavenPublication
 
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
+    id("maven-publish")
 }
 
 android {
@@ -51,6 +53,10 @@ android {
 dependencies {
 }
 
+val tinaluxGroupId = providers.gradleProperty("tinalux.groupId").orElse("com.tinalux")
+val tinaluxArtifactId = providers.gradleProperty("tinalux.artifactId").orElse("tinalux-android-sdk")
+val tinaluxVersion = providers.gradleProperty("tinalux.version").orElse("0.1.0-SNAPSHOT")
+
 val verifyTinaluxNativeArtifacts by tasks.registering {
     group = "verification"
     description = "Ensures the staged Tinalux native artifacts exist before packaging the SDK."
@@ -89,4 +95,28 @@ val verifyTinaluxNativeArtifacts by tasks.registering {
 
 tasks.named("preBuild").configure {
     dependsOn(verifyTinaluxNativeArtifacts)
+}
+
+afterEvaluate {
+    publishing {
+        publications {
+            create<MavenPublication>("release") {
+                from(components["release"])
+                groupId = tinaluxGroupId.get()
+                artifactId = tinaluxArtifactId.get()
+                version = tinaluxVersion.get()
+
+                pom {
+                    name.set("Tinalux Android SDK")
+                    description.set("Android host/runtime SDK module for the Tinalux rendering engine.")
+                }
+            }
+        }
+    }
+}
+
+tasks.register("publishTinaluxSdkToMavenLocal") {
+    group = "publishing"
+    description = "Publishes the Tinalux Android SDK AAR to Maven Local."
+    dependsOn("publishReleasePublicationToMavenLocal")
 }
