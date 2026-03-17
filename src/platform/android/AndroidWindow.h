@@ -44,13 +44,15 @@ private:
     bool initialize(const WindowConfig& config);
     bool initializeEgl(const WindowConfig& config);
     void destroyEgl();
-    void updateWindowMetrics(const WindowConfig& config);
+    void refreshWindowMetrics();
 
     static void* eglProcAddress(const char* name);
 
     ANativeWindow* nativeWindow_ = nullptr;
     EventCallback eventCallback_;
     std::string clipboardText_;
+    int fallbackWidth_ = 1;
+    int fallbackHeight_ = 1;
     int windowWidth_ = 0;
     int windowHeight_ = 0;
     float dpiScale_ = 1.0f;

@@ -89,15 +89,19 @@ bool AndroidWindow::shouldClose() const
 
 void AndroidWindow::pollEvents()
 {
+    refreshWindowMetrics();
 }
 
 void AndroidWindow::waitEventsTimeout(double timeoutSeconds)
 {
     (void)timeoutSeconds;
+    refreshWindowMetrics();
 }
 
 void AndroidWindow::swapBuffers()
 {
+    refreshWindowMetrics();
+
     if (graphicsApi_ != GraphicsAPI::OpenGL || !eglReady_) {
         return;
     }
@@ -189,7 +193,9 @@ bool AndroidWindow::initialize(const WindowConfig& config)
     ANativeWindow_acquire(nativeWindow);
     nativeWindow_ = nativeWindow;
     dpiScale_ = std::max(config.android->dpiScale, 0.1f);
-    updateWindowMetrics(config);
+    fallbackWidth_ = std::max(config.width, 1);
+    fallbackHeight_ = std::max(config.height, 1);
+    refreshWindowMetrics();
 
     if (graphicsApi_ == GraphicsAPI::OpenGL) {
         if (!initializeEgl(config)) {
@@ -386,18 +392,18 @@ void AndroidWindow::destroyEgl()
     eglReady_ = false;
 }
 
-void AndroidWindow::updateWindowMetrics(const WindowConfig& config)
+void AndroidWindow::refreshWindowMetrics()
 {
     if (nativeWindow_ == nullptr) {
-        windowWidth_ = std::max(config.width, 1);
-        windowHeight_ = std::max(config.height, 1);
+        windowWidth_ = fallbackWidth_;
+        windowHeight_ = fallbackHeight_;
         return;
     }
 
     const int queriedWidth = ANativeWindow_getWidth(nativeWindow_);
     const int queriedHeight = ANativeWindow_getHeight(nativeWindow_);
-    windowWidth_ = queriedWidth > 0 ? queriedWidth : std::max(config.width, 1);
-    windowHeight_ = queriedHeight > 0 ? queriedHeight : std::max(config.height, 1);
+    windowWidth_ = queriedWidth > 0 ? queriedWidth : fallbackWidth_;
+    windowHeight_ = queriedHeight > 0 ? queriedHeight : fallbackHeight_;
 }
 
 void* AndroidWindow::eglProcAddress(const char* name)

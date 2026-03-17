@@ -146,8 +146,12 @@ add_subdirectory(src)
 if(ANDROID)
     add_library(TinaluxAndroidNative SHARED
         src/app/android/AndroidNativeEntry.cpp
+        src/app/android/AndroidJniBridge.cpp
     )
-    target_link_libraries(TinaluxAndroidNative PRIVATE Tinalux::App)
+    target_link_libraries(TinaluxAndroidNative PRIVATE
+        Tinalux::App
+        android
+    )
     target_compile_definitions(TinaluxAndroidNative PRIVATE TINALUX_ANDROID_NATIVE_EXPORTS)
     set_target_properties(TinaluxAndroidNative PROPERTIES OUTPUT_NAME "tinalux_native")
 else()
