@@ -602,6 +602,27 @@ bool UIContext::render(rendering::Canvas& canvas, int framebufferWidth, int fram
         return true;
     }
 
+    const bool hasScene = rootWidget_ != nullptr || overlayWidget_ != nullptr;
+    if (!hasScene && !loggedEmptyScene_) {
+        core::logWarnCat(
+            "app",
+            "UI render has no root or overlay widget; only the clear color will be visible");
+        loggedEmptyScene_ = true;
+        loggedSceneReady_ = false;
+    } else if (hasScene && !loggedSceneReady_) {
+        core::logInfoCat(
+            "app",
+            "UI render scene is ready root={} overlay={}",
+            rootWidget_ != nullptr
+                ? fmt::format("0x{:x}", reinterpret_cast<std::uintptr_t>(rootWidget_.get()))
+                : std::string("null"),
+            overlayWidget_ != nullptr
+                ? fmt::format("0x{:x}", reinterpret_cast<std::uintptr_t>(overlayWidget_.get()))
+                : std::string("null"));
+        loggedSceneReady_ = true;
+        loggedEmptyScene_ = false;
+    }
+
     constexpr core::Color kClearColor = core::colorRGB(18, 20, 28);
     const bool fullRedraw = (rootWidget_ == nullptr && overlayWidget_ == nullptr)
         || (rootWidget_ != nullptr

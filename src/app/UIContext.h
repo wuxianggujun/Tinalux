@@ -106,6 +106,8 @@ private:
     DebugHudConfig debugHudConfig_ {};
     bool debugHudConfiguredExplicitly_ = false;
     std::uint64_t themeListenerId_ = 0;
+    bool loggedEmptyScene_ = false;
+    bool loggedSceneReady_ = false;
     std::unique_ptr<ui::RuntimeState> runtimeState_;
 };
 

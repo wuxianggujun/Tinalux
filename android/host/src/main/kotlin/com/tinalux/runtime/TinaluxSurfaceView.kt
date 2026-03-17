@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Rect
+import android.util.Log
 import android.util.AttributeSet
 import android.view.Choreographer
 import android.view.MotionEvent
@@ -17,13 +18,17 @@ class TinaluxSurfaceView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
 ) : SurfaceView(context, attrs), SurfaceHolder.Callback, Choreographer.FrameCallback {
-    private val rendererHost = TinaluxRendererHost { resources.displayMetrics.density }
+    private val logTag = "TinaluxHost"
+    private val rendererHost = TinaluxRendererHost(
+        dpiScaleProvider = { resources.displayMetrics.density },
+    )
     private val inputConnection = TinaluxInputConnection(this, rendererHost)
     private var surfaceReady = false
     private var frameCallbackPosted = false
     private var demoSceneInstalled = false
     private var lastTextInputActive = false
     private var lastClipboardText = ""
+    private var lastRenderHealthy = true
 
     init {
         holder.addCallback(this)
@@ -40,10 +45,12 @@ class TinaluxSurfaceView @JvmOverloads constructor(
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         surfaceReady = true
+        Log.i(logTag, "surfaceCreated backend=${rendererHost.preferredBackend()} surface=$holder")
         rendererHost.attachSurface(holder.surface)
         rendererHost.setSuspended(false)
         if (!demoSceneInstalled) {
             demoSceneInstalled = rendererHost.installDemoScene()
+            Log.i(logTag, "installDemoScene result=$demoSceneInstalled")
         }
         syncClipboardFromSystem()
         syncTextInputState()
@@ -54,6 +61,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
         if (!surfaceReady) {
             return
         }
+        Log.i(logTag, "surfaceChanged format=$format size=${width}x$height")
         rendererHost.attachSurface(holder.surface)
         rendererHost.setSuspended(false)
         syncClipboardFromSystem()
@@ -63,6 +71,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         surfaceReady = false
+        Log.i(logTag, "surfaceDestroyed")
         cancelFrame()
         rendererHost.setSuspended(true)
         rendererHost.detachSurface()
@@ -79,9 +88,19 @@ class TinaluxSurfaceView @JvmOverloads constructor(
         }
 
         if (rendererHost.renderOnce()) {
+            if (!lastRenderHealthy) {
+                Log.i(logTag, "render loop recovered")
+            }
+            lastRenderHealthy = true
             syncClipboardToSystem()
             syncTextInputState()
             scheduleFrame()
+        } else if (lastRenderHealthy) {
+            lastRenderHealthy = false
+            Log.w(
+                logTag,
+                "renderOnce returned false surfaceReady=$surfaceReady suspended=${rendererHost.isSuspended()} demoSceneInstalled=$demoSceneInstalled",
+            )
         }
     }
 

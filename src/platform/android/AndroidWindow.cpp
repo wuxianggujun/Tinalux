@@ -2,12 +2,14 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <mutex>
 #include <vector>
 #include <utility>
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <android/native_window.h>
+#include <dlfcn.h>
 
 #ifndef VK_USE_PLATFORM_ANDROID_KHR
 #define VK_USE_PLATFORM_ANDROID_KHR 1
@@ -23,7 +25,6 @@ using tinalux::rendering::opaqueHandle;
 namespace {
 
 constexpr int kOpenGlesMajor = 3;
-constexpr int kFallbackOpenGlesMajor = 2;
 
 const char* eglErrorName(EGLint error)
 {
@@ -66,6 +67,40 @@ const char* eglErrorName(EGLint error)
 EGLint currentEglError()
 {
     return eglGetError();
+}
+
+void* openSharedLibrary(const char* path)
+{
+    return path != nullptr ? dlopen(path, RTLD_NOW | RTLD_LOCAL) : nullptr;
+}
+
+void* lookupGlSymbol(const char* name)
+{
+    if (name == nullptr || *name == '\0') {
+        return nullptr;
+    }
+
+    static std::once_flag initOnce;
+    static void* glesv3Handle = nullptr;
+    static void* glesv2Handle = nullptr;
+    static void* eglHandle = nullptr;
+
+    std::call_once(initOnce, [] {
+        glesv3Handle = openSharedLibrary("libGLESv3.so");
+        glesv2Handle = openSharedLibrary("libGLESv2.so");
+        eglHandle = openSharedLibrary("libEGL.so");
+    });
+
+    for (void* handle : { glesv3Handle, glesv2Handle, eglHandle, RTLD_DEFAULT }) {
+        if (handle == nullptr) {
+            continue;
+        }
+        if (void* symbol = dlsym(handle, name); symbol != nullptr) {
+            return symbol;
+        }
+    }
+
+    return nullptr;
 }
 
 }  // namespace
@@ -415,21 +450,9 @@ bool AndroidWindow::initializeEgl(const WindowConfig& config)
         EGL_STENCIL_SIZE, 8,
         EGL_NONE,
     };
-    const EGLint fallbackConfigAttributes[] = {
-        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
-        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-        EGL_RED_SIZE, 8,
-        EGL_GREEN_SIZE, 8,
-        EGL_BLUE_SIZE, 8,
-        EGL_ALPHA_SIZE, 8,
-        EGL_DEPTH_SIZE, 24,
-        EGL_STENCIL_SIZE, 8,
-        EGL_NONE,
-    };
 
     EGLConfig chosenConfig = nullptr;
     EGLint configCount = 0;
-    int contextMajorVersion = kOpenGlesMajor;
     if (eglChooseConfig(
             reinterpret_cast<EGLDisplay>(display_),
             configAttributes,
@@ -438,23 +461,13 @@ bool AndroidWindow::initializeEgl(const WindowConfig& config)
             &configCount)
         != EGL_TRUE
         || configCount == 0) {
-        if (eglChooseConfig(
-                reinterpret_cast<EGLDisplay>(display_),
-                fallbackConfigAttributes,
-                &chosenConfig,
-                1,
-                &configCount)
-            != EGL_TRUE
-            || configCount == 0) {
-            const EGLint error = currentEglError();
-            core::logErrorCat(
-                "platform",
-                "eglChooseConfig failed with {} (0x{:04X})",
-                eglErrorName(error),
-                static_cast<std::uint32_t>(error));
-            return false;
-        }
-        contextMajorVersion = kFallbackOpenGlesMajor;
+        const EGLint error = currentEglError();
+        core::logErrorCat(
+            "platform",
+            "eglChooseConfig failed with {} (0x{:04X})",
+            eglErrorName(error),
+            static_cast<std::uint32_t>(error));
+        return false;
     }
     config_ = chosenConfig;
 
@@ -474,7 +487,7 @@ bool AndroidWindow::initializeEgl(const WindowConfig& config)
     }
 
     const EGLint contextAttributes[] = {
-        EGL_CONTEXT_CLIENT_VERSION, contextMajorVersion,
+        EGL_CONTEXT_CLIENT_VERSION, kOpenGlesMajor,
         EGL_NONE,
     };
     context_ = eglCreateContext(
@@ -514,7 +527,7 @@ bool AndroidWindow::initializeEgl(const WindowConfig& config)
         "Initialized Android EGL {}.{} context for OpenGL ES {}",
         majorVersion,
         minorVersion,
-        contextMajorVersion);
+        kOpenGlesMajor);
     return true;
 }
 
@@ -563,7 +576,15 @@ void AndroidWindow::refreshWindowMetrics()
 
 void* AndroidWindow::eglProcAddress(const char* name)
 {
-    return name != nullptr ? reinterpret_cast<void*>(eglGetProcAddress(name)) : nullptr;
+    if (name == nullptr) {
+        return nullptr;
+    }
+
+    if (void* proc = reinterpret_cast<void*>(eglGetProcAddress(name)); proc != nullptr) {
+        return proc;
+    }
+
+    return lookupGlSymbol(name);
 }
 
 }  // namespace tinalux::platform

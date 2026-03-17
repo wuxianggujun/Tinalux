@@ -21,10 +21,17 @@ enum class LogLevel {
 
 struct LogConfig {
     std::string loggerName = "tinalux";
+    std::string androidTag = "Tinalux";
     std::string filePath = "logs/tinalux.log";
     std::string consolePattern = "[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v";
     std::string plainPattern = "[%Y-%m-%d %H:%M:%S.%e] [%l] %v";
+#if defined(__ANDROID__)
+    bool enableConsole = false;
+    bool enableAndroidLog = true;
+#else
     bool enableConsole = true;
+    bool enableAndroidLog = false;
+#endif
     bool enableFile = true;
     bool enableDebugOutput = true;
     bool rotateFile = true;

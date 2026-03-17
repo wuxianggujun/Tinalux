@@ -12,6 +12,9 @@
 
 #include <spdlog/logger.h>
 #include <spdlog/sinks/basic_file_sink.h>
+#if defined(__ANDROID__)
+#include <spdlog/sinks/android_sink.h>
+#endif
 #if defined(_WIN32) && defined(_MSC_VER)
 #include <spdlog/sinks/msvc_sink.h>
 #endif
@@ -160,6 +163,9 @@ LogConfig applyEnvironmentOverrides(LogConfig config)
     if (const auto value = getEnvString("TINALUX_LOGGER_NAME"); value && !value->empty()) {
         config.loggerName = *value;
     }
+    if (const auto value = getEnvString("TINALUX_LOG_ANDROID_TAG"); value && !value->empty()) {
+        config.androidTag = *value;
+    }
 
     if (const auto value = getEnvString("TINALUX_LOG_FILE_PATH"); value) {
         config.filePath = *value;
@@ -188,6 +194,11 @@ LogConfig applyEnvironmentOverrides(LogConfig config)
     if (const auto value = getEnvString("TINALUX_LOG_CONSOLE")) {
         if (const auto parsed = parseBool(*value)) {
             config.enableConsole = *parsed;
+        }
+    }
+    if (const auto value = getEnvString("TINALUX_LOG_ANDROID")) {
+        if (const auto parsed = parseBool(*value)) {
+            config.enableAndroidLog = *parsed;
         }
     }
 
@@ -233,6 +244,14 @@ std::shared_ptr<spdlog::logger> createLogger(const LogConfig& config)
         sink->set_pattern(config.consolePattern);
         sinks.push_back(std::move(sink));
     }
+
+#if defined(__ANDROID__)
+    if (config.enableAndroidLog) {
+        auto sink = std::make_shared<spdlog::sinks::android_sink_mt>(config.androidTag);
+        sink->set_pattern(config.plainPattern);
+        sinks.push_back(std::move(sink));
+    }
+#endif
 
 #if defined(_WIN32) && defined(_MSC_VER)
     if (config.enableDebugOutput) {

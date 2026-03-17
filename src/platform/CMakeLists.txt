@@ -20,6 +20,7 @@ if(ANDROID)
     )
     target_link_libraries(TinaluxPlatform PRIVATE
         android
+        ${CMAKE_DL_LIBS}
         EGL
         vulkan
     )

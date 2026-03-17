@@ -1,5 +1,5 @@
 package com.tinalux.runtime
 
-class TinaluxVulkanValidationActivity : TinaluxActivity() {
+open class TinaluxVulkanValidationActivity : TinaluxActivity() {
     override fun preferredBackend(): TinaluxBackend = TinaluxBackend.Vulkan
 }

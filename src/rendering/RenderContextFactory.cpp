@@ -45,7 +45,7 @@ RenderContext createOpenGLContextImpl(GLGetProcFn getProc)
 
     ProcContext context{ getProc };
     sk_sp<const GrGLInterface> interface =
-        GrGLMakeAssembledGLInterface(&context, &getProcAddress);
+        GrGLMakeAssembledInterface(&context, &getProcAddress);
     if (!interface) {
         core::logErrorCat("render", "Failed to assemble OpenGL interface for Skia");
         return {};

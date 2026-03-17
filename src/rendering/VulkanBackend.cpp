@@ -18,6 +18,8 @@
 #include "include/gpu/vk/VulkanBackendContext.h"
 #include "include/gpu/vk/VulkanMutableTextureState.h"
 #include "include/private/gpu/vk/SkiaVulkan.h"
+#include "src/gpu/GpuTypesPriv.h"
+#include "src/gpu/vk/vulkanmemoryallocator/VulkanMemoryAllocatorPriv.h"
 #include "HandleCast.h"
 #include "RenderHandles.h"
 #include "VulkanBackendState.h"
@@ -578,28 +580,43 @@ bool initializeVulkanSwapchainImages(
         GrVkImageInfo imageInfo;
         imageInfo.fImage = imageState.image;
         imageInfo.fAlloc = skgpu::VulkanAlloc();
-        imageInfo.fImageLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         imageInfo.fFormat = swapchainState.imageFormat();
         imageInfo.fImageUsageFlags = swapchainState.imageUsageFlags();
+        imageInfo.fSampleCount = 1;
         imageInfo.fLevelCount = 1;
         imageInfo.fCurrentQueueFamily =
             swapchainState.imageSharingMode() == VK_SHARING_MODE_CONCURRENT
                 ? VK_QUEUE_FAMILY_IGNORED
-                : vkState.graphicsQueueIndex;
+                : vkState.presentQueueIndex;
         imageInfo.fProtected = skgpu::Protected::kNo;
         imageInfo.fSharingMode = swapchainState.imageSharingMode();
 
-        GrBackendRenderTarget backendRenderTarget = GrBackendRenderTargets::MakeVk(
-            swapchainState.framebufferWidth(),
-            swapchainState.framebufferHeight(),
-            imageInfo);
-        imageState.surface = SkSurfaces::WrapBackendRenderTarget(
-            skiaContext,
-            backendRenderTarget,
-            kTopLeft_GrSurfaceOrigin,
-            swapchainState.surfaceColorType(),
-            SkColorSpace::MakeSRGB(),
-            nullptr);
+        if ((swapchainState.imageUsageFlags() & VK_IMAGE_USAGE_SAMPLED_BIT) != 0) {
+            GrBackendTexture backendTexture = GrBackendTextures::MakeVk(
+                swapchainState.framebufferWidth(),
+                swapchainState.framebufferHeight(),
+                imageInfo);
+            imageState.surface = SkSurfaces::WrapBackendTexture(
+                skiaContext,
+                backendTexture,
+                kTopLeft_GrSurfaceOrigin,
+                imageInfo.fSampleCount,
+                swapchainState.surfaceColorType(),
+                SkColorSpace::MakeSRGB(),
+                nullptr);
+        } else {
+            GrBackendRenderTarget backendRenderTarget = GrBackendRenderTargets::MakeVk(
+                swapchainState.framebufferWidth(),
+                swapchainState.framebufferHeight(),
+                imageInfo);
+            imageState.surface = SkSurfaces::WrapBackendRenderTarget(
+                skiaContext,
+                backendRenderTarget,
+                kTopLeft_GrSurfaceOrigin,
+                swapchainState.surfaceColorType(),
+                SkColorSpace::MakeSRGB(),
+                nullptr);
+        }
         if (!imageState.surface) {
             tinalux::core::logErrorCat(
                 "render",
@@ -806,6 +823,13 @@ bool createVulkanSwapchain(
             break;
         }
     }
+    tinalux::core::logInfoCat(
+        "render",
+        "Selected Vulkan swapchain format={} color_space={} color_type={} surface_formats={}",
+        static_cast<int>(chosenSurfaceFormat.format),
+        static_cast<int>(chosenSurfaceFormat.colorSpace),
+        static_cast<int>(chosenColorType),
+        supportDetails.formats.size());
 
     VkExtent2D extent = supportDetails.capabilities.currentExtent;
     if (extent.width == std::numeric_limits<uint32_t>::max()) {
@@ -835,13 +859,22 @@ bool createVulkanSwapchain(
         }
     }
 
-    const VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    if ((supportDetails.capabilities.supportedUsageFlags & usageFlags) == 0) {
+    VkImageUsageFlags usageFlags =
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+        | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    if ((supportDetails.capabilities.supportedUsageFlags & usageFlags) != usageFlags) {
         tinalux::core::logErrorCat(
             "render",
-            "Vulkan surface does not support required color attachment usage");
+            "Vulkan surface does not support required usage flags {}",
+            static_cast<uint32_t>(usageFlags));
         destroyVulkanSwapchainState(swapchainState);
         return false;
+    }
+    if ((supportDetails.capabilities.supportedUsageFlags & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) != 0) {
+        usageFlags |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+    }
+    if ((supportDetails.capabilities.supportedUsageFlags & VK_IMAGE_USAGE_SAMPLED_BIT) != 0) {
+        usageFlags |= VK_IMAGE_USAGE_SAMPLED_BIT;
     }
 
     std::vector<uint32_t> queueFamilyIndices {
@@ -1014,34 +1047,45 @@ RenderContext createVulkanContextImpl(const ContextConfig& config)
     }
 
     auto* state = new VulkanContextState();
+    const auto loadInstanceProc = [&](const char* name) -> void* {
+        if (name == nullptr || config.vulkanGetInstanceProc == nullptr) {
+            return nullptr;
+        }
+
+        if (void* proc = config.vulkanGetInstanceProc(instance, name); proc != nullptr) {
+            return proc;
+        }
+
+        return config.vulkanGetInstanceProc(nullptr, name);
+    };
     state->getInstanceProc = config.vulkanGetInstanceProc;
     state->instance = instance;
     state->apiVersion = apiVersion;
     state->destroyInstance = destroyInstance;
     state->instanceExtensions = config.vulkanInstanceExtensions;
     state->enumeratePhysicalDevices = reinterpret_cast<PFN_vkEnumeratePhysicalDevices>(
-        config.vulkanGetInstanceProc(instance, "vkEnumeratePhysicalDevices"));
+        loadInstanceProc("vkEnumeratePhysicalDevices"));
     state->enumerateInstanceExtensionProperties =
         reinterpret_cast<PFN_vkEnumerateInstanceExtensionProperties>(
-            config.vulkanGetInstanceProc(instance, "vkEnumerateInstanceExtensionProperties"));
+            loadInstanceProc("vkEnumerateInstanceExtensionProperties"));
     state->enumerateDeviceExtensionProperties =
         reinterpret_cast<PFN_vkEnumerateDeviceExtensionProperties>(
-            config.vulkanGetInstanceProc(instance, "vkEnumerateDeviceExtensionProperties"));
+            loadInstanceProc("vkEnumerateDeviceExtensionProperties"));
     state->getPhysicalDeviceProperties = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties>(
-        config.vulkanGetInstanceProc(instance, "vkGetPhysicalDeviceProperties"));
+        loadInstanceProc("vkGetPhysicalDeviceProperties"));
     state->getPhysicalDeviceQueueFamilyProperties =
         reinterpret_cast<PFN_vkGetPhysicalDeviceQueueFamilyProperties>(
-            config.vulkanGetInstanceProc(instance, "vkGetPhysicalDeviceQueueFamilyProperties"));
+            loadInstanceProc("vkGetPhysicalDeviceQueueFamilyProperties"));
     state->getPhysicalDeviceFeatures = reinterpret_cast<PFN_vkGetPhysicalDeviceFeatures>(
-        config.vulkanGetInstanceProc(instance, "vkGetPhysicalDeviceFeatures"));
+        loadInstanceProc("vkGetPhysicalDeviceFeatures"));
     state->createDevice = reinterpret_cast<PFN_vkCreateDevice>(
-        config.vulkanGetInstanceProc(instance, "vkCreateDevice"));
+        loadInstanceProc("vkCreateDevice"));
     state->destroyDevice = reinterpret_cast<PFN_vkDestroyDevice>(
-        config.vulkanGetInstanceProc(instance, "vkDestroyDevice"));
+        loadInstanceProc("vkDestroyDevice"));
     state->getDeviceProcAddr = reinterpret_cast<PFN_vkGetDeviceProcAddr>(
-        config.vulkanGetInstanceProc(instance, "vkGetDeviceProcAddr"));
+        loadInstanceProc("vkGetDeviceProcAddr"));
     state->getDeviceQueue = reinterpret_cast<PFN_vkGetDeviceQueue>(
-        config.vulkanGetInstanceProc(instance, "vkGetDeviceQueue"));
+        loadInstanceProc("vkGetDeviceQueue"));
     if (state->enumeratePhysicalDevices == nullptr
         || state->enumerateInstanceExtensionProperties == nullptr
         || state->enumerateDeviceExtensionProperties == nullptr
@@ -1102,9 +1146,12 @@ bool tryCreateSkiaVulkanContext(RenderContext& context)
         if (state->getInstanceProc == nullptr) {
             return nullptr;
         }
-        return reinterpret_cast<PFN_vkVoidFunction>(state->getInstanceProc(
-            opaqueHandle(instance != VK_NULL_HANDLE ? instance : state->instance),
-            name));
+        if (instance != VK_NULL_HANDLE) {
+            if (auto proc = state->getInstanceProc(opaqueHandle(instance), name); proc != nullptr) {
+                return reinterpret_cast<PFN_vkVoidFunction>(proc);
+            }
+        }
+        return reinterpret_cast<PFN_vkVoidFunction>(state->getInstanceProc(nullptr, name));
     };
 
     if (state->enumerateInstanceExtensionProperties == nullptr
@@ -1150,6 +1197,12 @@ bool tryCreateSkiaVulkanContext(RenderContext& context)
     backendContext.fVkExtensions = state->skiaExtensions.get();
     backendContext.fDeviceFeatures = &state->deviceFeatures;
     backendContext.fGetProc = getProc;
+    backendContext.fMemoryAllocator =
+        skgpu::VulkanMemoryAllocators::Make(backendContext, skgpu::ThreadSafe::kNo);
+    if (!backendContext.fMemoryAllocator) {
+        core::logWarnCat("render", "Failed to create Vulkan memory allocator for Skia Ganesh");
+        return false;
+    }
 
     sk_sp<GrDirectContext> skiaContext = GrDirectContexts::MakeVulkan(backendContext);
     if (!skiaContext) {
