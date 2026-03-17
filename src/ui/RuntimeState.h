@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "tinalux/ui/Animation.h"
@@ -18,6 +19,7 @@ public:
     void cancelAnimation(AnimationHandle handle) override;
     void clear();
     bool hasActiveAnimations() const;
+    std::optional<double> nextWakeDelaySeconds(double nowSeconds) const;
     bool tick(double nowSeconds);
 
     struct FrameRequest {
@@ -36,9 +38,12 @@ public:
     };
 
 private:
+    static constexpr double kFrameIntervalSeconds = 1.0 / 60.0;
+
     AnimationHandle nextId_ = 1;
     std::vector<FrameRequest> frameRequests_;
     std::vector<Tween> tweens_;
+    double lastTickTimeSeconds_ = -1.0;
 };
 
 struct RuntimeState {

@@ -2,6 +2,7 @@ add_library(TinaluxApp STATIC
     Application.cpp
     android/AndroidRuntime.cpp
     BackendPlan.cpp
+    LoopTiming.cpp
     RuntimeHooks.cpp
     UIContext.cpp
 )

@@ -5,6 +5,7 @@
 #include <string>
 
 #include "BackendPlan.h"
+#include "LoopTiming.h"
 #include "RuntimeHooks.h"
 #include "UIContext.h"
 #include "tinalux/core/Log.h"
@@ -377,12 +378,18 @@ bool Application::pumpOnce()
         return false;
     }
 
-    if (!impl_->uiContext.shouldRender()) {
-        impl_->uiContext.noteWaitLoop();
-        impl_->window->waitEventsTimeout(kIdleWaitSeconds);
-    } else {
+    const double nowSeconds = ui::animationNowSeconds();
+    const detail::EventLoopDecision loopDecision = detail::chooseEventLoopDecision(
+        impl_->uiContext.hasImmediateRenderWork(),
+        impl_->uiContext.nextAnimationDelaySeconds(nowSeconds),
+        kIdleWaitSeconds);
+
+    if (loopDecision.mode == detail::EventLoopMode::Poll) {
         impl_->uiContext.notePollLoop();
         impl_->window->pollEvents();
+    } else {
+        impl_->uiContext.noteWaitLoop();
+        impl_->window->waitEventsTimeout(loopDecision.waitSeconds);
     }
 
     if (impl_->uiContext.tickAnimations(ui::animationNowSeconds())) {

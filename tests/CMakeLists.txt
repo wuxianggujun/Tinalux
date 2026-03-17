@@ -81,6 +81,11 @@ tinalux_add_smoke_test(TinaluxAppDpiSmoke
     LINK_LIBS Tinalux::App
 )
 
+tinalux_add_smoke_test(TinaluxAppLoopTimingSmoke
+    SOURCE app/application_loop_timing_smoke.cpp
+    LINK_LIBS Tinalux::App
+)
+
 tinalux_add_smoke_test(TinaluxUILayoutSmoke
     SOURCE ui/layout_smoke.cpp
     LINK_LIBS Tinalux::UI

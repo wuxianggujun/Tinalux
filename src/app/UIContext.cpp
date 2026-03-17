@@ -661,10 +661,22 @@ bool UIContext::hasActiveAnimations() const
     return runtimeState_ != nullptr && runtimeState_->animationScheduler.hasActiveAnimations();
 }
 
+std::optional<double> UIContext::nextAnimationDelaySeconds(double nowSeconds) const
+{
+    if (runtimeState_ == nullptr) {
+        return std::nullopt;
+    }
+    return runtimeState_->animationScheduler.nextWakeDelaySeconds(nowSeconds);
+}
+
 bool UIContext::shouldRender() const
 {
+    return hasImmediateRenderWork() || hasActiveAnimations();
+}
+
+bool UIContext::hasImmediateRenderWork() const
+{
     return needsRedraw_
-        || hasActiveAnimations()
         || (rootWidget_ != nullptr && rootWidget_->isDirty())
         || (overlayWidget_ != nullptr && overlayWidget_->isDirty());
 }

@@ -135,6 +135,7 @@ void AnimationScheduler::clear()
 {
     frameRequests_.clear();
     tweens_.clear();
+    lastTickTimeSeconds_ = -1.0;
 }
 
 bool AnimationScheduler::hasActiveAnimations() const
@@ -142,9 +143,31 @@ bool AnimationScheduler::hasActiveAnimations() const
     return !frameRequests_.empty() || !tweens_.empty();
 }
 
+std::optional<double> AnimationScheduler::nextWakeDelaySeconds(double nowSeconds) const
+{
+    if (!hasActiveAnimations()) {
+        return std::nullopt;
+    }
+
+    if (!frameRequests_.empty() || lastTickTimeSeconds_ < 0.0) {
+        return 0.0;
+    }
+
+    for (const auto& tween : tweens_) {
+        if (!tween.started) {
+            return 0.0;
+        }
+    }
+
+    return std::max(0.0, lastTickTimeSeconds_ + kFrameIntervalSeconds - nowSeconds);
+}
+
 bool AnimationScheduler::tick(double nowSeconds)
 {
     bool updated = false;
+    if (hasActiveAnimations()) {
+        lastTickTimeSeconds_ = nowSeconds;
+    }
 
     std::vector<FrameRequest> frameRequests = std::move(frameRequests_);
     frameRequests_.clear();
@@ -188,6 +211,9 @@ bool AnimationScheduler::tick(double nowSeconds)
     }
 
     tweens_ = std::move(nextTweens);
+    if (!hasActiveAnimations()) {
+        lastTickTimeSeconds_ = -1.0;
+    }
     return updated;
 }
 

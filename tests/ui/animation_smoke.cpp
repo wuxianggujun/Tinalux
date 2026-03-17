@@ -52,9 +52,16 @@ int main()
         frameCalled = nowSeconds >= 10.0;
     });
     expect(scheduler.hasActiveAnimations(), "requestAnimationFrame should register pending work");
+    expect(
+        scheduler.nextWakeDelaySeconds(10.0).has_value()
+            && *scheduler.nextWakeDelaySeconds(10.0) == 0.0,
+        "pending frame requests should wake immediately");
     expect(scheduler.tick(10.5), "frame callback should run on tick");
     expect(frameCalled, "frame callback should receive current timestamp");
     expect(!scheduler.hasActiveAnimations(), "frame callback should be one-shot");
+    expect(
+        !scheduler.nextWakeDelaySeconds(10.5).has_value(),
+        "empty scheduler should not request a wake deadline");
 
     std::vector<float> samples;
     bool completed = false;
@@ -70,14 +77,26 @@ int main()
         [&samples](float value) { samples.push_back(value); },
         [&completed] { completed = true; });
 
+    expect(
+        scheduler.nextWakeDelaySeconds(20.0).has_value()
+            && *scheduler.nextWakeDelaySeconds(20.0) == 0.0,
+        "new tweens should wake immediately before their first tick");
     expect(scheduler.tick(20.0), "first tween tick should update animation");
     expect(nearlyEqual(samples.back(), 0.0f), "tween should start from initial value");
+    const auto wakeDelay = scheduler.nextWakeDelaySeconds(20.0);
+    expect(wakeDelay.has_value(), "running tween should expose the next wake delay");
+    expect(
+        *wakeDelay > 0.0 && *wakeDelay < 0.02,
+        "running tween wake delay should stay near one frame interval");
     expect(scheduler.tick(20.5), "mid tween tick should update animation");
     expect(samples.back() > 4.9f && samples.back() < 5.1f, "linear tween midpoint mismatch");
     expect(scheduler.tick(21.0), "final tween tick should update animation");
     expect(nearlyEqual(samples.back(), 10.0f), "tween should end at target value");
     expect(completed, "non-looping tween should call completion");
     expect(!scheduler.hasActiveAnimations(), "completed tween should be removed");
+    expect(
+        !scheduler.nextWakeDelaySeconds(21.0).has_value(),
+        "completed tween should clear wake deadline state");
 
     RuntimeState runtimeA;
     RuntimeState runtimeB;

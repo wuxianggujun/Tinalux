@@ -61,8 +61,10 @@ public:
     bool tickAnimations(double nowSeconds);
     bool tickAsyncResources();
     bool hasActiveAnimations() const;
+    std::optional<double> nextAnimationDelaySeconds(double nowSeconds) const;
 
     bool shouldRender() const;
+    bool hasImmediateRenderWork() const;
     bool render(
         rendering::Canvas& canvas,
         int framebufferWidth,
