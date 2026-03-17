@@ -32,6 +32,11 @@ target_link_libraries(TinaluxRendering
         Skia::Skia
 )
 
+target_compile_definitions(TinaluxRendering
+    PRIVATE
+        SK_USE_INTERNAL_VULKAN_HEADERS
+)
+
 if(ANDROID)
     target_link_libraries(TinaluxRendering PRIVATE GLESv2)
 endif()
