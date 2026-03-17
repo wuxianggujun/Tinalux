@@ -28,6 +28,10 @@ open class TinaluxActivity : Activity() {
     }
 
     protected open fun createSurfaceView(): TinaluxSurfaceView {
-        return TinaluxSurfaceView(this)
+        return TinaluxSurfaceView(this).also {
+            it.setPreferredBackend(preferredBackend())
+        }
     }
+
+    protected open fun preferredBackend(): TinaluxBackend = TinaluxBackend.OpenGL
 }

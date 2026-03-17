@@ -18,6 +18,10 @@ extern "C" {
 
 TINALUX_ANDROID_API void* tinaluxAndroidCreateRuntime(void);
 TINALUX_ANDROID_API void tinaluxAndroidDestroyRuntime(void* runtimeHandle);
+TINALUX_ANDROID_API bool tinaluxAndroidSetPreferredBackend(
+    void* runtimeHandle,
+    int backendCode);
+TINALUX_ANDROID_API int tinaluxAndroidGetPreferredBackend(void* runtimeHandle);
 TINALUX_ANDROID_API bool tinaluxAndroidAttachWindow(
     void* runtimeHandle,
     void* nativeWindow,

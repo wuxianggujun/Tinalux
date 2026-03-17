@@ -32,6 +32,12 @@ class TinaluxSurfaceView @JvmOverloads constructor(
         isFocusableInTouchMode = true
     }
 
+    fun setPreferredBackend(backend: TinaluxBackend) {
+        rendererHost.setPreferredBackend(backend)
+    }
+
+    fun preferredBackend(): TinaluxBackend = rendererHost.preferredBackend()
+
     override fun surfaceCreated(holder: SurfaceHolder) {
         surfaceReady = true
         rendererHost.attachSurface(holder.surface)

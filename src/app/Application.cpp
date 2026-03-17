@@ -501,6 +501,21 @@ rendering::Backend Application::renderBackend() const
     return (impl_ && impl_->context) ? impl_->context.backend() : rendering::Backend::Auto;
 }
 
+void Application::setPreferredRenderBackend(rendering::Backend backend)
+{
+    if (!impl_ || impl_->config.backend == backend) {
+        return;
+    }
+
+    impl_->config.backend = backend;
+    impl_->backendPlan.reset(backend);
+}
+
+rendering::Backend Application::preferredRenderBackend() const
+{
+    return impl_ ? impl_->config.backend : rendering::Backend::Auto;
+}
+
 bool Application::renderFrame()
 {
     if (!impl_ || impl_->window == nullptr || !impl_->context) {

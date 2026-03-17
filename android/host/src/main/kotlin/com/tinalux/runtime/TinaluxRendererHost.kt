@@ -6,16 +6,40 @@ import java.io.Closeable
 
 class TinaluxRendererHost(
     private val dpiScaleProvider: () -> Float,
+    preferredBackend: TinaluxBackend = TinaluxBackend.OpenGL,
 ) : Closeable {
     private var runtimeHandle: Long = 0L
     private var surfaceAttached = false
+    private var preferredBackend: TinaluxBackend = preferredBackend
 
     fun ensureRuntime(): Long {
         if (runtimeHandle == 0L) {
             runtimeHandle = TinaluxNativeBridge.nativeCreateRuntime()
             check(runtimeHandle != 0L) { "Failed to create Tinalux native runtime" }
+            check(
+                TinaluxNativeBridge.nativeSetPreferredBackend(runtimeHandle, preferredBackend.code),
+            ) { "Failed to configure the preferred Tinalux backend" }
         }
         return runtimeHandle
+    }
+
+    fun setPreferredBackend(backend: TinaluxBackend) {
+        preferredBackend = backend
+        if (runtimeHandle != 0L) {
+            check(
+                TinaluxNativeBridge.nativeSetPreferredBackend(runtimeHandle, backend.code),
+            ) { "Failed to switch the preferred Tinalux backend" }
+        }
+    }
+
+    fun preferredBackend(): TinaluxBackend {
+        if (runtimeHandle == 0L) {
+            return preferredBackend
+        }
+
+        return TinaluxBackend.entries.firstOrNull {
+            it.code == TinaluxNativeBridge.nativeGetPreferredBackend(runtimeHandle)
+        } ?: preferredBackend
     }
 
     fun attachSurface(surface: Surface) {

@@ -11,6 +11,13 @@ object TinaluxNativeBridge {
 
     @JvmStatic external fun nativeDestroyRuntime(runtimeHandle: Long)
 
+    @JvmStatic external fun nativeSetPreferredBackend(
+        runtimeHandle: Long,
+        backendCode: Int,
+    ): Boolean
+
+    @JvmStatic external fun nativeGetPreferredBackend(runtimeHandle: Long): Int
+
     @JvmStatic external fun nativeAttachSurface(
         runtimeHandle: Long,
         surface: Surface,

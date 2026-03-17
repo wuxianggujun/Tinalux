@@ -145,6 +145,25 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDestroyRuntime(JNIEnv*, jclas
 }
 
 JNIEXPORT jboolean JNICALL
+Java_com_tinalux_runtime_TinaluxNativeBridge_nativeSetPreferredBackend(
+    JNIEnv*,
+    jclass,
+    jlong runtimeHandle,
+    jint backendCode)
+{
+    return tinaluxAndroidSetPreferredBackend(fromJLong(runtimeHandle), backendCode) ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jint JNICALL
+Java_com_tinalux_runtime_TinaluxNativeBridge_nativeGetPreferredBackend(
+    JNIEnv*,
+    jclass,
+    jlong runtimeHandle)
+{
+    return static_cast<jint>(tinaluxAndroidGetPreferredBackend(fromJLong(runtimeHandle)));
+}
+
+JNIEXPORT jboolean JNICALL
 Java_com_tinalux_runtime_TinaluxNativeBridge_nativeAttachSurface(
     JNIEnv* env,
     jclass,

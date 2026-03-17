@@ -70,6 +70,46 @@ const AndroidRuntimeConfig& AndroidRuntime::config() const
     return impl_->config;
 }
 
+void AndroidRuntime::setPreferredBackend(rendering::Backend backend)
+{
+    if (!impl_ || impl_->config.application.backend == backend) {
+        return;
+    }
+
+    impl_->config.application.backend = backend;
+    impl_->application.setPreferredRenderBackend(backend);
+    if (!impl_->sessionActive || impl_->attachedNativeWindow == nullptr) {
+        return;
+    }
+
+    impl_->clipboardText = clipboardText();
+    if (impl_->application.renderingReady()) {
+        impl_->application.suspendRendering();
+    }
+    if (!impl_->suspended) {
+        platform::WindowConfig windowConfig = makeWindowConfig(
+            impl_->config.application.window,
+            impl_->attachedNativeWindow,
+            impl_->attachedDpiScale);
+        impl_->config.application.window = windowConfig;
+        if (!impl_->application.resumeRendering(windowConfig)) {
+            core::logErrorCat(
+                "app.android",
+                "Android runtime failed to switch backend to '{}'",
+                rendering::backendName(backend));
+            return;
+        }
+        if (impl_->application.window() != nullptr) {
+            impl_->application.window()->setClipboardText(impl_->clipboardText);
+        }
+    }
+}
+
+rendering::Backend AndroidRuntime::preferredBackend() const
+{
+    return impl_ != nullptr ? impl_->config.application.backend : rendering::Backend::OpenGL;
+}
+
 bool AndroidRuntime::attachWindow(void* nativeWindow, float dpiScale)
 {
     if (!impl_) {

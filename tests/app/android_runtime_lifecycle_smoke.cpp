@@ -216,6 +216,9 @@ int main()
 
         app::android::AndroidRuntime runtime;
         expect(
+            runtime.preferredBackend() == Backend::OpenGL,
+            "Default Android runtime should prefer the OpenGL backend");
+        expect(
             runtime.attachWindow(reinterpret_cast<void*>(0x001), 1.0f),
             "Android runtime should attach successfully with the default config");
         expect(
@@ -235,6 +238,9 @@ int main()
         config.application.window.height = 600;
         config.application.backend = Backend::Vulkan;
         runtime.setConfig(config);
+        expect(
+            runtime.preferredBackend() == Backend::Vulkan,
+            "Explicit runtime config should preserve the preferred Vulkan backend");
 
         expect(
             runtime.attachWindow(reinterpret_cast<void*>(0x101), 2.0f),
@@ -297,6 +303,17 @@ int main()
         expect(
             runtime.clipboardText() == "persisted clipboard",
             "Clipboard text should survive suspend/resume");
+
+        runtime.setPreferredBackend(Backend::OpenGL);
+        expect(
+            runtime.preferredBackend() == Backend::OpenGL,
+            "setPreferredBackend should update the preferred backend");
+        expect(
+            gWindowCreates.size() == 4,
+            "Switching backend while active should recreate the window");
+        expect(
+            gContextRequests.size() == 4 && gContextRequests[3] == Backend::OpenGL,
+            "Switching backend while active should request the new backend");
     }
 
     return 0;

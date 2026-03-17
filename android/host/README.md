@@ -10,6 +10,8 @@ Current contents:
 - `TinaluxSurfaceView.kt`: `SurfaceView` wrapper that drives native frames
 - `TinaluxInputConnection.kt`: IME bridge for text input / composition
 - `TinaluxActivity.kt`: minimal host `Activity` that wires the surface lifecycle
+- `TinaluxBackend.kt`: host-visible backend selection enum
+- `TinaluxVulkanValidationActivity.kt`: minimal opt-in Vulkan validation entry
 - touch input is translated into the current mouse-style UI event model
 - system clipboard is mirrored between Android and the native window state
 - `TinaluxSurfaceView` exposes `onHostPause()` / `onHostResume()` helpers for host lifecycle wiring
@@ -20,6 +22,8 @@ Default backend:
 
 - `AndroidRuntimeConfig` defaults to `Backend::OpenGL`
 - Vulkan remains opt-in until Android device-side validation is in place
+- `TinaluxActivity` also defaults to `TinaluxBackend.OpenGL`
+- Kotlin hosts can opt into Vulkan through `setPreferredBackend(...)` or `TinaluxVulkanValidationActivity`
 
 Suggested integration steps:
 

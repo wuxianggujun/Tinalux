@@ -19,6 +19,31 @@ tinalux::app::android::AndroidRuntime* runtimeFromHandle(void* runtimeHandle)
     return static_cast<tinalux::app::android::AndroidRuntime*>(runtimeHandle);
 }
 
+tinalux::rendering::Backend backendFromCode(int backendCode)
+{
+    switch (backendCode) {
+    case 1:
+        return tinalux::rendering::Backend::OpenGL;
+    case 2:
+        return tinalux::rendering::Backend::Vulkan;
+    default:
+        return tinalux::rendering::Backend::Auto;
+    }
+}
+
+int backendToCode(tinalux::rendering::Backend backend)
+{
+    switch (backend) {
+    case tinalux::rendering::Backend::OpenGL:
+        return 1;
+    case tinalux::rendering::Backend::Vulkan:
+        return 2;
+    case tinalux::rendering::Backend::Auto:
+    default:
+        return 0;
+    }
+}
+
 }  // namespace
 
 void* tinaluxAndroidCreateRuntime(void)
@@ -35,6 +60,27 @@ void* tinaluxAndroidCreateRuntime(void)
 void tinaluxAndroidDestroyRuntime(void* runtimeHandle)
 {
     delete runtimeFromHandle(runtimeHandle);
+}
+
+bool tinaluxAndroidSetPreferredBackend(void* runtimeHandle, int backendCode)
+{
+    auto* runtime = runtimeFromHandle(runtimeHandle);
+    if (runtime == nullptr) {
+        return false;
+    }
+
+    runtime->setPreferredBackend(backendFromCode(backendCode));
+    return true;
+}
+
+int tinaluxAndroidGetPreferredBackend(void* runtimeHandle)
+{
+    auto* runtime = runtimeFromHandle(runtimeHandle);
+    if (runtime == nullptr) {
+        return backendToCode(tinalux::rendering::Backend::OpenGL);
+    }
+
+    return backendToCode(runtime->preferredBackend());
 }
 
 bool tinaluxAndroidAttachWindow(

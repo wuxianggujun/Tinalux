@@ -83,6 +83,8 @@ public:
     void setDebugHudConfig(DebugHudConfig config);
     DebugHudConfig debugHudConfig() const;
     rendering::Backend renderBackend() const;
+    void setPreferredRenderBackend(rendering::Backend backend);
+    rendering::Backend preferredRenderBackend() const;
 
 private:
     friend struct detail::ApplicationTestAccess;
