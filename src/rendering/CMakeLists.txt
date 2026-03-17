@@ -32,6 +32,10 @@ target_link_libraries(TinaluxRendering
         Skia::Skia
 )
 
+if(ANDROID)
+    target_link_libraries(TinaluxRendering PRIVATE GLESv2)
+endif()
+
 if(APPLE)
     find_library(TINALUX_METAL_FRAMEWORK Metal REQUIRED)
     find_library(TINALUX_QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)

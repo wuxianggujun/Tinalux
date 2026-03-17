@@ -8,6 +8,9 @@
 #include "include/ports/SkTypeface_win.h"
 #elif defined(__APPLE__)
 #include "include/ports/SkFontMgr_mac_ct.h"
+#elif defined(__ANDROID__)
+#include "include/ports/SkFontMgr_android_ndk.h"
+#include "include/ports/SkFontScanner_FreeType.h"
 #elif defined(__linux__)
 #include "include/ports/SkFontMgr_fontconfig.h"
 #endif
@@ -25,6 +28,11 @@ sk_sp<SkFontMgr> paragraphFontManager()
     return SkFontMgr_New_DirectWrite();
 #elif defined(__APPLE__)
     return SkFontMgr_New_CoreText(nullptr);
+#elif defined(__ANDROID__)
+    if (auto manager = SkFontMgr_New_AndroidNDK(false, SkFontScanner_Make_FreeType())) {
+        return manager;
+    }
+    return SkFontMgr::RefEmpty();
 #elif defined(__linux__)
     return SkFontMgr::RefEmpty();
 #else
@@ -51,21 +59,37 @@ sk_sp<SkUnicode> paragraphUnicode()
 
 std::vector<SkString> defaultParagraphFontFamilies()
 {
+#if defined(__ANDROID__)
+    return {
+        SkString("sans-serif"),
+        SkString("Roboto"),
+        SkString("sans-serif-medium"),
+    };
+#else
     return {
         SkString("Segoe UI"),
         SkString("Microsoft YaHei UI"),
         SkString("Arial"),
     };
+#endif
 }
 
 std::vector<SkString> codeParagraphFontFamilies()
 {
+#if defined(__ANDROID__)
+    return {
+        SkString("monospace"),
+        SkString("Roboto Mono"),
+        SkString("Droid Sans Mono"),
+    };
+#else
     return {
         SkString("Cascadia Mono"),
         SkString("JetBrains Mono"),
         SkString("Consolas"),
         SkString("Courier New"),
     };
+#endif
 }
 
 std::vector<SkString> toSkStringFamilies(const std::vector<std::string>& families)

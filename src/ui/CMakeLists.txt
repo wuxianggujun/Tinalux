@@ -62,20 +62,39 @@ if(MSVC)
     target_compile_options(TinaluxUI PRIVATE /MP1 /bigobj)
 endif()
 
+set(TINALUX_SKIA_STATIC_PREFIX "${CMAKE_STATIC_LIBRARY_PREFIX}")
+set(TINALUX_SKIA_STATIC_SUFFIX "${CMAKE_STATIC_LIBRARY_SUFFIX}")
+
+function(tinalux_skia_runtime_lib out_var config_name lib_name)
+    set(${out_var}
+        "${SKIA_BUILD_DIR}/${config_name}/${TINALUX_SKIA_STATIC_PREFIX}${lib_name}${TINALUX_SKIA_STATIC_SUFFIX}"
+        PARENT_SCOPE
+    )
+endfunction()
+
+tinalux_skia_runtime_lib(TINALUX_SKIA_DEBUG_SKPARAGRAPH Debug skparagraph)
+tinalux_skia_runtime_lib(TINALUX_SKIA_DEBUG_SKSHAPER Debug skshaper)
+tinalux_skia_runtime_lib(TINALUX_SKIA_DEBUG_SKUNICODE_CORE Debug skunicode_core)
+tinalux_skia_runtime_lib(TINALUX_SKIA_DEBUG_SKUNICODE_ICU Debug skunicode_icu)
+tinalux_skia_runtime_lib(TINALUX_SKIA_RELEASE_SKPARAGRAPH Release skparagraph)
+tinalux_skia_runtime_lib(TINALUX_SKIA_RELEASE_SKSHAPER Release skshaper)
+tinalux_skia_runtime_lib(TINALUX_SKIA_RELEASE_SKUNICODE_CORE Release skunicode_core)
+tinalux_skia_runtime_lib(TINALUX_SKIA_RELEASE_SKUNICODE_ICU Release skunicode_icu)
+
 if(CMAKE_CONFIGURATION_TYPES)
     target_link_libraries(TinaluxUI
         PUBLIC
             Tinalux::Core
             Tinalux::Rendering
             Skia::Skia
-            "$<$<CONFIG:Debug>:${SKIA_BUILD_DIR}/Debug/skparagraph.lib>"
-            "$<$<CONFIG:Debug>:${SKIA_BUILD_DIR}/Debug/skshaper.lib>"
-            "$<$<CONFIG:Debug>:${SKIA_BUILD_DIR}/Debug/skunicode_core.lib>"
-            "$<$<CONFIG:Debug>:${SKIA_BUILD_DIR}/Debug/skunicode_icu.lib>"
-            "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:${SKIA_BUILD_DIR}/Release/skparagraph.lib>"
-            "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:${SKIA_BUILD_DIR}/Release/skshaper.lib>"
-            "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:${SKIA_BUILD_DIR}/Release/skunicode_core.lib>"
-            "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:${SKIA_BUILD_DIR}/Release/skunicode_icu.lib>"
+            "$<$<CONFIG:Debug>:${TINALUX_SKIA_DEBUG_SKPARAGRAPH}>"
+            "$<$<CONFIG:Debug>:${TINALUX_SKIA_DEBUG_SKSHAPER}>"
+            "$<$<CONFIG:Debug>:${TINALUX_SKIA_DEBUG_SKUNICODE_CORE}>"
+            "$<$<CONFIG:Debug>:${TINALUX_SKIA_DEBUG_SKUNICODE_ICU}>"
+            "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:${TINALUX_SKIA_RELEASE_SKPARAGRAPH}>"
+            "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:${TINALUX_SKIA_RELEASE_SKSHAPER}>"
+            "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:${TINALUX_SKIA_RELEASE_SKUNICODE_CORE}>"
+            "$<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>,$<CONFIG:MinSizeRel>>:${TINALUX_SKIA_RELEASE_SKUNICODE_ICU}>"
     )
 else()
     target_link_libraries(TinaluxUI
@@ -83,9 +102,9 @@ else()
             Tinalux::Core
             Tinalux::Rendering
             Skia::Skia
-            "${SKIA_BUILD_DIR}/${SKIA_BUILD_TYPE}/skparagraph.lib"
-            "${SKIA_BUILD_DIR}/${SKIA_BUILD_TYPE}/skshaper.lib"
-            "${SKIA_BUILD_DIR}/${SKIA_BUILD_TYPE}/skunicode_core.lib"
-            "${SKIA_BUILD_DIR}/${SKIA_BUILD_TYPE}/skunicode_icu.lib"
+            "${SKIA_BUILD_DIR}/${SKIA_BUILD_TYPE}/${TINALUX_SKIA_STATIC_PREFIX}skparagraph${TINALUX_SKIA_STATIC_SUFFIX}"
+            "${SKIA_BUILD_DIR}/${SKIA_BUILD_TYPE}/${TINALUX_SKIA_STATIC_PREFIX}skshaper${TINALUX_SKIA_STATIC_SUFFIX}"
+            "${SKIA_BUILD_DIR}/${SKIA_BUILD_TYPE}/${TINALUX_SKIA_STATIC_PREFIX}skunicode_core${TINALUX_SKIA_STATIC_SUFFIX}"
+            "${SKIA_BUILD_DIR}/${SKIA_BUILD_TYPE}/${TINALUX_SKIA_STATIC_PREFIX}skunicode_icu${TINALUX_SKIA_STATIC_SUFFIX}"
     )
 endif()

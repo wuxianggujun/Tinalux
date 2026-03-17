@@ -8,7 +8,11 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <android/native_window.h>
-#include <glad/vulkan.h>
+
+#ifndef VK_USE_PLATFORM_ANDROID_KHR
+#define VK_USE_PLATFORM_ANDROID_KHR 1
+#endif
+#include <vulkan/vulkan.h>
 
 #include "tinalux/core/Log.h"
 #include "../../rendering/HandleCast.h"
@@ -200,7 +204,7 @@ GLGetProcFn AndroidWindow::glGetProcAddress() const
 
 bool AndroidWindow::vulkanSupported() const
 {
-    return nativeWindow_ != nullptr && vkGetInstanceProcAddr != nullptr;
+    return nativeWindow_ != nullptr;
 }
 
 std::vector<std::string> AndroidWindow::requiredVulkanInstanceExtensions() const

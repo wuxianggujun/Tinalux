@@ -8,7 +8,10 @@ param(
     [string]$BuildRoot = "",
     [switch]$StageToSdk,
     [string]$SdkModuleRoot = "",
-    [string]$SourceIcuData = ""
+    [string]$SourceIcuData = "",
+    [string]$CmakePath = "",
+    [string]$NinjaPath = "",
+    [Version]$MinimumCmakeVersion = ([Version]"3.31.0")
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,6 +22,69 @@ function Resolve-FullPath {
         throw "Path not found: $PathValue"
     }
     return [System.IO.Path]::GetFullPath((Resolve-Path $PathValue).Path)
+}
+
+function Find-FirstExistingPath {
+    param([string[]]$Candidates)
+
+    foreach ($candidate in $Candidates) {
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path $candidate)) {
+            return [System.IO.Path]::GetFullPath((Resolve-Path $candidate).Path)
+        }
+    }
+
+    return $null
+}
+
+function Get-CmakeVersion {
+    param([string]$ExecutablePath)
+
+    try {
+        $versionOutput = & $ExecutablePath --version 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $versionOutput) {
+            return $null
+        }
+
+        $firstLine = ($versionOutput | Select-Object -First 1)
+        if ($firstLine -match 'cmake version ([0-9]+\.[0-9]+\.[0-9]+)') {
+            return [Version]$Matches[1]
+        }
+    } catch {
+        return $null
+    }
+
+    return $null
+}
+
+function Select-CompatibleCmake {
+    param(
+        [string[]]$Candidates,
+        [Version]$MinimumVersion
+    )
+
+    foreach ($candidate in $Candidates) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) {
+            continue
+        }
+
+        $resolvedCandidate = $candidate
+        if ($candidate -ne "cmake" -and -not (Test-Path $candidate)) {
+            continue
+        }
+        if ($candidate -ne "cmake") {
+            $resolvedCandidate = [System.IO.Path]::GetFullPath((Resolve-Path $candidate).Path)
+        }
+
+        $detectedVersion = Get-CmakeVersion $resolvedCandidate
+        if ($null -ne $detectedVersion -and $detectedVersion -ge $MinimumVersion) {
+            return @{
+                Path = $resolvedCandidate
+                Version = $detectedVersion
+            }
+        }
+    }
+
+    return $null
 }
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
@@ -45,6 +111,48 @@ if (-not (Test-Path $toolchainFile)) {
     throw "Android toolchain file not found: $toolchainFile"
 }
 
+$sdkRoot = [System.IO.Path]::GetFullPath((Join-Path $NdkPath "..\.."))
+$sdkCmakeRoot = Join-Path $sdkRoot "cmake"
+$sdkCmakeVersionDir = $null
+if (Test-Path $sdkCmakeRoot) {
+    $sdkCmakeVersionDir = Get-ChildItem $sdkCmakeRoot -Directory |
+        Sort-Object Name -Descending |
+        Select-Object -First 1
+}
+
+if ([string]::IsNullOrWhiteSpace($CmakePath)) {
+    $selectedCmake = Select-CompatibleCmake -Candidates @(
+        "cmake",
+        $(if ($sdkCmakeVersionDir) { Join-Path $sdkCmakeVersionDir.FullName "bin\cmake.exe" })
+    ) -MinimumVersion $MinimumCmakeVersion
+    if ($null -eq $selectedCmake) {
+        throw "Failed to locate a compatible cmake.exe (minimum version $MinimumCmakeVersion). Pass -CmakePath explicitly."
+    }
+    $CmakePath = $selectedCmake.Path
+    $detectedCmakeVersion = $selectedCmake.Version
+} else {
+    if ($CmakePath -ne "cmake") {
+        $CmakePath = Resolve-FullPath $CmakePath
+    }
+    $detectedCmakeVersion = Get-CmakeVersion $CmakePath
+    if ($null -eq $detectedCmakeVersion -or $detectedCmakeVersion -lt $MinimumCmakeVersion) {
+        throw "Configured CMake '$CmakePath' does not satisfy the minimum version $MinimumCmakeVersion."
+    }
+}
+
+if ([string]::IsNullOrWhiteSpace($NinjaPath) -and $Generator -eq "Ninja") {
+    $NinjaPath = Find-FirstExistingPath @(
+        $(if ($sdkCmakeVersionDir) { Join-Path $sdkCmakeVersionDir.FullName "bin\ninja.exe" }),
+        "ninja"
+    )
+}
+if ($Generator -eq "Ninja" -and [string]::IsNullOrWhiteSpace($NinjaPath)) {
+    throw "Failed to locate ninja.exe for the Ninja generator. Pass -NinjaPath explicitly."
+}
+if (-not [string]::IsNullOrWhiteSpace($NinjaPath) -and $NinjaPath -ne "ninja") {
+    $NinjaPath = Resolve-FullPath $NinjaPath
+}
+
 $configureArgs = @(
     "-S", $repoRoot,
     "-B", $BuildRoot,
@@ -57,6 +165,9 @@ $configureArgs = @(
     "-DANDROID_STL=c++_static",
     "-DTINALUX_BUILD_TESTS=OFF"
 )
+if ($Generator -eq "Ninja" -and -not [string]::IsNullOrWhiteSpace($NinjaPath)) {
+    $configureArgs += "-DCMAKE_MAKE_PROGRAM=$NinjaPath"
+}
 
 Write-Host "Configuring Android native build:"
 Write-Host "  Repo:       $repoRoot"
@@ -65,14 +176,18 @@ Write-Host "  ABI:        $Abi"
 Write-Host "  API Level:  android-$ApiLevel"
 Write-Host "  BuildType:  $BuildType"
 Write-Host "  NDK:        $NdkPath"
+Write-Host "  CMake:      $CmakePath ($detectedCmakeVersion)"
+if ($Generator -eq "Ninja") {
+    Write-Host "  Ninja:      $NinjaPath"
+}
 Write-Host ""
 
-& cmake @configureArgs
+& $CmakePath @configureArgs
 if ($LASTEXITCODE -ne 0) {
     throw "CMake configure failed."
 }
 
-& cmake --build $BuildRoot --config $BuildType --target TinaluxAndroidNative
+& $CmakePath --build $BuildRoot --config $BuildType --target TinaluxAndroidNative
 if ($LASTEXITCODE -ne 0) {
     throw "CMake build failed."
 }
