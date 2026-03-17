@@ -11,10 +11,10 @@ Current entry points:
 
 How to use:
 
-1. Build `libtinalux_native.so` for your target ABI with the Android toolchain.
-2. Stage the artifact into `:tinalux-sdk` with:
-   - `powershell -ExecutionPolicy Bypass -File scripts/stage_android_validation_artifacts.ps1 -SourceLibrary <path-to-libtinalux_native.so> -Abi arm64-v8a`
-3. Open `android/validation-app` in Android Studio.
+1. Build and stage the Android shared library with:
+   - `powershell -ExecutionPolicy Bypass -File scripts/build_android_native.ps1 -Abi arm64-v8a -StageToSdk`
+2. Open `android/validation-app` in Android Studio.
+3. Sync Gradle.
 4. Run `MainActivity` for the default Android OpenGL backend.
 5. Launch `VulkanValidationActivity` manually when you want to validate the
    Vulkan path.

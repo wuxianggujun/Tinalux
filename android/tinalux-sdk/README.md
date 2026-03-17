@@ -18,9 +18,15 @@ Current public entry points:
 
 How to use:
 
-1. Stage `libtinalux_native.so` into `src/main/jniLibs/<abi>`.
+1. Build and stage the Android shared library:
+   - `powershell -ExecutionPolicy Bypass -File ../../scripts/build_android_native.ps1 -Abi arm64-v8a -StageToSdk`
 2. Add this module as an Android library dependency.
 3. Start from `TinaluxActivity` or embed `TinaluxSurfaceView` directly.
+
+Build guard:
+
+- `preBuild` verifies that `src/main/jniLibs/<abi>/libtinalux_native.so` exists
+- if the library is missing, the Gradle build fails with an actionable message
 
 Current limitation:
 

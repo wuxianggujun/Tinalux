@@ -1,3 +1,5 @@
+import org.gradle.api.GradleException
+
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
@@ -47,4 +49,44 @@ android {
 }
 
 dependencies {
+}
+
+val verifyTinaluxNativeArtifacts by tasks.registering {
+    group = "verification"
+    description = "Ensures the staged Tinalux native artifacts exist before packaging the SDK."
+
+    doLast {
+        val jniLibRoot = layout.projectDirectory.dir("src/main/jniLibs").asFile
+        val nativeLibraries = if (jniLibRoot.exists()) {
+            jniLibRoot.walkTopDown()
+                .filter { it.isFile && it.name == "libtinalux_native.so" }
+                .toList()
+        } else {
+            emptyList()
+        }
+
+        if (nativeLibraries.isEmpty()) {
+            throw GradleException(
+                """
+                Missing staged Tinalux native library.
+                Build the Android shared library first, then stage it into this module.
+
+                Recommended command:
+                  powershell -ExecutionPolicy Bypass -File ../../scripts/build_android_native.ps1 -Abi arm64-v8a -StageToSdk
+                """.trimIndent(),
+            )
+        }
+
+        val assetsDir = layout.projectDirectory.dir("src/main/assets").asFile
+        if (!assetsDir.resolve("icudtl.dat").exists()) {
+            logger.lifecycle(
+                "Optional Skia runtime asset icudtl.dat was not staged. " +
+                    "If your Android configuration requires it, stage it alongside the native library."
+            )
+        }
+    }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn(verifyTinaluxNativeArtifacts)
 }
