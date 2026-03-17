@@ -71,6 +71,11 @@ tinalux_add_smoke_test(TinaluxAppBackendFallbackSmoke
     LINK_LIBS Tinalux::App
 )
 
+tinalux_add_smoke_test(TinaluxAppAndroidRuntimeLifecycleSmoke
+    SOURCE app/android_runtime_lifecycle_smoke.cpp
+    LINK_LIBS Tinalux::App
+)
+
 tinalux_add_smoke_test(TinaluxUILayoutSmoke
     SOURCE ui/layout_smoke.cpp
     LINK_LIBS Tinalux::UI
