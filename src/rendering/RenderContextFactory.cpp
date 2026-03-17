@@ -84,8 +84,8 @@ RenderContext createContext(const ContextConfig& config)
                 "render",
                 "Render backend selection: Auto skipped Vulkan because bootstrap callbacks or extensions are missing");
         }
-        if (canCreateOpenGLContext(config.glGetProc)) {
-            if (RenderContext openGlContext = createOpenGLContextImpl(config.glGetProc)) {
+        if (canCreateOpenGLContext(config.openGL.getProc)) {
+            if (RenderContext openGlContext = createOpenGLContextImpl(config.openGL.getProc)) {
                 core::logInfoCat("render", "Render backend selection: Auto -> OpenGL");
                 return openGlContext;
             }
@@ -98,7 +98,7 @@ RenderContext createContext(const ContextConfig& config)
         return {};
     }
     case Backend::OpenGL:
-        return createOpenGLContextImpl(config.glGetProc);
+        return createOpenGLContextImpl(config.openGL.getProc);
     case Backend::Vulkan:
         return createVulkanContextImpl(config);
     case Backend::Metal:

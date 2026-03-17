@@ -966,22 +966,23 @@ namespace tinalux::rendering {
 
 bool canCreateVulkanContext(const ContextConfig& config)
 {
-    return config.vulkanGetInstanceProc != nullptr && !config.vulkanInstanceExtensions.empty();
+    return config.vulkan.getInstanceProc != nullptr
+        && !config.vulkan.instanceExtensions.empty();
 }
 
 RenderContext createVulkanContextImpl(const ContextConfig& config)
 {
-    if (config.vulkanGetInstanceProc == nullptr) {
+    if (config.vulkan.getInstanceProc == nullptr) {
         core::logErrorCat("render", "Cannot create Vulkan context: proc loader callback is null");
         return {};
     }
-    if (config.vulkanInstanceExtensions.empty()) {
+    if (config.vulkan.instanceExtensions.empty()) {
         core::logErrorCat("render", "Cannot create Vulkan context: required instance extensions are missing");
         return {};
     }
 
     auto createInstance = reinterpret_cast<PFN_vkCreateInstance>(
-        config.vulkanGetInstanceProc(nullptr, "vkCreateInstance"));
+        config.vulkan.getInstanceProc(nullptr, "vkCreateInstance"));
     if (createInstance == nullptr) {
         core::logErrorCat("render", "Cannot create Vulkan context: vkCreateInstance is unavailable");
         return {};
@@ -989,7 +990,7 @@ RenderContext createVulkanContextImpl(const ContextConfig& config)
 
     uint32_t apiVersion = VK_API_VERSION_1_0;
     auto enumerateInstanceVersion = reinterpret_cast<PFN_vkEnumerateInstanceVersion>(
-        config.vulkanGetInstanceProc(nullptr, "vkEnumerateInstanceVersion"));
+        config.vulkan.getInstanceProc(nullptr, "vkEnumerateInstanceVersion"));
     if (enumerateInstanceVersion != nullptr) {
         uint32_t reportedVersion = VK_API_VERSION_1_0;
         if (enumerateInstanceVersion(&reportedVersion) == VK_SUCCESS) {
@@ -1007,8 +1008,8 @@ RenderContext createVulkanContextImpl(const ContextConfig& config)
     }
 
     std::vector<const char*> extensionNames;
-    extensionNames.reserve(config.vulkanInstanceExtensions.size());
-    for (const std::string& extension : config.vulkanInstanceExtensions) {
+    extensionNames.reserve(config.vulkan.instanceExtensions.size());
+    for (const std::string& extension : config.vulkan.instanceExtensions) {
         extensionNames.push_back(extension.c_str());
     }
 
@@ -1022,7 +1023,7 @@ RenderContext createVulkanContextImpl(const ContextConfig& config)
 
     VkInstanceCreateInfo createInfo {};
     createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    createInfo.flags = instanceCreateFlagsForExtensions(config.vulkanInstanceExtensions);
+    createInfo.flags = instanceCreateFlagsForExtensions(config.vulkan.instanceExtensions);
     createInfo.pApplicationInfo = &applicationInfo;
     createInfo.enabledExtensionCount = static_cast<uint32_t>(extensionNames.size());
     createInfo.ppEnabledExtensionNames = extensionNames.data();
@@ -1038,7 +1039,7 @@ RenderContext createVulkanContextImpl(const ContextConfig& config)
     }
 
     auto destroyInstance = reinterpret_cast<PFN_vkDestroyInstance>(
-        config.vulkanGetInstanceProc(instance, "vkDestroyInstance"));
+        config.vulkan.getInstanceProc(instance, "vkDestroyInstance"));
     if (destroyInstance == nullptr) {
         core::logErrorCat(
             "render",
@@ -1048,21 +1049,21 @@ RenderContext createVulkanContextImpl(const ContextConfig& config)
 
     auto* state = new VulkanContextState();
     const auto loadInstanceProc = [&](const char* name) -> void* {
-        if (name == nullptr || config.vulkanGetInstanceProc == nullptr) {
+        if (name == nullptr || config.vulkan.getInstanceProc == nullptr) {
             return nullptr;
         }
 
-        if (void* proc = config.vulkanGetInstanceProc(instance, name); proc != nullptr) {
+        if (void* proc = config.vulkan.getInstanceProc(instance, name); proc != nullptr) {
             return proc;
         }
 
-        return config.vulkanGetInstanceProc(nullptr, name);
+        return config.vulkan.getInstanceProc(nullptr, name);
     };
-    state->getInstanceProc = config.vulkanGetInstanceProc;
+    state->getInstanceProc = config.vulkan.getInstanceProc;
     state->instance = instance;
     state->apiVersion = apiVersion;
     state->destroyInstance = destroyInstance;
-    state->instanceExtensions = config.vulkanInstanceExtensions;
+    state->instanceExtensions = config.vulkan.instanceExtensions;
     state->enumeratePhysicalDevices = reinterpret_cast<PFN_vkEnumeratePhysicalDevices>(
         loadInstanceProc("vkEnumeratePhysicalDevices"));
     state->enumerateInstanceExtensionProperties =

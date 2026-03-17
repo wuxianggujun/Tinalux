@@ -253,9 +253,13 @@ bool Application::tryInitializeBackend(
 
     rendering::ContextConfig contextConfig {
         .backend = backend,
-        .glGetProc = candidateWindow->glGetProcAddress(),
-        .vulkanGetInstanceProc = candidateWindow->vulkanGetInstanceProcAddress(),
-        .vulkanInstanceExtensions = candidateWindow->requiredVulkanInstanceExtensions(),
+        .openGL = {
+            .getProc = candidateWindow->glGetProcAddress(),
+        },
+        .vulkan = {
+            .getInstanceProc = candidateWindow->vulkanGetInstanceProcAddress(),
+            .instanceExtensions = candidateWindow->requiredVulkanInstanceExtensions(),
+        },
     };
     rendering::RenderContext candidateContext =
         detail::runtimeHooks().createContext(contextConfig);

@@ -34,11 +34,19 @@ enum class PaintStyle {
     Stroke,
 };
 
+struct OpenGLContextConfig {
+    GLGetProcFn getProc = nullptr;
+};
+
+struct VulkanContextConfig {
+    VulkanGetInstanceProcFn getInstanceProc = nullptr;
+    std::vector<std::string> instanceExtensions;
+};
+
 struct ContextConfig {
     Backend backend = Backend::Auto;
-    GLGetProcFn glGetProc = nullptr;
-    VulkanGetInstanceProcFn vulkanGetInstanceProc = nullptr;
-    std::vector<std::string> vulkanInstanceExtensions;
+    OpenGLContextConfig openGL;
+    VulkanContextConfig vulkan;
 };
 
 class Image {

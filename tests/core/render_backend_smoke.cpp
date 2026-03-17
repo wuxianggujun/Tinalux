@@ -351,8 +351,10 @@ int main()
     expect(
         !createContext(ContextConfig {
             .backend = Backend::Vulkan,
-            .vulkanGetInstanceProc = [](void*, const char*) -> void* { return nullptr; },
-            .vulkanInstanceExtensions = { "VK_KHR_surface" },
+            .vulkan = {
+                .getInstanceProc = [](void*, const char*) -> void* { return nullptr; },
+                .instanceExtensions = { "VK_KHR_surface" },
+            },
         }),
         "Vulkan selection without vkCreateInstance should fail cleanly");
 
@@ -377,10 +379,12 @@ int main()
     {
         RenderContext portabilityContext = createContext(ContextConfig {
             .backend = Backend::Vulkan,
-            .vulkanGetInstanceProc = &fakeVulkanLoader,
-            .vulkanInstanceExtensions = {
-                "VK_KHR_surface",
-                VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
+            .vulkan = {
+                .getInstanceProc = &fakeVulkanLoader,
+                .instanceExtensions = {
+                    "VK_KHR_surface",
+                    VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
+                },
             },
         });
         expect(
@@ -396,8 +400,10 @@ int main()
     {
         RenderContext context = createContext(ContextConfig {
             .backend = Backend::Vulkan,
-            .vulkanGetInstanceProc = &fakeVulkanLoader,
-            .vulkanInstanceExtensions = { "VK_KHR_surface" },
+            .vulkan = {
+                .getInstanceProc = &fakeVulkanLoader,
+                .instanceExtensions = { "VK_KHR_surface" },
+            },
         });
         expect(
             static_cast<bool>(context),
@@ -436,8 +442,10 @@ int main()
     {
         RenderContext autoContext = createContext(ContextConfig {
             .backend = Backend::Auto,
-            .vulkanGetInstanceProc = &fakeVulkanLoader,
-            .vulkanInstanceExtensions = { "VK_KHR_surface" },
+            .vulkan = {
+                .getInstanceProc = &fakeVulkanLoader,
+                .instanceExtensions = { "VK_KHR_surface" },
+            },
         });
         expect(
             static_cast<bool>(autoContext),
