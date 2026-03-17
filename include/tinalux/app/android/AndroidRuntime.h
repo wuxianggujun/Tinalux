@@ -1,8 +1,11 @@
 #pragma once
 
 #include <memory>
+#include <optional>
+#include <string>
 
 #include "tinalux/app/Application.h"
+#include "tinalux/core/Geometry.h"
 
 namespace tinalux::app::android {
 
@@ -27,6 +30,14 @@ public:
     bool dispatchPointerMove(double x, double y);
     bool dispatchPointerDown(double x, double y);
     bool dispatchPointerUp(double x, double y);
+    bool textInputActive() const;
+    std::optional<core::Rect> textInputCursorRect() const;
+    bool dispatchKeyDown(int key, int modifiers = 0, bool repeat = false);
+    bool dispatchKeyUp(int key, int modifiers = 0);
+    bool dispatchTextInput(std::string text);
+    bool dispatchCompositionStart();
+    bool dispatchCompositionUpdate(std::string text, std::optional<std::size_t> caretUtf8Offset);
+    bool dispatchCompositionEnd();
     void shutdown();
 
     Application* application();

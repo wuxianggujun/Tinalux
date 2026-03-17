@@ -1,6 +1,8 @@
 #include "tinalux/app/android/AndroidNativeBridge.h"
 
+#include <cstddef>
 #include <new>
+#include <optional>
 
 #include "tinalux/app/android/AndroidRuntime.h"
 #include "tinalux/core/Log.h"
@@ -131,4 +133,119 @@ bool tinaluxAndroidDispatchPointerUp(void* runtimeHandle, double x, double y)
     }
 
     return runtime->dispatchPointerUp(x, y);
+}
+
+bool tinaluxAndroidTextInputActive(void* runtimeHandle)
+{
+    auto* runtime = runtimeFromHandle(runtimeHandle);
+    return runtime != nullptr && runtime->textInputActive();
+}
+
+bool tinaluxAndroidGetTextInputCursorRect(
+    void* runtimeHandle,
+    float* left,
+    float* top,
+    float* right,
+    float* bottom)
+{
+    auto* runtime = runtimeFromHandle(runtimeHandle);
+    if (runtime == nullptr || left == nullptr || top == nullptr || right == nullptr || bottom == nullptr) {
+        return false;
+    }
+
+    const auto rect = runtime->textInputCursorRect();
+    if (!rect.has_value()) {
+        return false;
+    }
+
+    *left = rect->left();
+    *top = rect->top();
+    *right = rect->right();
+    *bottom = rect->bottom();
+    return true;
+}
+
+bool tinaluxAndroidDispatchKeyDown(void* runtimeHandle, int key, int modifiers, bool repeat)
+{
+    auto* runtime = runtimeFromHandle(runtimeHandle);
+    if (runtime == nullptr) {
+        tinalux::core::logErrorCat(
+            "app.android",
+            "DispatchKeyDown ignored because runtime handle is null");
+        return false;
+    }
+
+    return runtime->dispatchKeyDown(key, modifiers, repeat);
+}
+
+bool tinaluxAndroidDispatchKeyUp(void* runtimeHandle, int key, int modifiers)
+{
+    auto* runtime = runtimeFromHandle(runtimeHandle);
+    if (runtime == nullptr) {
+        tinalux::core::logErrorCat(
+            "app.android",
+            "DispatchKeyUp ignored because runtime handle is null");
+        return false;
+    }
+
+    return runtime->dispatchKeyUp(key, modifiers);
+}
+
+bool tinaluxAndroidDispatchTextInputUtf8(void* runtimeHandle, const char* utf8Text)
+{
+    auto* runtime = runtimeFromHandle(runtimeHandle);
+    if (runtime == nullptr) {
+        tinalux::core::logErrorCat(
+            "app.android",
+            "DispatchTextInputUtf8 ignored because runtime handle is null");
+        return false;
+    }
+
+    return runtime->dispatchTextInput(utf8Text != nullptr ? utf8Text : "");
+}
+
+bool tinaluxAndroidDispatchCompositionStart(void* runtimeHandle)
+{
+    auto* runtime = runtimeFromHandle(runtimeHandle);
+    if (runtime == nullptr) {
+        tinalux::core::logErrorCat(
+            "app.android",
+            "DispatchCompositionStart ignored because runtime handle is null");
+        return false;
+    }
+
+    return runtime->dispatchCompositionStart();
+}
+
+bool tinaluxAndroidDispatchCompositionUpdate(
+    void* runtimeHandle,
+    const char* utf8Text,
+    int caretUtf8Offset)
+{
+    auto* runtime = runtimeFromHandle(runtimeHandle);
+    if (runtime == nullptr) {
+        tinalux::core::logErrorCat(
+            "app.android",
+            "DispatchCompositionUpdate ignored because runtime handle is null");
+        return false;
+    }
+
+    return runtime->dispatchCompositionUpdate(
+        utf8Text != nullptr ? utf8Text : "",
+        caretUtf8Offset >= 0
+            ? std::make_optional(static_cast<std::size_t>(caretUtf8Offset))
+            : std::nullopt);
+}
+
+bool tinaluxAndroidDispatchCompositionEnd(void* runtimeHandle)
+{
+    auto* runtime = runtimeFromHandle(runtimeHandle);
+    if (runtime == nullptr) {
+        tinalux::core::logErrorCat(
+            "app.android",
+            "DispatchCompositionEnd ignored because runtime handle is null");
+        return false;
+    }
+
+    return runtime->dispatchCompositionEnd();
 }

@@ -1,5 +1,6 @@
 package com.tinalux.runtime
 
+import android.graphics.Rect
 import android.view.Surface
 import java.io.Closeable
 
@@ -66,6 +67,75 @@ class TinaluxRendererHost(
             return false
         }
         return TinaluxNativeBridge.nativeDispatchPointerUp(runtimeHandle, x, y)
+    }
+
+    fun isTextInputActive(): Boolean {
+        if (runtimeHandle == 0L || !surfaceAttached) {
+            return false
+        }
+        return TinaluxNativeBridge.nativeIsTextInputActive(runtimeHandle)
+    }
+
+    fun textInputCursorRect(): Rect? {
+        if (runtimeHandle == 0L || !surfaceAttached) {
+            return null
+        }
+
+        val values = FloatArray(4)
+        if (!TinaluxNativeBridge.nativeGetTextInputCursorRect(runtimeHandle, values)) {
+            return null
+        }
+
+        return Rect(
+            values[0].toInt(),
+            values[1].toInt(),
+            values[2].toInt(),
+            values[3].toInt(),
+        )
+    }
+
+    fun dispatchKeyDown(androidKeyCode: Int, metaState: Int, repeatCount: Int): Boolean {
+        if (runtimeHandle == 0L || !surfaceAttached) {
+            return false
+        }
+        return TinaluxNativeBridge.nativeDispatchKeyDown(
+            runtimeHandle,
+            androidKeyCode,
+            metaState,
+            repeatCount,
+        )
+    }
+
+    fun dispatchKeyUp(androidKeyCode: Int, metaState: Int): Boolean {
+        if (runtimeHandle == 0L || !surfaceAttached) {
+            return false
+        }
+        return TinaluxNativeBridge.nativeDispatchKeyUp(runtimeHandle, androidKeyCode, metaState)
+    }
+
+    fun commitText(text: String): Boolean {
+        if (runtimeHandle == 0L || !surfaceAttached) {
+            return false
+        }
+        return TinaluxNativeBridge.nativeCommitText(runtimeHandle, text)
+    }
+
+    fun setComposingText(text: String, caretUtf8Offset: Int): Boolean {
+        if (runtimeHandle == 0L || !surfaceAttached) {
+            return false
+        }
+        return TinaluxNativeBridge.nativeSetComposingText(
+            runtimeHandle,
+            text,
+            caretUtf8Offset,
+        )
+    }
+
+    fun finishComposingText(): Boolean {
+        if (runtimeHandle == 0L || !surfaceAttached) {
+            return false
+        }
+        return TinaluxNativeBridge.nativeFinishComposingText(runtimeHandle)
     }
 
     override fun close() {

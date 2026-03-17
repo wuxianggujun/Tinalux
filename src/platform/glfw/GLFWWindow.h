@@ -44,7 +44,9 @@ public:
     void setClipboardText(const std::string& text) override;
     std::string clipboardText() const override;
     void setTextInputActive(bool active) override;
+    bool textInputActive() const override { return textInputActive_; }
     void setTextInputCursorRect(const std::optional<core::Rect>& rect) override;
+    std::optional<core::Rect> textInputCursorRect() const override { return imeCursorRect_; }
 
     void setEventCallback(EventCallback callback) override;
     GLGetProcFn glGetProcAddress() const override;

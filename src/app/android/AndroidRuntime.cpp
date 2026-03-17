@@ -201,4 +201,108 @@ bool AndroidRuntime::ready() const
     return impl_ != nullptr && impl_->application.window() != nullptr;
 }
 
+bool AndroidRuntime::textInputActive() const
+{
+    return impl_ != nullptr
+        && impl_->application.window() != nullptr
+        && impl_->application.window()->textInputActive();
+}
+
+std::optional<core::Rect> AndroidRuntime::textInputCursorRect() const
+{
+    return impl_ != nullptr && impl_->application.window() != nullptr
+        ? impl_->application.window()->textInputCursorRect()
+        : std::nullopt;
+}
+
+bool AndroidRuntime::dispatchKeyDown(int key, int modifiers, bool repeat)
+{
+    if (!impl_ || !ready()) {
+        return false;
+    }
+
+    core::KeyEvent event(
+        key,
+        0,
+        modifiers,
+        repeat ? core::EventType::KeyRepeat : core::EventType::KeyPress);
+    impl_->application.handleEvent(event);
+    return true;
+}
+
+bool AndroidRuntime::dispatchKeyUp(int key, int modifiers)
+{
+    if (!impl_ || !ready()) {
+        return false;
+    }
+
+    core::KeyEvent event(key, 0, modifiers, core::EventType::KeyRelease);
+    impl_->application.handleEvent(event);
+    return true;
+}
+
+bool AndroidRuntime::dispatchTextInput(std::string text)
+{
+    if (!impl_ || !ready() || text.empty()) {
+        return false;
+    }
+
+    core::TextInputEvent event(std::move(text));
+    impl_->application.handleEvent(event);
+    return true;
+}
+
+bool AndroidRuntime::dispatchCompositionStart()
+{
+    if (!impl_ || !ready()) {
+        return false;
+    }
+
+    core::TextCompositionEvent event(
+        core::EventType::TextCompositionStart,
+        {},
+        std::nullopt,
+        std::nullopt,
+        std::nullopt,
+        true);
+    impl_->application.handleEvent(event);
+    return true;
+}
+
+bool AndroidRuntime::dispatchCompositionUpdate(
+    std::string text,
+    std::optional<std::size_t> caretUtf8Offset)
+{
+    if (!impl_ || !ready()) {
+        return false;
+    }
+
+    core::TextCompositionEvent event(
+        core::EventType::TextCompositionUpdate,
+        std::move(text),
+        std::move(caretUtf8Offset),
+        std::nullopt,
+        std::nullopt,
+        true);
+    impl_->application.handleEvent(event);
+    return true;
+}
+
+bool AndroidRuntime::dispatchCompositionEnd()
+{
+    if (!impl_ || !ready()) {
+        return false;
+    }
+
+    core::TextCompositionEvent event(
+        core::EventType::TextCompositionEnd,
+        {},
+        std::nullopt,
+        std::nullopt,
+        std::nullopt,
+        true);
+    impl_->application.handleEvent(event);
+    return true;
+}
+
 }  // namespace tinalux::app::android

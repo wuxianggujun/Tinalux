@@ -1,20 +1,26 @@
 package com.tinalux.runtime
 
 import android.content.Context
+import android.graphics.Rect
 import android.util.AttributeSet
 import android.view.Choreographer
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
+import android.view.inputmethod.InputMethodManager
 
 class TinaluxSurfaceView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
 ) : SurfaceView(context, attrs), SurfaceHolder.Callback, Choreographer.FrameCallback {
     private val rendererHost = TinaluxRendererHost { resources.displayMetrics.density }
+    private val inputConnection = TinaluxInputConnection(this, rendererHost)
     private var surfaceReady = false
     private var frameCallbackPosted = false
     private var demoSceneInstalled = false
+    private var lastTextInputActive = false
 
     init {
         holder.addCallback(this)
@@ -29,6 +35,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
         if (!demoSceneInstalled) {
             demoSceneInstalled = rendererHost.installDemoScene()
         }
+        syncTextInputState()
         scheduleFrame()
     }
 
@@ -37,6 +44,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
             return
         }
         rendererHost.attachSurface(holder.surface)
+        syncTextInputState()
         scheduleFrame()
     }
 
@@ -44,6 +52,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
         surfaceReady = false
         cancelFrame()
         rendererHost.detachSurface()
+        syncTextInputState(force = true)
     }
 
     override fun doFrame(frameTimeNanos: Long) {
@@ -53,6 +62,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
         }
 
         if (rendererHost.renderOnce()) {
+            syncTextInputState()
             scheduleFrame()
         }
     }
@@ -79,15 +89,40 @@ class TinaluxSurfaceView @JvmOverloads constructor(
         }
 
         if (handled) {
+            syncTextInputState()
             scheduleFrame()
             return true
         }
         return super.onTouchEvent(event)
     }
 
+    override fun onCheckIsTextEditor(): Boolean = true
+
+    override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection {
+        inputConnection.configureEditorInfo(outAttrs)
+        return inputConnection
+    }
+
+    override fun getFocusedRect(r: Rect?) {
+        val cursorRect = rendererHost.textInputCursorRect()
+        if (r != null && cursorRect != null) {
+            r.set(cursorRect)
+            return
+        }
+        super.getFocusedRect(r)
+    }
+
+    override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
+        super.onWindowFocusChanged(hasWindowFocus)
+        if (hasWindowFocus) {
+            syncTextInputState(force = true)
+        }
+    }
+
     fun release() {
         cancelFrame()
         rendererHost.close()
+        syncTextInputState(force = true)
     }
 
     private fun scheduleFrame() {
@@ -104,5 +139,25 @@ class TinaluxSurfaceView @JvmOverloads constructor(
         }
         Choreographer.getInstance().removeFrameCallback(this)
         frameCallbackPosted = false
+    }
+
+    private fun syncTextInputState(force: Boolean = false) {
+        val imm = context.getSystemService(InputMethodManager::class.java)
+        val active = surfaceReady && rendererHost.isTextInputActive()
+        if (!force && active == lastTextInputActive) {
+            return
+        }
+
+        if (active) {
+            requestFocus()
+            imm?.restartInput(this)
+            imm?.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
+        } else {
+            imm?.hideSoftInputFromWindow(windowToken, 0)
+            imm?.restartInput(this)
+            clearFocus()
+        }
+
+        lastTextInputActive = active
     }
 }

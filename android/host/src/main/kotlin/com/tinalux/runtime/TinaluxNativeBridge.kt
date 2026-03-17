@@ -40,4 +40,37 @@ object TinaluxNativeBridge {
         x: Float,
         y: Float,
     ): Boolean
+
+    @JvmStatic external fun nativeIsTextInputActive(runtimeHandle: Long): Boolean
+
+    @JvmStatic external fun nativeGetTextInputCursorRect(
+        runtimeHandle: Long,
+        outRect: FloatArray,
+    ): Boolean
+
+    @JvmStatic external fun nativeDispatchKeyDown(
+        runtimeHandle: Long,
+        androidKeyCode: Int,
+        metaState: Int,
+        repeatCount: Int,
+    ): Boolean
+
+    @JvmStatic external fun nativeDispatchKeyUp(
+        runtimeHandle: Long,
+        androidKeyCode: Int,
+        metaState: Int,
+    ): Boolean
+
+    @JvmStatic external fun nativeCommitText(
+        runtimeHandle: Long,
+        text: String,
+    ): Boolean
+
+    @JvmStatic external fun nativeSetComposingText(
+        runtimeHandle: Long,
+        text: String,
+        caretUtf8Offset: Int,
+    ): Boolean
+
+    @JvmStatic external fun nativeFinishComposingText(runtimeHandle: Long): Boolean
 }

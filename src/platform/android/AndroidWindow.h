@@ -37,6 +37,10 @@ public:
 
     void setClipboardText(const std::string& text) override;
     std::string clipboardText() const override;
+    void setTextInputActive(bool active) override;
+    bool textInputActive() const override;
+    void setTextInputCursorRect(const std::optional<core::Rect>& rect) override;
+    std::optional<core::Rect> textInputCursorRect() const override;
     void setEventCallback(EventCallback callback) override;
     GLGetProcFn glGetProcAddress() const override;
 
@@ -58,6 +62,8 @@ private:
     float dpiScale_ = 1.0f;
     GraphicsAPI graphicsApi_ = GraphicsAPI::OpenGL;
     bool shouldClose_ = false;
+    bool textInputActive_ = false;
+    std::optional<core::Rect> imeCursorRect_;
 
     EGLDisplay display_ = nullptr;
     EGLSurface surface_ = nullptr;

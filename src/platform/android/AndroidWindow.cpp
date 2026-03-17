@@ -160,6 +160,26 @@ std::string AndroidWindow::clipboardText() const
     return clipboardText_;
 }
 
+void AndroidWindow::setTextInputActive(bool active)
+{
+    textInputActive_ = active;
+}
+
+bool AndroidWindow::textInputActive() const
+{
+    return textInputActive_;
+}
+
+void AndroidWindow::setTextInputCursorRect(const std::optional<core::Rect>& rect)
+{
+    imeCursorRect_ = rect;
+}
+
+std::optional<core::Rect> AndroidWindow::textInputCursorRect() const
+{
+    return imeCursorRect_;
+}
+
 void AndroidWindow::setEventCallback(EventCallback callback)
 {
     eventCallback_ = std::move(callback);

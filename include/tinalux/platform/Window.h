@@ -60,9 +60,17 @@ public:
     {
         (void)active;
     }
+    virtual bool textInputActive() const
+    {
+        return false;
+    }
     virtual void setTextInputCursorRect(const std::optional<core::Rect>& rect)
     {
         (void)rect;
+    }
+    virtual std::optional<core::Rect> textInputCursorRect() const
+    {
+        return std::nullopt;
     }
 
     virtual void setEventCallback(EventCallback callback) = 0;

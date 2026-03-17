@@ -8,6 +8,7 @@ Current contents:
 - `TinaluxNativeBridge.kt`: direct JNI bindings
 - `TinaluxRendererHost.kt`: lifecycle-safe runtime owner
 - `TinaluxSurfaceView.kt`: `SurfaceView` wrapper that drives native frames
+- `TinaluxInputConnection.kt`: IME bridge for text input / composition
 - touch input is translated into the current mouse-style UI event model
 
 Suggested integration steps:
@@ -19,7 +20,7 @@ Suggested integration steps:
 
 Current limitations:
 
-- No IME bridge yet
 - Multi-touch is collapsed to a single primary pointer
+- `EditorInfo` is still a generic text configuration, not widget-specific
 - No pause/resume GPU resource recovery yet
 - No Vulkan Android surface path yet

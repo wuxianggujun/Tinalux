@@ -37,6 +37,31 @@ TINALUX_ANDROID_API bool tinaluxAndroidDispatchPointerUp(
     void* runtimeHandle,
     double x,
     double y);
+TINALUX_ANDROID_API bool tinaluxAndroidTextInputActive(void* runtimeHandle);
+TINALUX_ANDROID_API bool tinaluxAndroidGetTextInputCursorRect(
+    void* runtimeHandle,
+    float* left,
+    float* top,
+    float* right,
+    float* bottom);
+TINALUX_ANDROID_API bool tinaluxAndroidDispatchKeyDown(
+    void* runtimeHandle,
+    int key,
+    int modifiers,
+    bool repeat);
+TINALUX_ANDROID_API bool tinaluxAndroidDispatchKeyUp(
+    void* runtimeHandle,
+    int key,
+    int modifiers);
+TINALUX_ANDROID_API bool tinaluxAndroidDispatchTextInputUtf8(
+    void* runtimeHandle,
+    const char* utf8Text);
+TINALUX_ANDROID_API bool tinaluxAndroidDispatchCompositionStart(void* runtimeHandle);
+TINALUX_ANDROID_API bool tinaluxAndroidDispatchCompositionUpdate(
+    void* runtimeHandle,
+    const char* utf8Text,
+    int caretUtf8Offset);
+TINALUX_ANDROID_API bool tinaluxAndroidDispatchCompositionEnd(void* runtimeHandle);
 
 #ifdef __cplusplus
 }
