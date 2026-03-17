@@ -13,6 +13,8 @@ How to use:
 
 1. Build and stage the Android shared library with:
    - `powershell -ExecutionPolicy Bypass -File scripts/build_android_native.ps1 -Abi arm64-v8a -StageToSdk`
+   - or from Gradle:
+     `./gradlew :tinalux-sdk:assembleDebug -Ptinalux.autoBuildNative=true`
 2. Open `android/validation-app` in Android Studio.
 3. Sync Gradle.
 4. Run `MainActivity` for the default Android OpenGL backend.

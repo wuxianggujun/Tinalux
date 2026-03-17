@@ -56,6 +56,33 @@ dependencies {
 val tinaluxGroupId = providers.gradleProperty("tinalux.groupId").orElse("com.tinalux")
 val tinaluxArtifactId = providers.gradleProperty("tinalux.artifactId").orElse("tinalux-android-sdk")
 val tinaluxVersion = providers.gradleProperty("tinalux.version").orElse("0.1.0-SNAPSHOT")
+val tinaluxNativeAbi = providers.gradleProperty("tinalux.nativeAbi").orElse("arm64-v8a")
+val tinaluxNativeBuildType = providers.gradleProperty("tinalux.nativeBuildType").orElse("Release")
+val tinaluxAndroidApi = providers.gradleProperty("tinalux.androidApi").orElse("26")
+val tinaluxAutoBuildNative = providers.gradleProperty("tinalux.autoBuildNative").map {
+    it.equals("true", ignoreCase = true)
+}.orElse(false)
+val tinaluxNativeBuildRoot = providers.gradleProperty("tinalux.nativeBuildRoot")
+val tinaluxNativeIcuData = providers.gradleProperty("tinalux.nativeIcuData")
+val tinaluxNdkPath = providers.gradleProperty("tinalux.ndkPath")
+    .orElse(
+        providers.environmentVariable("ANDROID_NDK_ROOT")
+            .orElse(providers.environmentVariable("ANDROID_NDK_HOME"))
+    )
+
+fun File.normalizedPath(): String = canonicalFile.absolutePath
+
+val repoRoot = layout.projectDirectory.dir("../..").asFile.canonicalFile
+val sdkModuleRoot = layout.projectDirectory.asFile.canonicalFile
+val configuredNativeBuildRoot = tinaluxNativeBuildRoot.map { file(it).canonicalFile.absolutePath }
+    .orElse(
+        provider {
+            repoRoot.resolve(
+                "build-android-${tinaluxNativeAbi.get()}-${tinaluxNativeBuildType.get().lowercase()}",
+            ).normalizedPath()
+        }
+    )
+val configuredNdkPath = tinaluxNdkPath.map { file(it).canonicalFile.absolutePath }
 
 val verifyTinaluxNativeArtifacts by tasks.registering {
     group = "verification"
@@ -93,7 +120,95 @@ val verifyTinaluxNativeArtifacts by tasks.registering {
     }
 }
 
+val buildAndStageTinaluxNative by tasks.registering {
+    group = "build"
+    description = "Builds TinaluxAndroidNative with CMake and stages the result into this SDK module."
+
+    doLast {
+        val ndkPath = configuredNdkPath.orNull
+            ?: throw GradleException(
+                "Missing Android NDK path. Set -Ptinalux.ndkPath or ANDROID_NDK_ROOT/ANDROID_NDK_HOME.",
+            )
+        val toolchainFile = file(ndkPath).resolve("build/cmake/android.toolchain.cmake")
+        if (!toolchainFile.exists()) {
+            throw GradleException("Android toolchain file not found: ${toolchainFile.normalizedPath()}")
+        }
+
+        val buildRoot = file(configuredNativeBuildRoot.get())
+        buildRoot.mkdirs()
+
+        exec {
+            workingDir = repoRoot
+            commandLine(
+                "cmake",
+                "-S", repoRoot.normalizedPath(),
+                "-B", buildRoot.normalizedPath(),
+                "-G", "Ninja",
+                "-DANDROID=ON",
+                "-DCMAKE_TOOLCHAIN_FILE=${toolchainFile.normalizedPath()}",
+                "-DANDROID_ABI=${tinaluxNativeAbi.get()}",
+                "-DANDROID_PLATFORM=android-${tinaluxAndroidApi.get()}",
+                "-DCMAKE_BUILD_TYPE=${tinaluxNativeBuildType.get()}",
+                "-DANDROID_STL=c++_static",
+                "-DTINALUX_BUILD_TESTS=OFF",
+            )
+        }
+
+        exec {
+            workingDir = repoRoot
+            commandLine(
+                "cmake",
+                "--build", buildRoot.normalizedPath(),
+                "--config", tinaluxNativeBuildType.get(),
+                "--target", "TinaluxAndroidNative",
+            )
+        }
+
+        val library = buildRoot.walkTopDown()
+            .filter { it.isFile && it.name == "libtinalux_native.so" }
+            .maxByOrNull { it.lastModified() }
+        if (library == null) {
+            throw GradleException("Failed to locate libtinalux_native.so under ${buildRoot.normalizedPath()}")
+        }
+
+        copy {
+            from(library)
+            into(layout.projectDirectory.dir("src/main/jniLibs/${tinaluxNativeAbi.get()}"))
+            rename { "libtinalux_native.so" }
+        }
+
+        val icuDataPath = tinaluxNativeIcuData.orNull
+        if (!icuDataPath.isNullOrBlank()) {
+            val sourceIcuData = file(icuDataPath)
+            if (!sourceIcuData.exists()) {
+                throw GradleException("Configured ICU data file does not exist: ${sourceIcuData.normalizedPath()}")
+            }
+            copy {
+                from(sourceIcuData)
+                into(layout.projectDirectory.dir("src/main/assets"))
+                rename { "icudtl.dat" }
+            }
+        }
+
+        logger.lifecycle(
+            "Staged Tinalux Android native library for ABI ${tinaluxNativeAbi.get()} into ${sdkModuleRoot.resolve("src/main/jniLibs").normalizedPath()}",
+        )
+    }
+}
+
+val cleanStagedTinaluxNative by tasks.registering(Delete::class) {
+    group = "build"
+    description = "Removes staged Android native libraries and optional runtime assets from the SDK module."
+    delete(
+        layout.projectDirectory.dir("src/main/jniLibs"),
+        layout.projectDirectory.file("src/main/assets/icudtl.dat"),
+    )
+}
+
 tasks.named("preBuild").configure {
+    if (tinaluxAutoBuildNative.get()) {
+        dependsOn(buildAndStageTinaluxNative)
+    }
     dependsOn(verifyTinaluxNativeArtifacts)
 }
 

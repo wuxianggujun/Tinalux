@@ -23,6 +23,17 @@ How to use:
 2. Add this module as an Android library dependency.
 3. Start from `TinaluxActivity` or embed `TinaluxSurfaceView` directly.
 
+Gradle-native workflow:
+
+- opt in to automatic native build/staging with:
+  - `./gradlew :tinalux-sdk:assembleDebug -Ptinalux.autoBuildNative=true`
+- configurable properties:
+  - `-Ptinalux.ndkPath=...`
+  - `-Ptinalux.nativeAbi=arm64-v8a`
+  - `-Ptinalux.nativeBuildType=Release`
+  - `-Ptinalux.androidApi=26`
+  - `-Ptinalux.nativeIcuData=...`
+
 Build guard:
 
 - `preBuild` verifies that `src/main/jniLibs/<abi>/libtinalux_native.so` exists
