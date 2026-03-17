@@ -12,11 +12,14 @@ CMakeUserPresets.json
 .idea/
 .vscode/
 .vs/
+.gradle/
+.kotlin/
 *.user
 *.pro.user
 *.VC.db
 *.opendb
 *.suo
+local.properties
 
 # C/C++ build artifacts
 *.o
