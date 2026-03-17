@@ -32,6 +32,8 @@ platform::WindowConfig makeWindowConfig(
 struct AndroidRuntime::Impl {
     AndroidRuntimeConfig config;
     Application application;
+    std::string clipboardText;
+    bool suspended = false;
 };
 
 AndroidRuntime::AndroidRuntime()
@@ -99,6 +101,9 @@ bool AndroidRuntime::attachWindow(void* nativeWindow, float dpiScale)
         "app.android",
         "Android runtime attached a native window and initialized backend '{}'",
         rendering::backendName(impl_->application.renderBackend()));
+    if (impl_->application.window() != nullptr) {
+        impl_->application.window()->setClipboardText(impl_->clipboardText);
+    }
     return true;
 }
 
@@ -118,7 +123,7 @@ void AndroidRuntime::detachWindow()
 
 bool AndroidRuntime::renderOnce()
 {
-    if (!impl_ || !ready()) {
+    if (!impl_ || !ready() || impl_->suspended) {
         return false;
     }
 
@@ -303,6 +308,51 @@ bool AndroidRuntime::dispatchCompositionEnd()
         true);
     impl_->application.handleEvent(event);
     return true;
+}
+
+void AndroidRuntime::setClipboardText(std::string text)
+{
+    if (!impl_) {
+        return;
+    }
+
+    impl_->clipboardText = std::move(text);
+    if (impl_->application.window() != nullptr) {
+        impl_->application.window()->setClipboardText(impl_->clipboardText);
+    }
+}
+
+std::string AndroidRuntime::clipboardText() const
+{
+    if (!impl_) {
+        return {};
+    }
+
+    return impl_->application.window() != nullptr
+        ? impl_->application.window()->clipboardText()
+        : impl_->clipboardText;
+}
+
+void AndroidRuntime::setSuspended(bool suspended)
+{
+    if (!impl_) {
+        return;
+    }
+
+    if (impl_->suspended == suspended) {
+        return;
+    }
+
+    impl_->suspended = suspended;
+    core::logInfoCat(
+        "app.android",
+        "Android runtime lifecycle state changed to {}",
+        suspended ? "suspended" : "resumed");
+}
+
+bool AndroidRuntime::suspended() const
+{
+    return impl_ != nullptr && impl_->suspended;
 }
 
 }  // namespace tinalux::app::android

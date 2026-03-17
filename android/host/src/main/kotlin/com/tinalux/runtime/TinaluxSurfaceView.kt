@@ -1,5 +1,7 @@
 package com.tinalux.runtime
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Rect
 import android.util.AttributeSet
@@ -21,6 +23,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
     private var frameCallbackPosted = false
     private var demoSceneInstalled = false
     private var lastTextInputActive = false
+    private var lastClipboardText = ""
 
     init {
         holder.addCallback(this)
@@ -32,9 +35,11 @@ class TinaluxSurfaceView @JvmOverloads constructor(
     override fun surfaceCreated(holder: SurfaceHolder) {
         surfaceReady = true
         rendererHost.attachSurface(holder.surface)
+        rendererHost.setSuspended(false)
         if (!demoSceneInstalled) {
             demoSceneInstalled = rendererHost.installDemoScene()
         }
+        syncClipboardFromSystem()
         syncTextInputState()
         scheduleFrame()
     }
@@ -44,6 +49,8 @@ class TinaluxSurfaceView @JvmOverloads constructor(
             return
         }
         rendererHost.attachSurface(holder.surface)
+        rendererHost.setSuspended(false)
+        syncClipboardFromSystem()
         syncTextInputState()
         scheduleFrame()
     }
@@ -51,6 +58,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         surfaceReady = false
         cancelFrame()
+        rendererHost.setSuspended(true)
         rendererHost.detachSurface()
         syncTextInputState(force = true)
     }
@@ -60,8 +68,12 @@ class TinaluxSurfaceView @JvmOverloads constructor(
         if (!surfaceReady) {
             return
         }
+        if (rendererHost.isSuspended()) {
+            return
+        }
 
         if (rendererHost.renderOnce()) {
+            syncClipboardToSystem()
             syncTextInputState()
             scheduleFrame()
         }
@@ -77,13 +89,21 @@ class TinaluxSurfaceView @JvmOverloads constructor(
         val y = event.getY(pointerIndex)
         val handled = when (event.actionMasked) {
             MotionEvent.ACTION_DOWN,
-            MotionEvent.ACTION_POINTER_DOWN -> rendererHost.dispatchPointerDown(x, y)
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                syncClipboardFromSystem()
+                rendererHost.dispatchPointerDown(x, y)
+            }
 
             MotionEvent.ACTION_MOVE -> rendererHost.dispatchPointerMove(x, y)
 
             MotionEvent.ACTION_UP,
             MotionEvent.ACTION_POINTER_UP,
-            MotionEvent.ACTION_CANCEL -> rendererHost.dispatchPointerUp(x, y)
+            MotionEvent.ACTION_CANCEL -> {
+                syncClipboardFromSystem()
+                val result = rendererHost.dispatchPointerUp(x, y)
+                syncClipboardToSystem()
+                result
+            }
 
             else -> false
         }
@@ -121,8 +141,28 @@ class TinaluxSurfaceView @JvmOverloads constructor(
 
     fun release() {
         cancelFrame()
+        rendererHost.setSuspended(true)
+        syncClipboardToSystem()
         rendererHost.close()
         syncTextInputState(force = true)
+    }
+
+    fun onHostPause() {
+        cancelFrame()
+        rendererHost.setSuspended(true)
+        syncClipboardToSystem()
+        syncTextInputState(force = true)
+    }
+
+    fun onHostResume() {
+        if (!surfaceReady) {
+            return
+        }
+
+        rendererHost.setSuspended(false)
+        syncClipboardFromSystem()
+        syncTextInputState(force = true)
+        scheduleFrame()
     }
 
     private fun scheduleFrame() {
@@ -139,6 +179,37 @@ class TinaluxSurfaceView @JvmOverloads constructor(
         }
         Choreographer.getInstance().removeFrameCallback(this)
         frameCallbackPosted = false
+    }
+
+    private fun clipboardManager(): ClipboardManager? {
+        return context.getSystemService(ClipboardManager::class.java)
+    }
+
+    private fun syncClipboardFromSystem() {
+        val clipboard = clipboardManager() ?: return
+        val clipData = clipboard.primaryClip ?: return
+        if (clipData.itemCount <= 0) {
+            return
+        }
+
+        val text = clipData.getItemAt(0).coerceToText(context)?.toString().orEmpty()
+        if (text == lastClipboardText) {
+            return
+        }
+
+        if (rendererHost.setClipboardText(text)) {
+            lastClipboardText = text
+        }
+    }
+
+    private fun syncClipboardToSystem() {
+        val text = rendererHost.clipboardText()
+        if (text == lastClipboardText) {
+            return
+        }
+
+        clipboardManager()?.setPrimaryClip(ClipData.newPlainText("Tinalux", text))
+        lastClipboardText = text
     }
 
     private fun syncTextInputState(force: Boolean = false) {

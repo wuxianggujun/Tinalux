@@ -1,8 +1,11 @@
 #include "tinalux/app/android/AndroidNativeBridge.h"
 
+#include <algorithm>
 #include <cstddef>
+#include <cstring>
 #include <new>
 #include <optional>
+#include <string>
 
 #include "tinalux/app/android/AndroidRuntime.h"
 #include "tinalux/core/Log.h"
@@ -248,4 +251,54 @@ bool tinaluxAndroidDispatchCompositionEnd(void* runtimeHandle)
     }
 
     return runtime->dispatchCompositionEnd();
+}
+
+bool tinaluxAndroidSetClipboardTextUtf8(void* runtimeHandle, const char* utf8Text)
+{
+    auto* runtime = runtimeFromHandle(runtimeHandle);
+    if (runtime == nullptr) {
+        tinalux::core::logErrorCat(
+            "app.android",
+            "SetClipboardTextUtf8 ignored because runtime handle is null");
+        return false;
+    }
+
+    runtime->setClipboardText(utf8Text != nullptr ? utf8Text : "");
+    return true;
+}
+
+int tinaluxAndroidGetClipboardTextUtf8(void* runtimeHandle, char* buffer, int bufferSize)
+{
+    auto* runtime = runtimeFromHandle(runtimeHandle);
+    if (runtime == nullptr) {
+        return 0;
+    }
+
+    const std::string text = runtime->clipboardText();
+    if (buffer != nullptr && bufferSize > 0) {
+        const std::size_t copyCount = std::min(
+            text.size(),
+            static_cast<std::size_t>(std::max(bufferSize - 1, 0)));
+        if (copyCount > 0) {
+            std::memcpy(buffer, text.data(), copyCount);
+        }
+        buffer[copyCount] = '\0';
+    }
+    return static_cast<int>(text.size());
+}
+
+void tinaluxAndroidSetSuspended(void* runtimeHandle, bool suspended)
+{
+    auto* runtime = runtimeFromHandle(runtimeHandle);
+    if (runtime == nullptr) {
+        return;
+    }
+
+    runtime->setSuspended(suspended);
+}
+
+bool tinaluxAndroidIsSuspended(void* runtimeHandle)
+{
+    auto* runtime = runtimeFromHandle(runtimeHandle);
+    return runtime != nullptr && runtime->suspended();
 }

@@ -312,6 +312,59 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeFinishComposingText(JNIEnv*, 
 }
 
 JNIEXPORT jboolean JNICALL
+Java_com_tinalux_runtime_TinaluxNativeBridge_nativeSetClipboardText(
+    JNIEnv* env,
+    jclass,
+    jlong runtimeHandle,
+    jstring text)
+{
+    const std::string utf8Text = utf8FromJString(env, text);
+    return tinaluxAndroidSetClipboardTextUtf8(fromJLong(runtimeHandle), utf8Text.c_str())
+        ? JNI_TRUE
+        : JNI_FALSE;
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_tinalux_runtime_TinaluxNativeBridge_nativeGetClipboardText(
+    JNIEnv* env,
+    jclass,
+    jlong runtimeHandle)
+{
+    if (env == nullptr) {
+        return nullptr;
+    }
+
+    const int textLength = tinaluxAndroidGetClipboardTextUtf8(fromJLong(runtimeHandle), nullptr, 0);
+    std::string utf8Text(static_cast<std::size_t>(std::max(textLength, 0)), '\0');
+    if (textLength > 0) {
+        tinaluxAndroidGetClipboardTextUtf8(
+            fromJLong(runtimeHandle),
+            utf8Text.data(),
+            textLength + 1);
+    }
+    return env->NewStringUTF(utf8Text.c_str());
+}
+
+JNIEXPORT void JNICALL
+Java_com_tinalux_runtime_TinaluxNativeBridge_nativeSetSuspended(
+    JNIEnv*,
+    jclass,
+    jlong runtimeHandle,
+    jboolean suspended)
+{
+    tinaluxAndroidSetSuspended(fromJLong(runtimeHandle), suspended == JNI_TRUE);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_tinalux_runtime_TinaluxNativeBridge_nativeIsSuspended(
+    JNIEnv*,
+    jclass,
+    jlong runtimeHandle)
+{
+    return tinaluxAndroidIsSuspended(fromJLong(runtimeHandle)) ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL
 Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchPointerMove(
     JNIEnv*,
     jclass,

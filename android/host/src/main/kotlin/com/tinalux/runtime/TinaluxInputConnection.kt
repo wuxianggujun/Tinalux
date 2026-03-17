@@ -3,13 +3,15 @@ package com.tinalux.runtime
 import android.text.Editable
 import android.text.InputType
 import android.text.Selection
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 
 class TinaluxInputConnection(
-    targetView: View,
+    private val targetView: View,
     private val rendererHost: TinaluxRendererHost,
 ) : BaseInputConnection(targetView, true) {
     private val editableBuffer: Editable = Editable.Factory.getInstance().newEditable("")
@@ -53,15 +55,41 @@ class TinaluxInputConnection(
     }
 
     override fun sendKeyEvent(event: KeyEvent): Boolean {
+        syncClipboardFromSystem()
         return when (event.action) {
             KeyEvent.ACTION_DOWN -> rendererHost.dispatchKeyDown(
                 event.keyCode,
                 event.metaState,
                 event.repeatCount,
-            )
+            ).also { if (it) syncClipboardToSystem() }
 
-            KeyEvent.ACTION_UP -> rendererHost.dispatchKeyUp(event.keyCode, event.metaState)
+            KeyEvent.ACTION_UP -> rendererHost.dispatchKeyUp(
+                event.keyCode,
+                event.metaState,
+            ).also { if (it) syncClipboardToSystem() }
             else -> false
         }
+    }
+
+    private fun clipboardManager(): ClipboardManager? {
+        return targetView.context.getSystemService(ClipboardManager::class.java)
+    }
+
+    private fun syncClipboardFromSystem() {
+        val clipboard = clipboardManager() ?: return
+        val clipData = clipboard.primaryClip ?: return
+        if (clipData.itemCount <= 0) {
+            return
+        }
+
+        val text = clipData.getItemAt(0).coerceToText(targetView.context)?.toString().orEmpty()
+        rendererHost.setClipboardText(text)
+    }
+
+    private fun syncClipboardToSystem() {
+        val clipboard = clipboardManager() ?: return
+        clipboard.setPrimaryClip(
+            ClipData.newPlainText("Tinalux", rendererHost.clipboardText()),
+        )
     }
 }

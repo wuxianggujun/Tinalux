@@ -73,4 +73,18 @@ object TinaluxNativeBridge {
     ): Boolean
 
     @JvmStatic external fun nativeFinishComposingText(runtimeHandle: Long): Boolean
+
+    @JvmStatic external fun nativeSetClipboardText(
+        runtimeHandle: Long,
+        text: String,
+    ): Boolean
+
+    @JvmStatic external fun nativeGetClipboardText(runtimeHandle: Long): String
+
+    @JvmStatic external fun nativeSetSuspended(
+        runtimeHandle: Long,
+        suspended: Boolean,
+    )
+
+    @JvmStatic external fun nativeIsSuspended(runtimeHandle: Long): Boolean
 }

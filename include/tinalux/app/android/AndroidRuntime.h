@@ -38,6 +38,10 @@ public:
     bool dispatchCompositionStart();
     bool dispatchCompositionUpdate(std::string text, std::optional<std::size_t> caretUtf8Offset);
     bool dispatchCompositionEnd();
+    void setClipboardText(std::string text);
+    std::string clipboardText() const;
+    void setSuspended(bool suspended);
+    bool suspended() const;
     void shutdown();
 
     Application* application();

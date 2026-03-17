@@ -10,6 +10,9 @@ Current contents:
 - `TinaluxSurfaceView.kt`: `SurfaceView` wrapper that drives native frames
 - `TinaluxInputConnection.kt`: IME bridge for text input / composition
 - touch input is translated into the current mouse-style UI event model
+- system clipboard is mirrored between Android and the native window state
+- `TinaluxSurfaceView` exposes `onHostPause()` / `onHostResume()` helpers for host lifecycle wiring
+- runtime suspend/resume state is mirrored into the native layer
 
 Suggested integration steps:
 

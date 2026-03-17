@@ -62,6 +62,17 @@ TINALUX_ANDROID_API bool tinaluxAndroidDispatchCompositionUpdate(
     const char* utf8Text,
     int caretUtf8Offset);
 TINALUX_ANDROID_API bool tinaluxAndroidDispatchCompositionEnd(void* runtimeHandle);
+TINALUX_ANDROID_API bool tinaluxAndroidSetClipboardTextUtf8(
+    void* runtimeHandle,
+    const char* utf8Text);
+TINALUX_ANDROID_API int tinaluxAndroidGetClipboardTextUtf8(
+    void* runtimeHandle,
+    char* buffer,
+    int bufferSize);
+TINALUX_ANDROID_API void tinaluxAndroidSetSuspended(
+    void* runtimeHandle,
+    bool suspended);
+TINALUX_ANDROID_API bool tinaluxAndroidIsSuspended(void* runtimeHandle);
 
 #ifdef __cplusplus
 }

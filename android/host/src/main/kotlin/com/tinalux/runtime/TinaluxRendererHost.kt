@@ -138,6 +138,34 @@ class TinaluxRendererHost(
         return TinaluxNativeBridge.nativeFinishComposingText(runtimeHandle)
     }
 
+    fun setClipboardText(text: String): Boolean {
+        if (runtimeHandle == 0L) {
+            return false
+        }
+        return TinaluxNativeBridge.nativeSetClipboardText(runtimeHandle, text)
+    }
+
+    fun clipboardText(): String {
+        if (runtimeHandle == 0L) {
+            return ""
+        }
+        return TinaluxNativeBridge.nativeGetClipboardText(runtimeHandle)
+    }
+
+    fun setSuspended(suspended: Boolean) {
+        if (runtimeHandle == 0L) {
+            return
+        }
+        TinaluxNativeBridge.nativeSetSuspended(runtimeHandle, suspended)
+    }
+
+    fun isSuspended(): Boolean {
+        if (runtimeHandle == 0L) {
+            return false
+        }
+        return TinaluxNativeBridge.nativeIsSuspended(runtimeHandle)
+    }
+
     override fun close() {
         detachSurface()
         if (runtimeHandle == 0L) {
