@@ -62,6 +62,9 @@ public:
     bool init(const ApplicationConfig& config = {});
     int run();
     bool pumpOnce();
+    void suspendRendering();
+    bool resumeRendering(const platform::WindowConfig& windowConfig);
+    bool renderingReady() const;
     void shutdown();
 
     void handleEvent(core::Event& event);

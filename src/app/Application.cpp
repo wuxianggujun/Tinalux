@@ -116,6 +116,56 @@ bool Application::init(const ApplicationConfig& config)
     return false;
 }
 
+void Application::suspendRendering()
+{
+    if (!impl_ || impl_->window == nullptr) {
+        return;
+    }
+
+    core::logInfoCat(
+        "app",
+        "Suspending rendering state for backend '{}'",
+        rendering::backendName(impl_->context.backend()));
+    resetRenderState();
+}
+
+bool Application::resumeRendering(const platform::WindowConfig& windowConfig)
+{
+    if (!impl_ || !impl_->skiaInitialized) {
+        return false;
+    }
+    if (impl_->window != nullptr && impl_->context) {
+        return true;
+    }
+
+    impl_->config.window = windowConfig;
+    impl_->backendPlan.reset(impl_->config.backend);
+
+    const auto& candidates = impl_->backendPlan.candidates();
+    for (std::size_t backendIndex = 0; backendIndex < candidates.size(); ++backendIndex) {
+        const rendering::Backend candidateBackend = candidates[backendIndex];
+        core::logInfoCat(
+            "app",
+            "Resuming rendering with backend '{}'",
+            rendering::backendName(candidateBackend));
+        if (tryInitializeBackend(windowConfig, candidateBackend, backendIndex)) {
+            syncTextInputState();
+            return true;
+        }
+    }
+
+    core::logErrorCat(
+        "app",
+        "Failed to resume rendering for requested backend '{}'",
+        rendering::backendName(impl_->config.backend));
+    return false;
+}
+
+bool Application::renderingReady() const
+{
+    return impl_ != nullptr && impl_->window != nullptr && impl_->context;
+}
+
 bool Application::tryInitializeBackend(
     const platform::WindowConfig& windowConfig,
     rendering::Backend backend,

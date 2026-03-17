@@ -33,6 +33,9 @@ struct AndroidRuntime::Impl {
     AndroidRuntimeConfig config;
     Application application;
     std::string clipboardText;
+    void* attachedNativeWindow = nullptr;
+    float attachedDpiScale = 1.0f;
+    bool sessionActive = false;
     bool suspended = false;
 };
 
@@ -80,21 +83,38 @@ bool AndroidRuntime::attachWindow(void* nativeWindow, float dpiScale)
         return false;
     }
 
-    if (ready()) {
-        core::logInfoCat(
-            "app.android",
-            "Android runtime received a new window; recycling the previous application session");
-        detachWindow();
-    }
+    impl_->attachedNativeWindow = nativeWindow;
+    impl_->attachedDpiScale = std::max(dpiScale, 0.1f);
 
     ApplicationConfig launchConfig = impl_->config.application;
-    launchConfig.window = makeWindowConfig(launchConfig.window, nativeWindow, dpiScale);
-    if (!impl_->application.init(launchConfig)) {
-        core::logErrorCat(
-            "app.android",
-            "Android runtime failed to initialize the application");
-        impl_->application.shutdown();
+    launchConfig.window = makeWindowConfig(
+        launchConfig.window,
+        impl_->attachedNativeWindow,
+        impl_->attachedDpiScale);
+    impl_->config.application.window = launchConfig.window;
+
+    if (!impl_->sessionActive) {
+        if (!impl_->application.init(launchConfig)) {
+            core::logErrorCat(
+                "app.android",
+                "Android runtime failed to initialize the application");
+            impl_->application.shutdown();
+            return false;
+        }
+        impl_->sessionActive = true;
+    } else if (!impl_->application.renderingReady()) {
+        if (!impl_->application.resumeRendering(launchConfig.window)) {
+            core::logErrorCat(
+                "app.android",
+                "Android runtime failed to resume rendering after attaching a window");
+            return false;
+        }
+    } else if (impl_->application.window() == nullptr) {
         return false;
+    }
+
+    if (impl_->application.window() != nullptr) {
+        impl_->application.window()->setClipboardText(impl_->clipboardText);
     }
 
     core::logInfoCat(
@@ -113,12 +133,13 @@ void AndroidRuntime::detachWindow()
         return;
     }
 
-    if (!ready()) {
-        return;
-    }
+    impl_->attachedNativeWindow = nullptr;
+    impl_->clipboardText = clipboardText();
 
-    core::logInfoCat("app.android", "Android runtime detaching native window");
-    impl_->application.shutdown();
+    if (impl_->application.renderingReady()) {
+        core::logInfoCat("app.android", "Android runtime detaching native window");
+        impl_->application.suspendRendering();
+    }
 }
 
 bool AndroidRuntime::renderOnce()
@@ -188,7 +209,14 @@ bool AndroidRuntime::dispatchPointerUp(double x, double y)
 
 void AndroidRuntime::shutdown()
 {
-    detachWindow();
+    if (!impl_) {
+        return;
+    }
+
+    impl_->attachedNativeWindow = nullptr;
+    impl_->sessionActive = false;
+    impl_->suspended = false;
+    impl_->application.shutdown();
 }
 
 Application* AndroidRuntime::application()
@@ -343,7 +371,35 @@ void AndroidRuntime::setSuspended(bool suspended)
         return;
     }
 
-    impl_->suspended = suspended;
+    if (suspended) {
+        impl_->clipboardText = clipboardText();
+        if (impl_->application.renderingReady()) {
+            impl_->application.suspendRendering();
+        }
+        impl_->suspended = true;
+    } else {
+        if (impl_->sessionActive
+            && !impl_->application.renderingReady()
+            && impl_->attachedNativeWindow != nullptr) {
+            platform::WindowConfig windowConfig = makeWindowConfig(
+                impl_->config.application.window,
+                impl_->attachedNativeWindow,
+                impl_->attachedDpiScale);
+            impl_->config.application.window = windowConfig;
+            if (!impl_->application.resumeRendering(windowConfig)) {
+                core::logErrorCat(
+                    "app.android",
+                    "Android runtime failed to resume rendering after suspend");
+                impl_->suspended = true;
+                return;
+            }
+            if (impl_->application.window() != nullptr) {
+                impl_->application.window()->setClipboardText(impl_->clipboardText);
+            }
+        }
+        impl_->suspended = false;
+    }
+
     core::logInfoCat(
         "app.android",
         "Android runtime lifecycle state changed to {}",

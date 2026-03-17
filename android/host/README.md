@@ -13,6 +13,7 @@ Current contents:
 - system clipboard is mirrored between Android and the native window state
 - `TinaluxSurfaceView` exposes `onHostPause()` / `onHostResume()` helpers for host lifecycle wiring
 - runtime suspend/resume state is mirrored into the native layer
+- suspend/reattach keeps the native UI session alive and rebuilds render state on demand
 
 Suggested integration steps:
 
