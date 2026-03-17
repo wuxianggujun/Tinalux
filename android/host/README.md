@@ -25,6 +25,13 @@ Default backend:
 - `TinaluxActivity` also defaults to `TinaluxBackend.OpenGL`
 - Kotlin hosts can opt into Vulkan through `setPreferredBackend(...)` or `TinaluxVulkanValidationActivity`
 
+Validation app:
+
+- `../validation-app` is a minimal Android app skeleton
+- It reuses the host runtime sources from `../host/src/main/kotlin`
+- `MainActivity` validates the default OpenGL path
+- `VulkanValidationActivity` is the explicit Vulkan validation entry
+
 Suggested integration steps:
 
 1. Copy the Kotlin sources into an Android app module.
