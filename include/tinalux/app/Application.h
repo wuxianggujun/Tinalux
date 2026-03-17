@@ -61,6 +61,7 @@ public:
 
     bool init(const ApplicationConfig& config = {});
     int run();
+    bool pumpOnce();
     void shutdown();
 
     void handleEvent(core::Event& event);

@@ -141,11 +141,22 @@ endfunction()
 
 add_subdirectory(src)
 
-add_executable(Tinalux main.cpp)
-target_link_libraries(Tinalux PRIVATE Tinalux::App)
-tinalux_copy_skia_runtime_data(Tinalux)
+if(ANDROID)
+    add_library(TinaluxAndroidNative SHARED
+        src/app/android/AndroidNativeEntry.cpp
+    )
+    target_link_libraries(TinaluxAndroidNative PRIVATE Tinalux::App)
+    target_compile_definitions(TinaluxAndroidNative PRIVATE TINALUX_ANDROID_NATIVE_EXPORTS)
+    set_target_properties(TinaluxAndroidNative PROPERTIES OUTPUT_NAME "tinalux_native")
+else()
+    add_executable(Tinalux main.cpp)
+    target_link_libraries(Tinalux PRIVATE Tinalux::App)
+    tinalux_copy_skia_runtime_data(Tinalux)
+endif()
 
-if(TINALUX_BUILD_TESTS)
+if(TINALUX_BUILD_TESTS AND NOT ANDROID)
     enable_testing()
     add_subdirectory(tests)
+elseif(TINALUX_BUILD_TESTS AND ANDROID)
+    message(STATUS "Skipping desktop smoke tests for Android builds")
 endif()

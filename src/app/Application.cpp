@@ -260,41 +260,56 @@ void Application::resetRenderState()
     impl_->surfaceHeight = 0;
     impl_->backendPlan.reset(impl_->config.backend);
 }
+
+bool Application::pumpOnce()
+{
+    if (!impl_ || impl_->window == nullptr || !impl_->context) {
+        return false;
+    }
+
+    if (impl_->window->shouldClose()) {
+        return false;
+    }
+
+    if (!impl_->uiContext.shouldRender()) {
+        impl_->uiContext.noteWaitLoop();
+        impl_->window->waitEventsTimeout(0.008);
+    } else {
+        impl_->uiContext.notePollLoop();
+        impl_->window->pollEvents();
+    }
+
+    if (impl_->uiContext.tickAnimations(ui::animationNowSeconds())) {
+        impl_->uiContext.noteAnimationTickUpdated();
+    }
+    if (impl_->uiContext.tickAsyncResources()) {
+        impl_->uiContext.noteAnimationTickUpdated();
+    }
+
+    if (impl_->uiContext.shouldRender()) {
+        using clock = std::chrono::steady_clock;
+        const auto frameStart = clock::now();
+        const bool fullRedraw = renderFrame();
+        const auto frameEnd = clock::now();
+        const double frameMs =
+            std::chrono::duration<double, std::milli>(frameEnd - frameStart).count();
+
+        impl_->uiContext.noteFrameRendered(fullRedraw, frameMs);
+        impl_->uiContext.clearNeedsRedraw();
+    } else {
+        impl_->uiContext.noteFrameSkipped();
+    }
+
+    return !impl_->window->shouldClose();
+}
+
 int Application::run()
 {
     if (!impl_ || impl_->window == nullptr || !impl_->context) {
         return 1;
     }
 
-    while (!impl_->window->shouldClose()) {
-        if (!impl_->uiContext.shouldRender()) {
-            impl_->uiContext.noteWaitLoop();
-            impl_->window->waitEventsTimeout(0.008);
-        } else {
-            impl_->uiContext.notePollLoop();
-            impl_->window->pollEvents();
-        }
-
-        if (impl_->uiContext.tickAnimations(ui::animationNowSeconds())) {
-            impl_->uiContext.noteAnimationTickUpdated();
-        }
-        if (impl_->uiContext.tickAsyncResources()) {
-            impl_->uiContext.noteAnimationTickUpdated();
-        }
-
-        if (impl_->uiContext.shouldRender()) {
-            using clock = std::chrono::steady_clock;
-            const auto frameStart = clock::now();
-            const bool fullRedraw = renderFrame();
-            const auto frameEnd = clock::now();
-            const double frameMs =
-                std::chrono::duration<double, std::milli>(frameEnd - frameStart).count();
-
-            impl_->uiContext.noteFrameRendered(fullRedraw, frameMs);
-            impl_->uiContext.clearNeedsRedraw();
-        } else {
-            impl_->uiContext.noteFrameSkipped();
-        }
+    while (pumpOnce()) {
     }
 
     return 0;

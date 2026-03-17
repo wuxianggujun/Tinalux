@@ -19,3 +19,9 @@ target_link_libraries(TinaluxApp
         Tinalux::Rendering
         Tinalux::Core
 )
+
+if(ANDROID)
+    target_sources(TinaluxApp PRIVATE
+        android/AndroidRuntime.cpp
+    )
+endif()

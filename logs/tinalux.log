@@ -1,17 +1,17 @@
-[2026-03-17 02:32:25.072] [info] [app] Initializing application title='Tinalux' size=960x640 vsync=true backend=Auto
-[2026-03-17 02:32:25.072] [info] [app] Trying render backend 'Vulkan' for application startup
-[2026-03-17 02:32:25.072] [warning] [app] Backend 'Vulkan' failed to create a render context
-[2026-03-17 02:32:25.073] [info] [app] Trying render backend 'OpenGL' for application startup
-[2026-03-17 02:32:25.073] [info] [app] Application initialized successfully with backend 'Vulkan'
-[2026-03-17 02:32:25.074] [info] [app] Initializing application title='Tinalux' size=960x640 vsync=true backend=Auto
-[2026-03-17 02:32:25.074] [info] [app] Trying render backend 'Vulkan' for application startup
-[2026-03-17 02:32:25.074] [info] [app] Application initialized successfully with backend 'Vulkan'
-[2026-03-17 02:32:25.074] [info] [app] Recreating window surface for framebuffer 1280x720
-[2026-03-17 02:32:25.074] [warning] [app] Attempting runtime backend fallback from 'Vulkan' to 'OpenGL'
-[2026-03-17 02:32:25.075] [info] [app] Runtime backend fallback succeeded: 'OpenGL'
-[2026-03-17 02:32:25.075] [info] [app] Initializing application title='Tinalux' size=960x640 vsync=true backend=Auto
-[2026-03-17 02:32:25.075] [info] [app] Trying render backend 'Vulkan' for application startup
-[2026-03-17 02:32:25.075] [info] [app] Application initialized successfully with backend 'Vulkan'
-[2026-03-17 02:32:25.076] [warning] [app] Render surface became unavailable during frame preparation for backend 'Vulkan' (reason='backend_state_missing')
-[2026-03-17 02:32:25.076] [info] [app] Recreating window surface for framebuffer 1440x900
-[2026-03-17 02:32:25.076] [warning] [app] Render surface became unavailable during frame preparation for backend 'Vulkan' (reason='backend_state_missing')
+[2026-03-17 10:00:32.185] [info] [app] Initializing application title='Tinalux' size=960x640 vsync=true backend=Auto
+[2026-03-17 10:00:32.186] [info] [app] Trying render backend 'Vulkan' for application startup
+[2026-03-17 10:00:32.186] [warning] [app] Backend 'Vulkan' failed to create a render context
+[2026-03-17 10:00:32.186] [info] [app] Trying render backend 'OpenGL' for application startup
+[2026-03-17 10:00:32.186] [info] [app] Application initialized successfully with backend 'Vulkan'
+[2026-03-17 10:00:32.189] [info] [app] Initializing application title='Tinalux' size=960x640 vsync=true backend=Auto
+[2026-03-17 10:00:32.189] [info] [app] Trying render backend 'Vulkan' for application startup
+[2026-03-17 10:00:32.189] [info] [app] Application initialized successfully with backend 'Vulkan'
+[2026-03-17 10:00:32.189] [info] [app] Recreating window surface for framebuffer 1280x720
+[2026-03-17 10:00:32.189] [warning] [app] Attempting runtime backend fallback from 'Vulkan' to 'OpenGL'
+[2026-03-17 10:00:32.189] [info] [app] Runtime backend fallback succeeded: 'OpenGL'
+[2026-03-17 10:00:32.190] [info] [app] Initializing application title='Tinalux' size=960x640 vsync=true backend=Auto
+[2026-03-17 10:00:32.190] [info] [app] Trying render backend 'Vulkan' for application startup
+[2026-03-17 10:00:32.190] [info] [app] Application initialized successfully with backend 'Vulkan'
+[2026-03-17 10:00:32.190] [warning] [app] Render surface became unavailable during frame preparation for backend 'Vulkan' (reason='backend_state_missing')
+[2026-03-17 10:00:32.190] [info] [app] Recreating window surface for framebuffer 1440x900
+[2026-03-17 10:00:32.190] [warning] [app] Render surface became unavailable during frame preparation for backend 'Vulkan' (reason='backend_state_missing')
