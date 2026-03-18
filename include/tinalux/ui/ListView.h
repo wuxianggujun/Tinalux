@@ -15,7 +15,7 @@ class Container;
 
 class ListView final : public ScrollView {
 public:
-    using ItemFactory = std::function<std::shared_ptr<Widget>(std::size_t)>;
+    using ItemFactory = std::function<std::shared_ptr<Widget>(std::size_t, std::shared_ptr<Widget>)>;
 
     ListView();
 
@@ -55,14 +55,16 @@ private:
     bool usesUniformItemLayout() const;
     std::size_t firstItemIntersecting(float contentY) const;
     std::size_t firstItemStartingAfter(float contentY) const;
-    std::shared_ptr<Widget> materializeItem(std::size_t index) const;
+    void recycleInactiveItems(const std::vector<std::size_t>& activeIndices);
+    std::shared_ptr<Widget> realizeItem(std::size_t index) const;
     Widget* itemAtIndex(int index) const;
     int indexForPoint(core::Point localPoint) const;
     void ensureItemVisible(int index);
     void updateSelection(int index, bool emitCallback);
 
     std::shared_ptr<Container> items_;
-    mutable std::unordered_map<std::size_t, std::shared_ptr<Widget>> materializedItems_;
+    mutable std::unordered_map<std::size_t, std::shared_ptr<Widget>> realizedItems_;
+    mutable std::vector<std::shared_ptr<Widget>> recycledItems_;
     std::vector<core::Rect> itemBounds_;
     std::vector<std::uint64_t> itemLayoutVersions_;
     core::Size measuredContentSize_ = core::Size::Make(0.0f, 0.0f);

@@ -44,27 +44,55 @@ rendering::Image makeIcon(
     return surface.snapshotImage();
 }
 
-std::shared_ptr<Panel> makeActivityItem(const ActivityEntry& entry, Theme theme, std::size_t index)
+class ActivityItemCard final : public Panel {
+public:
+    ActivityItemCard()
+    {
+        setCornerRadius(16.0f);
+
+        auto layout = std::make_unique<VBoxLayout>();
+        layout->padding = 14.0f;
+        layout->spacing = 6.0f;
+        setLayout(std::move(layout));
+
+        title_ = std::make_shared<Label>("");
+        meta_ = std::make_shared<Label>("");
+        hint_ = std::make_shared<ParagraphLabel>("");
+        hint_->setMaxLines(2);
+
+        addChild(title_);
+        addChild(meta_);
+        addChild(hint_);
+    }
+
+    void bind(const ActivityEntry& entry, Theme theme, std::size_t index)
+    {
+        setBackgroundColor(index % 2 == 0 ? theme.surface : theme.background);
+        setCornerRadius(theme.cornerRadius);
+        title_->setText(entry.title);
+        meta_->setText(entry.meta);
+        meta_->setColor(theme.textSecondary);
+        hint_->setText(entry.hint);
+        hint_->setColor(theme.textSecondary);
+    }
+
+private:
+    std::shared_ptr<Label> title_;
+    std::shared_ptr<Label> meta_;
+    std::shared_ptr<ParagraphLabel> hint_;
+};
+
+std::shared_ptr<ActivityItemCard> makeActivityItemCard(
+    std::shared_ptr<Widget> recycled,
+    const ActivityEntry& entry,
+    Theme theme,
+    std::size_t index)
 {
-    auto itemCard = std::make_shared<Panel>();
-    itemCard->setBackgroundColor(index % 2 == 0 ? theme.surface : theme.background);
-    itemCard->setCornerRadius(theme.cornerRadius);
-
-    auto layout = std::make_unique<VBoxLayout>();
-    layout->padding = 14.0f;
-    layout->spacing = 6.0f;
-    itemCard->setLayout(std::move(layout));
-
-    auto title = std::make_shared<Label>(entry.title);
-    auto meta = std::make_shared<Label>(entry.meta);
-    meta->setColor(theme.textSecondary);
-    auto hint = std::make_shared<ParagraphLabel>(entry.hint);
-    hint->setColor(theme.textSecondary);
-    hint->setMaxLines(2);
-
-    itemCard->addChild(title);
-    itemCard->addChild(meta);
-    itemCard->addChild(hint);
+    auto itemCard = std::dynamic_pointer_cast<ActivityItemCard>(recycled);
+    if (itemCard == nullptr) {
+        itemCard = std::make_shared<ActivityItemCard>();
+    }
+    itemCard->bind(entry, theme, index);
     return itemCard;
 }
 
@@ -246,7 +274,7 @@ void rebuildActivityList(
         list->setItemFactory(
             1,
             kActivityItemHeight,
-            [theme](std::size_t) {
+            [theme](std::size_t, std::shared_ptr<Widget>) {
                 return makeInfoCard(
                     "No sessions match your filter",
                     "Try searching by device, city, or review state, or clear the search field.",
@@ -256,8 +284,12 @@ void rebuildActivityList(
         list->setItemFactory(
             filteredIndices->size(),
             kActivityItemHeight,
-            [entries, filteredIndices, theme](std::size_t index) {
-                return makeActivityItem((*entries)[(*filteredIndices)[index]], theme, index);
+            [entries, filteredIndices, theme](std::size_t index, std::shared_ptr<Widget> recycled) {
+                return makeActivityItemCard(
+                    std::move(recycled),
+                    (*entries)[(*filteredIndices)[index]],
+                    theme,
+                    index);
             });
     }
 

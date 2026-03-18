@@ -60,7 +60,7 @@ int main()
     }
     listView.setItemFactory(
         items->size(),
-        [items](std::size_t index) -> std::shared_ptr<ui::Widget> {
+        [items](std::size_t index, std::shared_ptr<ui::Widget>) -> std::shared_ptr<ui::Widget> {
             return (*items)[index];
         });
 
@@ -88,11 +88,18 @@ int main()
         dataDrivenListView.setSpacing(4.0f);
 
         std::set<std::size_t> builtIndices;
+        int createdWidgetCount = 0;
         dataDrivenListView.setItemFactory(
             200,
             24.0f,
-            [&builtIndices](std::size_t index) -> std::shared_ptr<ui::Widget> {
+            [&builtIndices, &createdWidgetCount](std::size_t index, std::shared_ptr<ui::Widget> recycled)
+                -> std::shared_ptr<ui::Widget> {
                 builtIndices.insert(index);
+                if (recycled != nullptr) {
+                    return recycled;
+                }
+
+                ++createdWidgetCount;
                 return std::make_shared<FixedItem>(180.0f, 24.0f);
             });
 
@@ -103,12 +110,14 @@ int main()
         expect(dataContent != nullptr, "data-driven list view should keep container content");
         expect(dataContent->children().size() < 20, "data-driven list should mount only a small visible window");
         expect(builtIndices.size() < 20, "data-driven list should not build every item during first layout");
+        expect(createdWidgetCount < 20, "data-driven list should create only the visible recycler window");
 
         dataDrivenListView.setSelectedIndex(199);
         expect(dataDrivenListView.scrollOffset() > 0.0f, "data-driven list should scroll far selection into view");
         expect(dataDrivenListView.selectedItem() != nullptr, "data-driven list should materialize selected item on demand");
         expect(dataContent->children().size() < 20, "data-driven list should stay sparse after far selection");
         expect(builtIndices.size() < 40, "data-driven list should still build only a narrow window after far selection");
+        expect(createdWidgetCount < 20, "data-driven list should recycle slots instead of creating a second window");
     }
 
     return 0;

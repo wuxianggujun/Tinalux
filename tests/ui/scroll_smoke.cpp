@@ -49,7 +49,7 @@ int main()
     }
     listView->setItemFactory(
         buttons->size(),
-        [buttons](std::size_t index) -> std::shared_ptr<ui::Widget> {
+        [buttons](std::size_t index, std::shared_ptr<ui::Widget>) -> std::shared_ptr<ui::Widget> {
             return (*buttons)[index];
         });
 

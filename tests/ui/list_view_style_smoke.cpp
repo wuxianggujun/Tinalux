@@ -63,7 +63,7 @@ int main()
     listView.setPreferredHeight(120.0f);
     listView.setItemFactory(
         items->size(),
-        [items](std::size_t index) -> std::shared_ptr<ui::Widget> {
+        [items](std::size_t index, std::shared_ptr<ui::Widget>) -> std::shared_ptr<ui::Widget> {
             return (*items)[index];
         });
 
@@ -114,7 +114,7 @@ int main()
     ui::ListView themedListView;
     themedListView.setItemFactory(
         themedItems->size(),
-        [themedItems](std::size_t index) -> std::shared_ptr<ui::Widget> {
+        [themedItems](std::size_t index, std::shared_ptr<ui::Widget>) -> std::shared_ptr<ui::Widget> {
             return (*themedItems)[index];
         });
     themedListView.arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 220.0f, 120.0f));

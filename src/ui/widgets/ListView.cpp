@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <set>
 #include <vector>
 
 #include "tinalux/core/KeyCodes.h"
@@ -91,7 +90,8 @@ void ListView::clearSource()
 {
     const bool hadSelection = selectedIndex_ != -1;
     items_->clearChildren();
-    materializedItems_.clear();
+    realizedItems_.clear();
+    recycledItems_.clear();
     itemBounds_.clear();
     itemLayoutVersions_.clear();
     measuredContentSize_ = core::Size::Make(0.0f, 0.0f);
@@ -127,7 +127,8 @@ void ListView::setItemFactory(
     const bool hadSelection = selectedIndex_ != -1;
 
     items_->clearChildren();
-    materializedItems_.clear();
+    realizedItems_.clear();
+    recycledItems_.clear();
     itemBounds_.clear();
     itemLayoutVersions_.clear();
     measuredContentSize_ = core::Size::Make(0.0f, 0.0f);
@@ -409,7 +410,7 @@ void ListView::ensureItemLayoutCache(float viewportWidth)
             canReuseCache = false;
         } else {
             for (std::size_t index = 0; index < itemCount(); ++index) {
-                const auto item = materializeItem(index);
+                const auto item = realizeItem(index);
                 if (item == nullptr || itemLayoutVersions_[index] != item->layoutVersion()) {
                     canReuseCache = false;
                     break;
@@ -451,7 +452,7 @@ void ListView::ensureItemLayoutCache(float viewportWidth)
         }
     } else {
         for (std::size_t index = 0; index < sourceItemCount_; ++index) {
-            const auto item = materializeItem(index);
+            const auto item = realizeItem(index);
             if (item == nullptr) {
                 itemBounds_.push_back(core::Rect::MakeXYWH(style.padding, cursorY, 0.0f, 0.0f));
                 itemLayoutVersions_.push_back(0);
@@ -525,6 +526,7 @@ void ListView::syncVisibleItems()
 {
     std::vector<std::shared_ptr<Widget>> visibleItems;
     std::vector<core::Rect> visibleBounds;
+    std::vector<std::size_t> activeIndices;
 
     if (itemCount() > 0) {
         const float visibleTop = scrollOffset_;
@@ -537,37 +539,35 @@ void ListView::syncVisibleItems()
         }
         end = std::min(itemCount(), end + kVisibleOverscanItems);
 
-        std::set<std::size_t> activeIndices;
+        activeIndices.reserve((end - start) + realizedItems_.size() + 1);
         for (std::size_t index = start; index < end; ++index) {
-            activeIndices.insert(index);
+            activeIndices.push_back(index);
         }
         if (selectedIndex_ >= 0 && selectedIndex_ < static_cast<int>(itemCount())) {
-            activeIndices.insert(static_cast<std::size_t>(selectedIndex_));
+            activeIndices.push_back(static_cast<std::size_t>(selectedIndex_));
         }
-        for (const auto& [index, item] : materializedItems_) {
+        for (const auto& [index, item] : realizedItems_) {
             if (item != nullptr && item->focused()) {
-                activeIndices.insert(index);
+                activeIndices.push_back(index);
             }
         }
+
+        std::sort(activeIndices.begin(), activeIndices.end());
+        activeIndices.erase(std::unique(activeIndices.begin(), activeIndices.end()), activeIndices.end());
+        recycleInactiveItems(activeIndices);
 
         visibleItems.reserve(activeIndices.size());
         visibleBounds.reserve(activeIndices.size());
         for (const std::size_t index : activeIndices) {
-            const auto item = materializeItem(index);
+            const auto item = realizeItem(index);
             if (item == nullptr) {
                 continue;
             }
             visibleItems.push_back(item);
             visibleBounds.push_back(itemBounds_[index]);
         }
-
-        for (auto it = materializedItems_.begin(); it != materializedItems_.end();) {
-            if (activeIndices.contains(it->first) || (it->second != nullptr && it->second->focused())) {
-                ++it;
-                continue;
-            }
-            it = materializedItems_.erase(it);
-        }
+    } else {
+        recycleInactiveItems(activeIndices);
     }
 
     if (auto* virtualContent = dynamic_cast<VirtualListContent*>(items_.get()); virtualContent != nullptr) {
@@ -585,19 +585,40 @@ bool ListView::usesUniformItemLayout() const
     return itemFactory_ != nullptr && uniformItemHeight_ > 0.0f;
 }
 
-std::shared_ptr<Widget> ListView::materializeItem(std::size_t index) const
+void ListView::recycleInactiveItems(const std::vector<std::size_t>& activeIndices)
+{
+    for (auto it = realizedItems_.begin(); it != realizedItems_.end();) {
+        if (std::binary_search(activeIndices.begin(), activeIndices.end(), it->first)) {
+            ++it;
+            continue;
+        }
+
+        if (it->second != nullptr) {
+            recycledItems_.push_back(std::move(it->second));
+        }
+        it = realizedItems_.erase(it);
+    }
+}
+
+std::shared_ptr<Widget> ListView::realizeItem(std::size_t index) const
 {
     if (index >= sourceItemCount_ || itemFactory_ == nullptr) {
         return {};
     }
 
-    if (const auto it = materializedItems_.find(index); it != materializedItems_.end()) {
+    if (const auto it = realizedItems_.find(index); it != realizedItems_.end()) {
         return it->second;
     }
 
-    auto item = itemFactory_(index);
+    std::shared_ptr<Widget> recycledItem;
+    while (!recycledItems_.empty() && recycledItem == nullptr) {
+        recycledItem = std::move(recycledItems_.back());
+        recycledItems_.pop_back();
+    }
+
+    auto item = itemFactory_(index, std::move(recycledItem));
     if (item != nullptr) {
-        materializedItems_.emplace(index, item);
+        realizedItems_.emplace(index, item);
     }
     return item;
 }
@@ -607,7 +628,7 @@ Widget* ListView::itemAtIndex(int index) const
     if (index < 0 || index >= static_cast<int>(itemCount())) {
         return nullptr;
     }
-    return materializeItem(static_cast<std::size_t>(index)).get();
+    return realizeItem(static_cast<std::size_t>(index)).get();
 }
 
 int ListView::indexForPoint(core::Point localPoint) const

@@ -70,7 +70,7 @@ int main()
     }
     listView->setItemFactory(
         items->size(),
-        [items](std::size_t index) -> std::shared_ptr<ui::Widget> {
+        [items](std::size_t index, std::shared_ptr<ui::Widget>) -> std::shared_ptr<ui::Widget> {
             return (*items)[index];
         });
     listView->onSelectionChanged([&selectionChanges](int index) { selectionChanges.push_back(index); });
