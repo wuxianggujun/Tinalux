@@ -71,7 +71,7 @@ int main()
     paragraph->draw(canvas);
 
     std::string clipboard;
-    ui::setClipboardHandlers(
+    const auto clipboardBindingId = ui::attachClipboardHandlers(
         [&clipboard] { return clipboard; },
         [&clipboard](const std::string& text) { clipboard = text; });
 
@@ -111,6 +111,6 @@ int main()
     app.handleEvent(ctrlV);
     expect(input->text() == "abc", "Ctrl+V should paste clipboard text");
 
-    ui::clearClipboardHandlers();
+    ui::detachClipboardHandlers(clipboardBindingId);
     return 0;
 }

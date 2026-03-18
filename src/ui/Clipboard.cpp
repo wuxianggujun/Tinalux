@@ -1,40 +1,75 @@
 #include "tinalux/ui/Clipboard.h"
 
+#include <map>
+#include <utility>
+
 namespace tinalux::ui {
 
 namespace {
 
-ClipboardGetter gGetter;
-ClipboardSetter gSetter;
+struct ClipboardBinding {
+    ClipboardGetter getter;
+    ClipboardSetter setter;
+};
+
+std::map<ClipboardBindingId, ClipboardBinding> gBindings;
+ClipboardBindingId gNextBindingId = 1;
+
+const ClipboardBinding* activeBinding()
+{
+    if (gBindings.empty()) {
+        return nullptr;
+    }
+
+    return &gBindings.rbegin()->second;
+}
 
 }  // namespace
 
-void setClipboardHandlers(ClipboardGetter getter, ClipboardSetter setter)
+ClipboardBindingId attachClipboardHandlers(ClipboardGetter getter, ClipboardSetter setter)
 {
-    gGetter = std::move(getter);
-    gSetter = std::move(setter);
+    if (!getter || !setter) {
+        return 0;
+    }
+
+    const ClipboardBindingId id = gNextBindingId++;
+    gBindings[id] = ClipboardBinding {
+        .getter = std::move(getter),
+        .setter = std::move(setter),
+    };
+    return id;
 }
 
-void clearClipboardHandlers()
+void detachClipboardHandlers(ClipboardBindingId id)
 {
-    gGetter = {};
-    gSetter = {};
+    if (id == 0) {
+        return;
+    }
+
+    gBindings.erase(id);
 }
 
 bool hasClipboardHandler()
 {
-    return static_cast<bool>(gGetter) && static_cast<bool>(gSetter);
+    const ClipboardBinding* binding = activeBinding();
+    return binding != nullptr
+        && static_cast<bool>(binding->getter)
+        && static_cast<bool>(binding->setter);
 }
 
 std::string clipboardText()
 {
-    return gGetter ? gGetter() : std::string {};
+    const ClipboardBinding* binding = activeBinding();
+    return (binding != nullptr && binding->getter)
+        ? binding->getter()
+        : std::string {};
 }
 
 void setClipboardText(const std::string& text)
 {
-    if (gSetter) {
-        gSetter(text);
+    const ClipboardBinding* binding = activeBinding();
+    if (binding != nullptr && binding->setter) {
+        binding->setter(text);
     }
 }
 

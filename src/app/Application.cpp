@@ -79,6 +79,7 @@ struct Application::Impl {
     rendering::RenderContext context;
     rendering::RenderSurface surface;
     UIContext uiContext;
+    ui::ClipboardBindingId clipboardBindingId = 0;
     bool skiaInitialized = false;
     int surfaceWidth = 0;
     int surfaceHeight = 0;
@@ -138,7 +139,7 @@ bool Application::init(const ApplicationConfig& config)
     impl_->skiaInitialized = true;
     impl_->config = config;
     impl_->backendPlan.reset(config.backend);
-    ui::setClipboardHandlers(
+    impl_->clipboardBindingId = ui::attachClipboardHandlers(
         [this] {
             return impl_ != nullptr && impl_->window != nullptr
                 ? impl_->window->clipboardText()
@@ -449,6 +450,8 @@ void Application::shutdown()
         return;
     }
 
+    ui::detachClipboardHandlers(impl_->clipboardBindingId);
+    impl_->clipboardBindingId = 0;
     impl_->uiContext.shutdown();
     resetRenderState();
     impl_->backendPlan.reset(rendering::Backend::Auto);

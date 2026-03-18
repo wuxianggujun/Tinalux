@@ -430,7 +430,6 @@ void UIContext::shutdown()
     unbindThemeRuntime();
     runtimeState_->animationScheduler.clear();
     ui::ResourceLoader::instance().clear();
-    ui::clearClipboardHandlers();
 
     if (const auto focused = lockWidget(focusedWidget_)) {
         focused->setFocused(false);
