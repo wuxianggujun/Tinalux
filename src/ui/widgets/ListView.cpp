@@ -33,9 +33,7 @@ void ListView::addItem(std::shared_ptr<Widget> item)
 void ListView::clearItems()
 {
     const bool hadSelection = selectedIndex_ != -1;
-    while (!items_->children().empty()) {
-        items_->removeChild(items_->children().back().get());
-    }
+    items_->clearChildren();
     pressedIndex_ = -1;
     selectedIndex_ = -1;
     if (hadSelection && onSelectionChanged_) {
@@ -272,11 +270,22 @@ int ListView::indexForPoint(core::Point localPoint) const
 
     const float contentY = localPoint.y() + scrollOffset_;
     const auto& children = items_->children();
-    for (std::size_t index = 0; index < children.size(); ++index) {
+    std::size_t low = 0;
+    std::size_t high = children.size();
+    while (low < high) {
+        const std::size_t index = low + (high - low) / 2;
         const core::Rect childBounds = children[index]->bounds();
-        if (childBounds.contains(localPoint.x(), contentY)) {
-            return static_cast<int>(index);
+        if (contentY < childBounds.top()) {
+            high = index;
+            continue;
         }
+        if (contentY >= childBounds.bottom()) {
+            low = index + 1;
+            continue;
+        }
+        return childBounds.contains(localPoint.x(), contentY)
+            ? static_cast<int>(index)
+            : -1;
     }
     return -1;
 }

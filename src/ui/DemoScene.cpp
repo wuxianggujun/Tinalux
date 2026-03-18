@@ -83,7 +83,7 @@ private:
             selectedPageIndex_ = 0;
         }
 
-        clearChildren();
+        Container::clearChildren();
         navButtons_.clear();
         currentPage_.reset();
         pageTitle_.reset();
@@ -231,13 +231,6 @@ private:
         for (std::size_t buttonIndex = 0; buttonIndex < navButtons_.size(); ++buttonIndex) {
             navButtons_[buttonIndex]->setStyle(
                 makeNavigationButtonStyle(theme_, buttonIndex == selectedPageIndex_));
-        }
-    }
-
-    void clearChildren()
-    {
-        while (!children_.empty()) {
-            removeChild(children_.back().get());
         }
     }
 

@@ -536,6 +536,20 @@ int main()
     }
 
     {
+        auto root = std::make_shared<tinalux::ui::Panel>();
+        auto first = std::make_shared<tinalux::ui::Button>("First");
+        auto second = std::make_shared<tinalux::ui::Button>("Second");
+        root->addChild(first);
+        root->addChild(second);
+
+        root->clearChildren();
+
+        expect(root->children().empty(), "clearChildren should remove every child");
+        expect(first->parent() == nullptr, "clearChildren should clear first child parent");
+        expect(second->parent() == nullptr, "clearChildren should clear second child parent");
+    }
+
+    {
         tinalux::app::UIContext context;
         auto root = std::make_shared<tinalux::ui::Panel>();
         auto input = std::make_shared<tinalux::ui::TextInput>("lifetime");
@@ -558,6 +572,36 @@ int main()
         expect(!context.textInputActive(), "detached focused widget should not stay active when still retained externally");
         expect(!context.imeCursorRect().has_value(), "detached focused widget should not leave a retained IME pointer");
         expect(!retainedInput->focused(), "detached focused widget should clear its own focus state");
+
+        input.reset();
+        retainedInput.reset();
+    }
+
+    {
+        tinalux::app::UIContext context;
+        auto root = std::make_shared<tinalux::ui::Panel>();
+        auto input = std::make_shared<tinalux::ui::TextInput>("clear-lifetime");
+        auto retainedInput = input;
+        root->addChild(input);
+        root->arrange(tinalux::core::Rect::MakeXYWH(0.0f, 0.0f, 320.0f, 120.0f));
+        input->arrange(tinalux::core::Rect::MakeXYWH(12.0f, 12.0f, 240.0f, 48.0f));
+        context.setRootWidget(root);
+
+        tinalux::core::KeyEvent tabForward(
+            tinalux::core::keys::kTab,
+            0,
+            0,
+            tinalux::core::EventType::KeyPress);
+        context.handleEvent(tabForward, [] {});
+        expect(context.textInputActive(), "focused text input should activate text input state before clearChildren");
+
+        root->clearChildren();
+
+        expect(root->children().empty(), "clearChildren should empty the container");
+        expect(!context.textInputActive(), "clearChildren should drop focused detached widgets from UIContext");
+        expect(!context.imeCursorRect().has_value(), "clearChildren should clear retained IME state");
+        expect(!retainedInput->focused(), "clearChildren should clear focus on detached widget");
+        expect(retainedInput->parent() == nullptr, "clearChildren should detach retained widget parent");
 
         input.reset();
         retainedInput.reset();

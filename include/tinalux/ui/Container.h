@@ -14,6 +14,7 @@ public:
 
     void addChild(std::shared_ptr<Widget> child);
     void removeChild(Widget* child);
+    void clearChildren();
     void setLayout(std::unique_ptr<Layout> layout);
 
     core::Size measure(const Constraints& constraints) override;

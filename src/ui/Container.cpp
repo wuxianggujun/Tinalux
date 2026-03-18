@@ -67,6 +67,20 @@ void Container::removeChild(Widget* child)
     removeChildInternal(child, false);
 }
 
+void Container::clearChildren()
+{
+    if (children_.empty()) {
+        return;
+    }
+
+    for (const auto& child : children_) {
+        clearFocusRecursive(child.get());
+        child->setParent(nullptr);
+    }
+    children_.clear();
+    markLayoutDirty();
+}
+
 void Container::removeChildInternal(Widget* child, bool preserveFocusState)
 {
     if (child == nullptr) {
