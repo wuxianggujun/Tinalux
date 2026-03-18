@@ -101,9 +101,9 @@ std::shared_ptr<Widget> createActivityPage(Theme theme)
         { "Session #12  |  Ubuntu 24.04", "Tokyo Satellite  |  Review score 84", "Session remained stable after elevated review." },
     });
 
-    rebuildActivityList(list, summary, *entries, theme, {});
+    rebuildActivityList(list, summary, entries, theme, {});
     search->onTextChanged([list, summary, entries, theme](const std::string& text) {
-        rebuildActivityList(list, summary, *entries, theme, text);
+        rebuildActivityList(list, summary, entries, theme, text);
     });
     search->onTrailingIconClick([search] {
         if (!search->text().empty()) {

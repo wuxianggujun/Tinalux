@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <set>
 #include <vector>
 
 #include "../../src/ui/RuntimeState.h"
@@ -75,6 +76,36 @@ int main()
     expect(content->children().size() < items.size(), "virtualized list should stay sparse after scrolling");
     expect(items.back()->parent() == content, "selected far item should become attached when brought into view");
     expect(items.front()->parent() == nullptr, "top item should detach after scrolling far away");
+
+    {
+        ui::ListView dataDrivenListView;
+        dataDrivenListView.setPreferredHeight(96.0f);
+        dataDrivenListView.setPadding(8.0f);
+        dataDrivenListView.setSpacing(4.0f);
+
+        std::set<std::size_t> builtIndices;
+        dataDrivenListView.setUniformDataSource(
+            200,
+            24.0f,
+            [&builtIndices](std::size_t index) -> std::shared_ptr<ui::Widget> {
+                builtIndices.insert(index);
+                return std::make_shared<FixedItem>(180.0f, 24.0f);
+            });
+
+        dataDrivenListView.measure(ui::Constraints::tight(240.0f, 96.0f));
+        dataDrivenListView.arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 240.0f, 96.0f));
+
+        auto* dataContent = dynamic_cast<ui::Container*>(dataDrivenListView.content());
+        expect(dataContent != nullptr, "data-driven list view should keep container content");
+        expect(dataContent->children().size() < 20, "data-driven list should mount only a small visible window");
+        expect(builtIndices.size() < 20, "data-driven list should not build every item during first layout");
+
+        dataDrivenListView.setSelectedIndex(199);
+        expect(dataDrivenListView.scrollOffset() > 0.0f, "data-driven list should scroll far selection into view");
+        expect(dataDrivenListView.selectedItem() != nullptr, "data-driven list should materialize selected item on demand");
+        expect(dataContent->children().size() < 20, "data-driven list should stay sparse after far selection");
+        expect(builtIndices.size() < 40, "data-driven list should still build only a narrow window after far selection");
+    }
 
     return 0;
 }

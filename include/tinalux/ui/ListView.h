@@ -3,6 +3,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <unordered_map>
 #include <vector>
 
 #include "tinalux/ui/ListViewStyle.h"
@@ -14,10 +15,17 @@ class Container;
 
 class ListView final : public ScrollView {
 public:
+    using UniformItemFactory = std::function<std::shared_ptr<Widget>(std::size_t)>;
+
     ListView();
 
     void addItem(std::shared_ptr<Widget> item);
     void clearItems();
+    void setUniformDataSource(
+        std::size_t itemCount,
+        float itemHeight,
+        UniformItemFactory factory);
+    void clearDataSource();
     void setSpacing(float spacing);
     void setPadding(float padding);
     void setStyle(const ListViewStyle& style);
@@ -42,8 +50,10 @@ private:
     void ensureItemLayoutCache(float viewportWidth);
     void syncVisibleItems();
     void applyVisibleItemLayout();
+    std::size_t itemCount() const;
     std::size_t firstItemIntersecting(float contentY) const;
     std::size_t firstItemStartingAfter(float contentY) const;
+    std::shared_ptr<Widget> materializeItem(std::size_t index) const;
     Widget* itemAtIndex(int index) const;
     int indexForPoint(core::Point localPoint) const;
     void ensureItemVisible(int index);
@@ -51,13 +61,18 @@ private:
 
     std::shared_ptr<Container> items_;
     std::vector<std::shared_ptr<Widget>> itemStorage_;
+    mutable std::unordered_map<std::size_t, std::shared_ptr<Widget>> dataSourceCache_;
     std::vector<core::Rect> itemBounds_;
     std::vector<std::uint64_t> itemLayoutVersions_;
     core::Size measuredContentSize_ = core::Size::Make(0.0f, 0.0f);
     float cachedViewportWidth_ = -1.0f;
     float appliedPadding_ = -1.0f;
     float appliedSpacing_ = -1.0f;
+    float uniformItemHeight_ = 0.0f;
+    std::size_t uniformItemCount_ = 0;
     bool itemLayoutCacheValid_ = false;
+    bool usingUniformDataSource_ = false;
+    UniformItemFactory uniformItemFactory_;
     std::optional<ListViewStyle> customStyle_;
     std::optional<float> spacingOverride_;
     std::optional<float> paddingOverride_;

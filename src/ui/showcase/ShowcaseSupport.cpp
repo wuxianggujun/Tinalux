@@ -22,6 +22,8 @@ namespace tinalux::ui::showcase::support {
 
 namespace {
 
+constexpr float kActivityItemHeight = 108.0f;
+
 rendering::Image makeIcon(
     float sizeHint,
     const std::function<void(rendering::Canvas&, float)>& draw)
@@ -223,29 +225,40 @@ std::shared_ptr<Panel> makeFlexMetricCard(const std::string& title, const std::s
 void rebuildActivityList(
     const std::shared_ptr<ListView>& list,
     const std::shared_ptr<ParagraphLabel>& summary,
-    const std::vector<ActivityEntry>& entries,
+    std::shared_ptr<const std::vector<ActivityEntry>> entries,
     Theme theme,
     std::string_view query)
 {
-    if (list == nullptr || summary == nullptr) {
+    if (list == nullptr || summary == nullptr || entries == nullptr) {
         return;
     }
 
-    list->clearItems();
-    std::size_t visibleCount = 0;
-    for (std::size_t index = 0; index < entries.size(); ++index) {
-        if (!matchesActivityEntry(entries[index], query)) {
+    auto filteredIndices = std::make_shared<std::vector<std::size_t>>();
+    filteredIndices->reserve(entries->size());
+    for (std::size_t index = 0; index < entries->size(); ++index) {
+        if (!matchesActivityEntry((*entries)[index], query)) {
             continue;
         }
-        list->addItem(makeActivityItem(entries[index], theme, visibleCount));
-        ++visibleCount;
+        filteredIndices->push_back(index);
     }
 
-    if (visibleCount == 0) {
-        list->addItem(makeInfoCard(
-            "No sessions match your filter",
-            "Try searching by device, city, or review state, or clear the search field.",
-            theme));
+    if (filteredIndices->empty()) {
+        list->setUniformDataSource(
+            1,
+            kActivityItemHeight,
+            [theme](std::size_t) {
+                return makeInfoCard(
+                    "No sessions match your filter",
+                    "Try searching by device, city, or review state, or clear the search field.",
+                    theme);
+            });
+    } else {
+        list->setUniformDataSource(
+            filteredIndices->size(),
+            kActivityItemHeight,
+            [entries, filteredIndices, theme](std::size_t index) {
+                return makeActivityItem((*entries)[(*filteredIndices)[index]], theme, index);
+            });
     }
 
     if (query.empty()) {
@@ -254,8 +267,8 @@ void rebuildActivityList(
             "Use the search box to narrow the feed instantly.");
     } else {
         summary->setText(
-            "Showing " + std::to_string(visibleCount) + " of "
-            + std::to_string(entries.size()) + " sessions for \"" + std::string(query) + "\".");
+            "Showing " + std::to_string(filteredIndices->size()) + " of "
+            + std::to_string(entries->size()) + " sessions for \"" + std::string(query) + "\".");
     }
 }
 

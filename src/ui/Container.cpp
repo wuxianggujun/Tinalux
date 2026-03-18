@@ -28,7 +28,14 @@ void clearFocusRecursive(Widget* widget)
 
 }  // namespace
 
-Container::~Container() = default;
+Container::~Container()
+{
+    for (const auto& child : children_) {
+        if (child != nullptr) {
+            child->setParent(nullptr);
+        }
+    }
+}
 
 void Container::addChild(std::shared_ptr<Widget> child)
 {

@@ -44,7 +44,7 @@ std::shared_ptr<Panel> makeFlexMetricCard(const std::string& title, const std::s
 void rebuildActivityList(
     const std::shared_ptr<ListView>& list,
     const std::shared_ptr<ParagraphLabel>& summary,
-    const std::vector<ActivityEntry>& entries,
+    std::shared_ptr<const std::vector<ActivityEntry>> entries,
     Theme theme,
     std::string_view query);
 
