@@ -33,7 +33,13 @@ protected:
     std::unique_ptr<Layout> layout_;
 
 private:
+    void invalidateLocalDrawBoundsCache();
     void removeChildInternal(Widget* child, bool preserveFocusState);
+
+    std::uint64_t localDrawBoundsRevision_ = 1;
+    mutable std::uint64_t cachedLocalDrawBoundsLayoutVersion_ = 0;
+    mutable std::uint64_t cachedLocalDrawBoundsRevision_ = 0;
+    mutable core::Rect cachedLocalDrawBounds_ = core::Rect::MakeEmpty();
 };
 
 }  // namespace tinalux::ui

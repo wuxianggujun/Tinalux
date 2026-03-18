@@ -51,8 +51,21 @@ public:
         return drawCount_;
     }
 
+    int drawBoundsQueryCount() const
+    {
+        return drawBoundsQueryCount_;
+    }
+
+protected:
+    tinalux::core::Rect localDrawBounds() const override
+    {
+        ++drawBoundsQueryCount_;
+        return Widget::localDrawBounds();
+    }
+
 private:
     int drawCount_ = 0;
+    mutable int drawBoundsQueryCount_ = 0;
     tinalux::core::Color color_;
 };
 
@@ -136,6 +149,8 @@ int main()
     expect(rightBranch->drawCount() == 1, "initial render should draw right branch once");
     expect(leftLeaf->drawCount() == 1, "initial render should draw left leaf once");
     expect(rightLeaf->drawCount() == 1, "initial render should draw right leaf once");
+    expect(leftLeaf->drawBoundsQueryCount() == 2, "initial render should query left leaf draw bounds twice");
+    expect(rightLeaf->drawBoundsQueryCount() == 2, "initial render should query right leaf draw bounds twice");
 
     leftLeaf->setColor(core::colorRGB(255, 220, 80));
     const bool fullRedraw = context.render(canvas, 200, 160, 1.0f);
@@ -144,6 +159,12 @@ int main()
     expect(rightBranch->drawCount() == 1, "clean off-clip branch should be pruned before entering onDraw");
     expect(leftLeaf->drawCount() == 2, "dirty leaf should redraw on partial render");
     expect(rightLeaf->drawCount() == 1, "pruned branch leaf should not redraw");
+    expect(
+        leftLeaf->drawBoundsQueryCount() == 3,
+        "dirty branch should reuse cached subtree bounds before querying the visible leaf once more");
+    expect(
+        rightLeaf->drawBoundsQueryCount() == 2,
+        "clean off-clip branch should reuse cached subtree bounds without re-querying its leaf");
 
     return 0;
 }

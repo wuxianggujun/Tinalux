@@ -66,6 +66,7 @@ void Container::addChild(std::shared_ptr<Widget> child)
 
     child->setParent(this);
     children_.push_back(std::move(child));
+    invalidateLocalDrawBoundsCache();
     markLayoutDirty();
 }
 
@@ -85,6 +86,7 @@ void Container::clearChildren()
         child->setParent(nullptr);
     }
     children_.clear();
+    invalidateLocalDrawBoundsCache();
     markLayoutDirty();
 }
 
@@ -107,6 +109,7 @@ void Container::removeChildInternal(Widget* child, bool preserveFocusState)
         }
         (*it)->setParent(nullptr);
         children_.erase(it);
+        invalidateLocalDrawBoundsCache();
         markLayoutDirty();
     }
 }
@@ -181,6 +184,11 @@ const std::vector<std::shared_ptr<Widget>>& Container::children() const
 
 core::Rect Container::localDrawBounds() const
 {
+    if (cachedLocalDrawBoundsLayoutVersion_ == layoutVersion()
+        && cachedLocalDrawBoundsRevision_ == localDrawBoundsRevision_) {
+        return cachedLocalDrawBounds_;
+    }
+
     core::Rect bounds = core::Rect::MakeEmpty();
     for (const auto& child : children_) {
         if (child == nullptr || !child->visible()) {
@@ -188,7 +196,10 @@ core::Rect Container::localDrawBounds() const
         }
         bounds.join(child->drawBoundsInParent());
     }
-    return bounds;
+    cachedLocalDrawBounds_ = bounds;
+    cachedLocalDrawBoundsLayoutVersion_ = layoutVersion();
+    cachedLocalDrawBoundsRevision_ = localDrawBoundsRevision_;
+    return cachedLocalDrawBounds_;
 }
 
 void Container::drawChildren(rendering::Canvas& canvas)
@@ -222,6 +233,15 @@ void Container::replaceChildrenDirect(std::vector<std::shared_ptr<Widget>> child
         child->setParent(this);
         children_.push_back(std::move(child));
     }
+    invalidateLocalDrawBoundsCache();
+}
+
+void Container::invalidateLocalDrawBoundsCache()
+{
+    ++localDrawBoundsRevision_;
+    cachedLocalDrawBoundsLayoutVersion_ = 0;
+    cachedLocalDrawBoundsRevision_ = 0;
+    cachedLocalDrawBounds_ = core::Rect::MakeEmpty();
 }
 
 }  // namespace tinalux::ui
