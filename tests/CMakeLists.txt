@@ -85,6 +85,11 @@ tinalux_add_smoke_test(TinaluxAppClipboardBindingSmoke
     LINK_LIBS Tinalux::App
 )
 
+tinalux_add_smoke_test(TinaluxAppSkiaRuntimeBindingSmoke
+    SOURCE app/application_skia_runtime_binding_smoke.cpp
+    LINK_LIBS Tinalux::App
+)
+
 tinalux_add_smoke_test(TinaluxAppResourceManagerBindingSmoke
     SOURCE app/application_resource_manager_binding_smoke.cpp
     LINK_LIBS Tinalux::App

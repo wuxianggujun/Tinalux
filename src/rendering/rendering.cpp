@@ -1,6 +1,7 @@
 #include "tinalux/rendering/rendering.h"
 
 #include <algorithm>
+#include <mutex>
 #include <utility>
 
 #include "FontCache.h"
@@ -21,6 +22,17 @@
 namespace tinalux::rendering {
 
 namespace {
+
+struct SkiaRuntimeState {
+    std::mutex mutex;
+    std::size_t referenceCount = 0;
+};
+
+SkiaRuntimeState& skiaRuntimeState()
+{
+    static SkiaRuntimeState state;
+    return state;
+}
 
 SkPaint makePaint(core::Color color, PaintStyle style, float strokeWidth)
 {
@@ -598,12 +610,29 @@ const char* surfaceFailureReasonName(SurfaceFailureReason reason)
 
 void initSkia()
 {
+    SkiaRuntimeState& state = skiaRuntimeState();
+    std::lock_guard<std::mutex> lock(state.mutex);
+    if (state.referenceCount++ > 0) {
+        return;
+    }
+
     SkGraphics::Init();
     core::logDebugCat("render", "Skia runtime initialized");
 }
 
 void shutdownSkia()
 {
+    SkiaRuntimeState& state = skiaRuntimeState();
+    std::lock_guard<std::mutex> lock(state.mutex);
+    if (state.referenceCount == 0) {
+        return;
+    }
+
+    --state.referenceCount;
+    if (state.referenceCount > 0) {
+        return;
+    }
+
     clearCachedFonts();
     SkGraphics::PurgeAllCaches();
     core::logDebugCat("render", "Skia runtime caches purged");
