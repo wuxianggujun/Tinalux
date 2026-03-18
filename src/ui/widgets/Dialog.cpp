@@ -414,6 +414,72 @@ void Dialog::onDraw(rendering::Canvas& canvas)
     drawChildren(canvas);
 }
 
+void Dialog::drawPartial(rendering::Canvas& canvas, const core::Rect& redrawRegion)
+{
+    if (!canvas || !visible_ || bounds_.isEmpty()) {
+        return;
+    }
+
+    const core::Rect drawBounds = globalDrawBounds();
+    if (drawBounds.isEmpty() || !drawBounds.intersects(redrawRegion) || canvas.quickReject(bounds_)) {
+        return;
+    }
+
+    canvas.save();
+    canvas.translate(bounds_.x(), bounds_.y());
+    canvas.clipRect(core::Rect::MakeWH(bounds_.width(), bounds_.height()));
+
+    const DialogStyle style = resolvedStyle();
+    const float titleFontSize = style.titleTextStyle.fontSize;
+    const TextMetrics titleMetrics = title_.empty()
+        ? TextMetrics {}
+        : measureTextMetrics(title_, titleFontSize);
+    const float headerBoxHeight = headerHeight(style, titleMetrics, showCloseButton_);
+
+    canvas.drawRect(
+        core::Rect::MakeWH(bounds_.width(), bounds_.height()),
+        style.backdropColor);
+    canvas.drawRoundRect(
+        cardBounds_,
+        style.cornerRadius,
+        style.cornerRadius,
+        style.backgroundColor);
+
+    if (!title_.empty()) {
+        canvas.drawText(
+            title_,
+            cardBounds_.x() + style.padding + titleMetrics.drawX,
+            cardBounds_.y() + style.padding + (headerBoxHeight - titleMetrics.height) * 0.5f + titleMetrics.baseline,
+            titleFontSize,
+            style.titleColor);
+    }
+
+    if (showCloseButton_ && !closeButtonBounds_.isEmpty()) {
+        canvas.drawRoundRect(
+            closeButtonBounds_,
+            std::max(6.0f, closeButtonBounds_.width() * 0.28f),
+            std::max(6.0f, closeButtonBounds_.height() * 0.28f),
+            closeButtonFill(style.titleColor, closeButtonHovered_, closeButtonPressed_));
+        if (closeIcon_) {
+            const float inset = std::max(2.0f, closeButtonBounds_.width() * 0.16f);
+            canvas.drawImage(
+                closeIcon_,
+                core::Rect::MakeXYWH(
+                    closeButtonBounds_.x() + inset,
+                    closeButtonBounds_.y() + inset,
+                    std::max(0.0f, closeButtonBounds_.width() - inset * 2.0f),
+                    std::max(0.0f, closeButtonBounds_.height() - inset * 2.0f)));
+        } else {
+            drawFallbackCloseIcon(canvas, closeButtonBounds_, style.titleColor);
+        }
+    }
+
+    drawPartialChildren(canvas, redrawRegion);
+
+    canvas.restore();
+    clearDirtyState();
+}
+
 core::Rect Dialog::localDrawBounds() const
 {
     return Widget::localDrawBounds();

@@ -41,8 +41,10 @@ public:
 
     virtual void onDraw(rendering::Canvas& canvas) = 0;
     void draw(rendering::Canvas& canvas);
+    virtual void drawPartial(rendering::Canvas& canvas, const core::Rect& redrawRegion);
 
     core::Rect bounds() const;
+    core::Rect globalDrawBounds() const;
     core::Point localToGlobal(core::Point point = core::Point::Make(0.0f, 0.0f)) const;
     core::Point globalToLocal(core::Point point) const;
     core::Rect globalBounds() const;
@@ -77,6 +79,7 @@ protected:
     core::Point parentAdjustedOrigin() const;
     virtual core::Rect localDrawBounds() const;
     core::Rect drawBoundsInParent() const;
+    void clearDirtyState();
     void markPaintDirty();
     void markDirtyRect(const core::Rect& rect);
     void setParent(Widget* parent);

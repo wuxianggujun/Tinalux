@@ -131,14 +131,29 @@ void Widget::draw(rendering::Canvas& canvas)
     canvas.clipRect(core::Rect::MakeWH(bounds_.width(), bounds_.height()));
     onDraw(canvas);
     canvas.restore();
-    paintDirty_ = false;
-    subtreePaintDirty_ = false;
-    dirtyRegion_ = core::Rect::MakeEmpty();
+    clearDirtyState();
+}
+
+void Widget::drawPartial(rendering::Canvas& canvas, const core::Rect& redrawRegion)
+{
+    (void)redrawRegion;
+    draw(canvas);
 }
 
 core::Rect Widget::bounds() const
 {
     return bounds_;
+}
+
+core::Rect Widget::globalDrawBounds() const
+{
+    const core::Rect localBounds = localDrawBounds();
+    if (localBounds.isEmpty()) {
+        return core::Rect::MakeEmpty();
+    }
+
+    const core::Point origin = localToGlobal();
+    return localBounds.makeOffset(origin.x(), origin.y());
 }
 
 core::Point Widget::localToGlobal(core::Point point) const
@@ -312,6 +327,13 @@ void Widget::markDirtyRect(const core::Rect& rect)
 void Widget::setParent(Widget* parent)
 {
     parent_ = parent;
+}
+
+void Widget::clearDirtyState()
+{
+    paintDirty_ = false;
+    subtreePaintDirty_ = false;
+    dirtyRegion_ = core::Rect::MakeEmpty();
 }
 
 void Widget::markAncestorLayoutDirty()

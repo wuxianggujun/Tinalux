@@ -20,6 +20,7 @@ public:
     const PanelStyle* style() const;
 
     void onDraw(rendering::Canvas& canvas) override;
+    void drawPartial(rendering::Canvas& canvas, const core::Rect& redrawRegion) override;
 
 protected:
     core::Rect localDrawBounds() const override;

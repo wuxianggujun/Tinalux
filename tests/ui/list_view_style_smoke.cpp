@@ -122,6 +122,5 @@ int main()
     expect(
         nearlyEqual(themedSecond->bounds().y(), 18.0f + themedFirst->bounds().height() + 11.0f),
         "list view should observe runtime theme spacing");
-
     return 0;
 }

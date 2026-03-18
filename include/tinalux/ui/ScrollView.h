@@ -26,6 +26,7 @@ public:
     core::Size measure(const Constraints& constraints) override;
     void arrange(const core::Rect& bounds) override;
     void onDraw(rendering::Canvas& canvas) override;
+    void drawPartial(rendering::Canvas& canvas, const core::Rect& redrawRegion) override;
     Widget* hitTest(float x, float y) override;
     bool onEvent(core::Event& event) override;
 

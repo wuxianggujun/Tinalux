@@ -792,7 +792,7 @@ bool UIContext::render(
         } else {
             canvas.save();
             canvas.clipRect(redrawRegion);
-            rootWidget_->draw(canvas);
+            rootWidget_->drawPartial(canvas, redrawRegion);
             canvas.restore();
         }
     }
@@ -802,7 +802,7 @@ bool UIContext::render(
         } else {
             canvas.save();
             canvas.clipRect(redrawRegion);
-            overlayWidget_->draw(canvas);
+            overlayWidget_->drawPartial(canvas, redrawRegion);
             canvas.restore();
         }
     }

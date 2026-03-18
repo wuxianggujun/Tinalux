@@ -155,8 +155,12 @@ int main()
     leftLeaf->setColor(core::colorRGB(255, 220, 80));
     const bool fullRedraw = context.render(canvas, 200, 160, 1.0f);
     expect(!fullRedraw, "leaf paint update should stay on partial redraw path");
-    expect(leftBranch->drawCount() == 2, "dirty branch should redraw on partial render");
-    expect(rightBranch->drawCount() == 1, "clean off-clip branch should be pruned before entering onDraw");
+    expect(
+        leftBranch->drawCount() == 1,
+        "partial redraw should descend through structural dirty branches without re-entering onDraw");
+    expect(
+        rightBranch->drawCount() == 1,
+        "clean off-clip branch should still be pruned before entering onDraw");
     expect(leftLeaf->drawCount() == 2, "dirty leaf should redraw on partial render");
     expect(rightLeaf->drawCount() == 1, "pruned branch leaf should not redraw");
     expect(

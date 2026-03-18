@@ -158,6 +158,38 @@ void Panel::onDraw(rendering::Canvas& canvas)
     drawPanelContents(canvas);
 }
 
+void Panel::drawPartial(rendering::Canvas& canvas, const core::Rect& redrawRegion)
+{
+    if (renderCacheEnabled_) {
+        Widget::drawPartial(canvas, redrawRegion);
+        return;
+    }
+
+    if (!canvas || !visible_ || bounds_.isEmpty()) {
+        return;
+    }
+
+    const core::Rect drawBounds = globalDrawBounds();
+    if (drawBounds.isEmpty() || !drawBounds.intersects(redrawRegion) || canvas.quickReject(bounds_)) {
+        return;
+    }
+
+    canvas.save();
+    canvas.translate(bounds_.x(), bounds_.y());
+    canvas.clipRect(core::Rect::MakeWH(bounds_.width(), bounds_.height()));
+
+    const PanelStyle style = resolvedStyle();
+    canvas.drawRoundRect(
+        core::Rect::MakeWH(bounds_.width(), bounds_.height()),
+        style.cornerRadius,
+        style.cornerRadius,
+        style.backgroundColor);
+    drawPartialChildren(canvas, redrawRegion);
+
+    canvas.restore();
+    clearDirtyState();
+}
+
 void Panel::drawPanelContents(rendering::Canvas& canvas)
 {
     const PanelStyle style = resolvedStyle();

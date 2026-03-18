@@ -154,6 +154,25 @@ void Container::onDraw(rendering::Canvas& canvas)
     drawChildren(canvas);
 }
 
+void Container::drawPartial(rendering::Canvas& canvas, const core::Rect& redrawRegion)
+{
+    if (!canvas || !visible_ || bounds_.isEmpty()) {
+        return;
+    }
+
+    const core::Rect drawBounds = globalDrawBounds();
+    if (drawBounds.isEmpty() || !drawBounds.intersects(redrawRegion) || canvas.quickReject(bounds_)) {
+        return;
+    }
+
+    canvas.save();
+    canvas.translate(bounds_.x(), bounds_.y());
+    canvas.clipRect(core::Rect::MakeWH(bounds_.width(), bounds_.height()));
+    drawPartialChildren(canvas, redrawRegion);
+    canvas.restore();
+    clearDirtyState();
+}
+
 Widget* Container::hitTest(float x, float y)
 {
     if (!visible_) {
@@ -215,6 +234,22 @@ void Container::drawChildren(rendering::Canvas& canvas)
             continue;
         }
         child->draw(canvas);
+    }
+}
+
+void Container::drawPartialChildren(rendering::Canvas& canvas, const core::Rect& redrawRegion)
+{
+    for (const auto& child : children_) {
+        if (child == nullptr || !child->visible()) {
+            continue;
+        }
+
+        const core::Rect childDrawBounds = child->globalDrawBounds();
+        if (childDrawBounds.isEmpty() || !childDrawBounds.intersects(redrawRegion)) {
+            continue;
+        }
+
+        child->drawPartial(canvas, redrawRegion);
     }
 }
 

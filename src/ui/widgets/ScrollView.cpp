@@ -225,6 +225,85 @@ void ScrollView::onDraw(rendering::Canvas& canvas)
         style.scrollbarThumbColor);
 }
 
+void ScrollView::drawPartial(rendering::Canvas& canvas, const core::Rect& redrawRegion)
+{
+    if (!canvas || !visible_ || bounds_.isEmpty()) {
+        return;
+    }
+
+    const core::Rect drawBounds = globalDrawBounds();
+    if (drawBounds.isEmpty() || !drawBounds.intersects(redrawRegion) || canvas.quickReject(bounds_)) {
+        return;
+    }
+
+    const core::Point globalOrigin = localToGlobal();
+    const core::Rect localRedrawRegion =
+        redrawRegion.makeOffset(-globalOrigin.x(), -globalOrigin.y());
+    const ScrollViewStyle& style = resolvedStyle();
+
+    canvas.save();
+    canvas.translate(bounds_.x(), bounds_.y());
+    canvas.clipRect(core::Rect::MakeWH(bounds_.width(), bounds_.height()));
+
+    if (content_ != nullptr) {
+        const core::Rect contentDrawBounds = content_->globalDrawBounds();
+        if (!contentDrawBounds.isEmpty() && contentDrawBounds.intersects(redrawRegion)) {
+            canvas.save();
+            canvas.translate(0.0f, -scrollOffset_);
+            content_->drawPartial(canvas, redrawRegion);
+            canvas.restore();
+        }
+    }
+
+    const float maxOffset = maxScrollOffset();
+    if (maxOffset > 0.0f && bounds_.height() > 0.0f) {
+        const float trackHeight =
+            std::max(0.0f, bounds_.height() - style.scrollbarMargin * 2.0f);
+        const float thumbHeight = std::clamp(
+            bounds_.height() * (bounds_.height() / std::max(bounds_.height(), contentHeight_)),
+            style.minThumbHeight,
+            trackHeight);
+        const float thumbTravel = std::max(0.0f, trackHeight - thumbHeight);
+        const float thumbY = style.scrollbarMargin
+            + (thumbTravel * (scrollOffset_ / std::max(1.0f, maxOffset)));
+
+        const float scrollbarX = std::max(
+            0.0f,
+            bounds_.width() - style.scrollbarMargin - style.scrollbarWidth);
+        const float scrollbarRadius = style.scrollbarWidth * 0.5f;
+        const core::Rect trackBounds = core::Rect::MakeXYWH(
+            scrollbarX,
+            style.scrollbarMargin,
+            style.scrollbarWidth,
+            trackHeight);
+        const core::Rect thumbBounds = core::Rect::MakeXYWH(
+            scrollbarX,
+            thumbY,
+            style.scrollbarWidth,
+            thumbHeight);
+
+        if (style.scrollbarTrackColor.alpha() > 0
+            && trackBounds.intersects(localRedrawRegion)) {
+            canvas.drawRoundRect(
+                trackBounds,
+                scrollbarRadius,
+                scrollbarRadius,
+                style.scrollbarTrackColor);
+        }
+
+        if (thumbBounds.intersects(localRedrawRegion)) {
+            canvas.drawRoundRect(
+                thumbBounds,
+                scrollbarRadius,
+                scrollbarRadius,
+                style.scrollbarThumbColor);
+        }
+    }
+
+    canvas.restore();
+    clearDirtyState();
+}
+
 Widget* ScrollView::hitTest(float x, float y)
 {
     if (!visible_) {

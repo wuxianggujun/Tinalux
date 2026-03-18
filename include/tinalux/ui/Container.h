@@ -20,6 +20,7 @@ public:
     core::Size measure(const Constraints& constraints) override;
     void arrange(const core::Rect& bounds) override;
     void onDraw(rendering::Canvas& canvas) override;
+    void drawPartial(rendering::Canvas& canvas, const core::Rect& redrawRegion) override;
     Widget* hitTest(float x, float y) override;
 
     const std::vector<std::shared_ptr<Widget>>& children() const;
@@ -27,6 +28,7 @@ public:
 protected:
     core::Rect localDrawBounds() const override;
     void drawChildren(rendering::Canvas& canvas);
+    void drawPartialChildren(rendering::Canvas& canvas, const core::Rect& redrawRegion);
     void replaceChildrenDirect(std::vector<std::shared_ptr<Widget>> children);
 
     std::vector<std::shared_ptr<Widget>> children_;
