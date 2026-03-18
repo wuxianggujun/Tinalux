@@ -53,6 +53,48 @@ void setThemePreferencePath(const std::filesystem::path& path)
 #endif
 }
 
+class RecordingAnimationSink final : public tinalux::ui::AnimationSink {
+public:
+    tinalux::ui::AnimationHandle requestAnimationFrame(
+        tinalux::ui::FrameCallback callback) override
+    {
+        frameCallbackCount_ += callback ? 1u : 0u;
+        return nextHandle_++;
+    }
+
+    tinalux::ui::AnimationHandle animate(
+        const tinalux::ui::TweenOptions&,
+        tinalux::ui::AnimationCallback onUpdate,
+        tinalux::ui::CompletionCallback onComplete) override
+    {
+        animateCallbackCount_ += onUpdate ? 1u : 0u;
+        completionCallbackCount_ += onComplete ? 1u : 0u;
+        return nextHandle_++;
+    }
+
+    void cancelAnimation(tinalux::ui::AnimationHandle) override
+    {
+        ++cancelCount_;
+    }
+
+    std::size_t animateCallbackCount() const
+    {
+        return animateCallbackCount_;
+    }
+
+    std::size_t cancelCount() const
+    {
+        return cancelCount_;
+    }
+
+private:
+    tinalux::ui::AnimationHandle nextHandle_ = 1;
+    std::size_t frameCallbackCount_ = 0;
+    std::size_t animateCallbackCount_ = 0;
+    std::size_t completionCallbackCount_ = 0;
+    std::size_t cancelCount_ = 0;
+};
+
 }  // namespace
 
 int main()
@@ -149,6 +191,46 @@ int main()
         expect(
             sameColor(manager.currentTheme().textSecondary, custom.textSecondary),
             "theme normalization should preserve explicit secondary text overrides");
+    }
+
+    {
+        RecordingAnimationSink olderSink;
+        RecordingAnimationSink newerSink;
+        std::size_t invalidationCount = 0;
+
+        const auto olderBindingId = manager.attachRuntime(
+            &olderSink,
+            [&invalidationCount] { ++invalidationCount; });
+        const auto newerBindingId = manager.attachRuntime(
+            &newerSink,
+            [&invalidationCount] { invalidationCount += 10; });
+
+        manager.setTheme(Theme::light(), false);
+        expect(
+            invalidationCount == 11,
+            "theme updates should invalidate every bound runtime");
+
+        manager.setTheme(Theme::dark(), true);
+        expect(
+            newerSink.animateCallbackCount() == 1,
+            "latest runtime binding should drive animated theme transitions");
+        expect(
+            olderSink.animateCallbackCount() == 0,
+            "older runtime bindings should stay passive while a newer sink exists");
+
+        manager.setTheme(Theme::dark(), false);
+        expect(
+            newerSink.cancelCount() == 1,
+            "switching away from an in-flight animation should cancel the active runtime sink");
+
+        manager.detachRuntime(newerBindingId);
+        manager.setTheme(Theme::light(), true);
+        expect(
+            olderSink.animateCallbackCount() == 1,
+            "detaching the newest runtime should fall back to the previous animation sink");
+
+        manager.detachRuntime(olderBindingId);
+        manager.setTheme(Theme::light(), false);
     }
 
     {

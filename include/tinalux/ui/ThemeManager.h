@@ -26,7 +26,6 @@ public:
     bool switchTheme(const std::string& name, bool animated = true);
 
     ListenerId addThemeChangeListener(ThemeChangeCallback callback);
-    ListenerId onThemeChange(ThemeChangeCallback callback);
     void removeThemeChangeListener(ListenerId id);
 
     bool saveThemePreference(const std::string& name) const;
@@ -36,9 +35,6 @@ public:
         AnimationSink* sink,
         std::function<void()> invalidateCallback);
     void detachRuntime(RuntimeBindingId id);
-
-    void setAnimationSink(AnimationSink* sink);
-    void setInvalidateCallback(std::function<void()> callback);
 
 private:
     struct RuntimeBinding {
@@ -52,15 +48,11 @@ private:
     void applyTheme(Theme theme);
     void notifyThemeChanged();
     AnimationSink* activeAnimationSink() const;
-    void updateLegacyRuntimeBinding();
 
     Theme currentTheme_ = Theme::dark();
     std::map<std::string, Theme> themes_;
     std::map<ListenerId, ThemeChangeCallback> callbacks_;
     std::map<RuntimeBindingId, RuntimeBinding> runtimeBindings_;
-    std::function<void()> legacyInvalidateCallback_;
-    AnimationSink* legacyAnimationSink_ = nullptr;
-    RuntimeBindingId legacyRuntimeBindingId_ = 0;
     AnimationSink* animationSink_ = nullptr;
     AnimationHandle animationHandle_ = 0;
     ListenerId nextListenerId_ = 1;

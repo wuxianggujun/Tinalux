@@ -264,11 +264,6 @@ ThemeManager::ListenerId ThemeManager::addThemeChangeListener(ThemeChangeCallbac
     return id;
 }
 
-ThemeManager::ListenerId ThemeManager::onThemeChange(ThemeChangeCallback callback)
-{
-    return addThemeChangeListener(std::move(callback));
-}
-
 void ThemeManager::removeThemeChangeListener(ListenerId id)
 {
     if (id == 0) {
@@ -341,21 +336,6 @@ void ThemeManager::detachRuntime(RuntimeBindingId id)
     }
 
     runtimeBindings_.erase(it);
-    if (legacyRuntimeBindingId_ == id) {
-        legacyRuntimeBindingId_ = 0;
-    }
-}
-
-void ThemeManager::setAnimationSink(AnimationSink* sink)
-{
-    legacyAnimationSink_ = sink;
-    updateLegacyRuntimeBinding();
-}
-
-void ThemeManager::setInvalidateCallback(std::function<void()> callback)
-{
-    legacyInvalidateCallback_ = std::move(callback);
-    updateLegacyRuntimeBinding();
 }
 
 void ThemeManager::cancelOngoingAnimation()
@@ -412,21 +392,6 @@ AnimationSink* ThemeManager::activeAnimationSink() const
         }
     }
     return nullptr;
-}
-
-void ThemeManager::updateLegacyRuntimeBinding()
-{
-    if (legacyRuntimeBindingId_ != 0) {
-        detachRuntime(legacyRuntimeBindingId_);
-    }
-
-    if (legacyAnimationSink_ == nullptr && !legacyInvalidateCallback_) {
-        return;
-    }
-
-    legacyRuntimeBindingId_ = attachRuntime(
-        legacyAnimationSink_,
-        legacyInvalidateCallback_);
 }
 
 }  // namespace tinalux::ui
