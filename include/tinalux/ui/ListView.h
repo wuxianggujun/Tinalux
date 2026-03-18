@@ -48,7 +48,12 @@ private:
     ListViewStyle resolvedStyle() const;
     void applyResolvedStyle();
     void invalidateItemLayoutCache();
-    void ensureItemLayoutCache(float viewportWidth);
+    void ensureItemLayoutCache(float viewportWidth, float viewportHeight);
+    float fallbackItemHeight(const ListViewStyle& style) const;
+    float resolveViewportHeight(float viewportHeightHint) const;
+    void rebuildMeasuredContent(float innerWidth, const ListViewStyle& style);
+    std::vector<std::size_t> collectActiveItemIndices(float viewportHeight) const;
+    bool measureItemMetrics(std::size_t index, float innerWidth);
     void syncVisibleItems();
     void applyVisibleItemLayout();
     std::size_t itemCount() const;
@@ -59,6 +64,7 @@ private:
     std::shared_ptr<Widget> realizeItem(std::size_t index) const;
     Widget* itemAtIndex(int index) const;
     int indexForPoint(core::Point localPoint) const;
+    float desiredScrollOffsetForItem(int index) const;
     void ensureItemVisible(int index);
     void updateSelection(int index, bool emitCallback);
 
@@ -66,6 +72,8 @@ private:
     mutable std::unordered_map<std::size_t, std::shared_ptr<Widget>> realizedItems_;
     mutable std::vector<std::shared_ptr<Widget>> recycledItems_;
     std::vector<core::Rect> itemBounds_;
+    std::vector<float> itemHeights_;
+    std::vector<float> itemWidths_;
     std::vector<std::uint64_t> itemLayoutVersions_;
     core::Size measuredContentSize_ = core::Size::Make(0.0f, 0.0f);
     float cachedViewportWidth_ = -1.0f;

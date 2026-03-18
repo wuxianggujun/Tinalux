@@ -38,6 +38,35 @@ private:
     tinalux::core::Size size_;
 };
 
+class VariableItem final : public tinalux::ui::Widget {
+public:
+    explicit VariableItem(float width)
+        : width_(width)
+    {
+    }
+
+    void bindHeight(float height)
+    {
+        if (height_ == height) {
+            return;
+        }
+
+        height_ = height;
+        markLayoutDirty();
+    }
+
+    tinalux::core::Size measure(const tinalux::ui::Constraints& constraints) override
+    {
+        return constraints.constrain(tinalux::core::Size::Make(width_, height_));
+    }
+
+    void onDraw(tinalux::rendering::Canvas&) override {}
+
+private:
+    float width_ = 0.0f;
+    float height_ = 24.0f;
+};
+
 }  // namespace
 
 int main()
@@ -118,6 +147,53 @@ int main()
         expect(dataContent->children().size() < 20, "data-driven list should stay sparse after far selection");
         expect(builtIndices.size() < 40, "data-driven list should still build only a narrow window after far selection");
         expect(createdWidgetCount < 20, "data-driven list should recycle slots instead of creating a second window");
+    }
+
+    {
+        ui::ListView variableHeightListView;
+        variableHeightListView.setPreferredHeight(96.0f);
+        variableHeightListView.setPadding(8.0f);
+        variableHeightListView.setSpacing(4.0f);
+
+        auto heights = std::make_shared<std::vector<float>>();
+        heights->reserve(180);
+        for (int index = 0; index < 180; ++index) {
+            heights->push_back(20.0f + static_cast<float>((index % 4) * 8));
+        }
+
+        std::set<std::size_t> builtIndices;
+        int createdWidgetCount = 0;
+        variableHeightListView.setItemFactory(
+            heights->size(),
+            [heights, &builtIndices, &createdWidgetCount](std::size_t index, std::shared_ptr<ui::Widget> recycled)
+                -> std::shared_ptr<ui::Widget> {
+                builtIndices.insert(index);
+
+                auto item = std::dynamic_pointer_cast<VariableItem>(recycled);
+                if (item == nullptr) {
+                    ++createdWidgetCount;
+                    item = std::make_shared<VariableItem>(180.0f);
+                }
+
+                item->bindHeight((*heights)[index]);
+                return item;
+            });
+
+        variableHeightListView.measure(ui::Constraints::tight(240.0f, 96.0f));
+        variableHeightListView.arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 240.0f, 96.0f));
+
+        auto* variableContent = dynamic_cast<ui::Container*>(variableHeightListView.content());
+        expect(variableContent != nullptr, "variable-height list should keep container content");
+        expect(variableContent->children().size() < 20, "variable-height list should mount only the visible window");
+        expect(builtIndices.size() < 20, "variable-height list should not build every row during first layout");
+        expect(createdWidgetCount < 20, "variable-height list should create only a narrow recycler window");
+
+        variableHeightListView.setSelectedIndex(static_cast<int>(heights->size()) - 1);
+        expect(variableHeightListView.scrollOffset() > 0.0f, "variable-height list should scroll far selection into view");
+        expect(variableHeightListView.selectedItem() != nullptr, "variable-height list should realize the far selection");
+        expect(variableContent->children().size() < 20, "variable-height list should stay sparse after far selection");
+        expect(builtIndices.size() < 50, "variable-height list should discover only a small measured window after far selection");
+        expect(createdWidgetCount < 20, "variable-height list should reuse recycler slots after far selection");
     }
 
     return 0;
