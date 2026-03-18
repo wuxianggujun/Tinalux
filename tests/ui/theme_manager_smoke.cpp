@@ -260,6 +260,42 @@ int main()
     }
 
     {
+        UIContext first;
+        UIContext second;
+        first.initializeFromEnvironment();
+        second.initializeFromEnvironment();
+
+        auto& firstScheduler = static_cast<AnimationScheduler&>(first.animationSink());
+        auto& secondScheduler = static_cast<AnimationScheduler&>(second.animationSink());
+
+        manager.setTheme(Theme::light(), false);
+        manager.setTheme(Theme::dark(), true);
+        expect(
+            secondScheduler.hasActiveAnimations(),
+            "newest UIContext should own theme animation before any runtime shutdown");
+
+        secondScheduler.tick(40.0);
+        secondScheduler.tick(40.15);
+        expect(
+            !sameColor(manager.currentTheme().background, Theme::dark().background),
+            "in-flight theme animation should remain mid-transition before the active runtime shuts down");
+
+        second.shutdown();
+        expect(
+            firstScheduler.hasActiveAnimations(),
+            "shutting down the active theme runtime mid-animation should migrate the tween to a remaining UIContext");
+
+        firstScheduler.tick(40.3);
+        firstScheduler.tick(40.61);
+        expect(
+            sameColor(first.theme().background, Theme::dark().background),
+            "remaining UIContext should complete a migrated in-flight theme animation");
+        expect(
+            sameColor(manager.currentTheme().background, Theme::dark().background),
+            "ThemeManager should settle on the target theme after runtime migration");
+    }
+
+    {
         UIContext restarted;
         restarted.initializeFromEnvironment();
         restarted.shutdown();

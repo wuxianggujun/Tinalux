@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <optional>
 #include <string>
 
 #include "tinalux/ui/Animation.h"
@@ -44,7 +45,9 @@ private:
 
     ThemeManager();
 
-    void cancelOngoingAnimation();
+    void cancelOngoingAnimation(bool clearTargetTheme = true);
+    void startThemeAnimation(Theme target);
+    void resumeOngoingAnimation();
     void applyTheme(Theme theme);
     void notifyThemeChanged();
     AnimationSink* activeAnimationSink() const;
@@ -55,6 +58,7 @@ private:
     std::map<RuntimeBindingId, RuntimeBinding> runtimeBindings_;
     AnimationSink* animationSink_ = nullptr;
     AnimationHandle animationHandle_ = 0;
+    std::optional<Theme> animationTargetTheme_;
     ListenerId nextListenerId_ = 1;
     RuntimeBindingId nextRuntimeBindingId_ = 1;
     std::uint64_t version_ = 1;

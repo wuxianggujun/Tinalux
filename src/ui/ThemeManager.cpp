@@ -195,33 +195,12 @@ void ThemeManager::setTheme(const Theme& theme, bool animated)
     Theme target = normalizeTheme(theme);
     cancelOngoingAnimation();
 
-    AnimationSink* runtimeAnimationSink = activeAnimationSink();
-    if (!animated || runtimeAnimationSink == nullptr) {
+    if (!animated) {
         applyTheme(std::move(target));
         return;
     }
 
-    const Theme from = currentTheme_;
-    const Theme to = std::move(target);
-    animationSink_ = runtimeAnimationSink;
-    animationHandle_ = runtimeAnimationSink->animate(
-        {
-            .from = 0.0f,
-            .to = 1.0f,
-            .durationSeconds = 0.3,
-            .loop = false,
-            .alternate = false,
-            .easing = Easing::EaseInOut,
-        },
-        [this, from, to](float progress) {
-            currentTheme_ = interpolateTheme(from, to, progress);
-            notifyThemeChanged();
-        },
-        [this, to]() mutable {
-            animationHandle_ = 0;
-            animationSink_ = nullptr;
-            applyTheme(std::move(to));
-        });
+    startThemeAnimation(std::move(target));
 }
 
 const Theme& ThemeManager::currentTheme() const
@@ -329,22 +308,80 @@ void ThemeManager::detachRuntime(RuntimeBindingId id)
         return;
     }
 
-    if (animationHandle_ != 0
+    const bool detachingActiveAnimationRuntime = animationHandle_ != 0
         && animationSink_ != nullptr
-        && it->second.animationSink == animationSink_) {
-        cancelOngoingAnimation();
+        && it->second.animationSink == animationSink_;
+    if (detachingActiveAnimationRuntime) {
+        cancelOngoingAnimation(false);
     }
 
     runtimeBindings_.erase(it);
+    if (detachingActiveAnimationRuntime) {
+        resumeOngoingAnimation();
+    }
 }
 
-void ThemeManager::cancelOngoingAnimation()
+void ThemeManager::cancelOngoingAnimation(bool clearTargetTheme)
 {
     if (animationHandle_ != 0 && animationSink_ != nullptr) {
         animationSink_->cancelAnimation(animationHandle_);
     }
     animationHandle_ = 0;
     animationSink_ = nullptr;
+    if (clearTargetTheme) {
+        animationTargetTheme_.reset();
+    }
+}
+
+void ThemeManager::startThemeAnimation(Theme target)
+{
+    AnimationSink* runtimeAnimationSink = activeAnimationSink();
+    if (runtimeAnimationSink == nullptr) {
+        animationTargetTheme_.reset();
+        applyTheme(std::move(target));
+        return;
+    }
+
+    const Theme from = currentTheme_;
+    const Theme to = target;
+    animationTargetTheme_ = target;
+    animationSink_ = runtimeAnimationSink;
+    animationHandle_ = runtimeAnimationSink->animate(
+        {
+            .from = 0.0f,
+            .to = 1.0f,
+            .durationSeconds = 0.3,
+            .loop = false,
+            .alternate = false,
+            .easing = Easing::EaseInOut,
+        },
+        [this, from, to](float progress) {
+            currentTheme_ = interpolateTheme(from, to, progress);
+            notifyThemeChanged();
+        },
+        [this, to]() mutable {
+            animationHandle_ = 0;
+            animationSink_ = nullptr;
+            animationTargetTheme_.reset();
+            applyTheme(std::move(to));
+        });
+}
+
+void ThemeManager::resumeOngoingAnimation()
+{
+    if (!animationTargetTheme_.has_value()) {
+        return;
+    }
+
+    if (activeAnimationSink() != nullptr) {
+        // The current runtime vanished mid-animation; continue on the newest live runtime.
+        startThemeAnimation(*animationTargetTheme_);
+        return;
+    }
+
+    Theme target = *animationTargetTheme_;
+    animationTargetTheme_.reset();
+    applyTheme(std::move(target));
 }
 
 void ThemeManager::applyTheme(Theme theme)
