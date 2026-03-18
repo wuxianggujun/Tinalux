@@ -79,6 +79,7 @@ int main()
 
     {
         UIContext context;
+        context.initializeFromEnvironment();
         expect(
             sameColor(context.theme().background, manager.currentTheme().background),
             "UIContext should mirror ThemeManager current theme");
@@ -148,6 +149,52 @@ int main()
         expect(
             sameColor(manager.currentTheme().textSecondary, custom.textSecondary),
             "theme normalization should preserve explicit secondary text overrides");
+    }
+
+    {
+        UIContext first;
+        UIContext second;
+        first.initializeFromEnvironment();
+        second.initializeFromEnvironment();
+
+        auto& secondScheduler = static_cast<AnimationScheduler&>(second.animationSink());
+        first.shutdown();
+
+        manager.setTheme(Theme::light(), false);
+        const std::uint64_t versionBeforeAnimation = manager.version();
+        manager.setTheme(Theme::dark(), true);
+        expect(
+            secondScheduler.hasActiveAnimations(),
+            "destroying one UIContext should not break theme animation binding for remaining contexts");
+
+        secondScheduler.tick(20.0);
+        secondScheduler.tick(20.31);
+        expect(
+            sameColor(second.theme().background, Theme::dark().background),
+            "remaining UIContext should still receive animated theme completion");
+        expect(
+            manager.version() > versionBeforeAnimation,
+            "remaining UIContext animation binding should continue driving theme version changes");
+    }
+
+    {
+        UIContext restarted;
+        restarted.initializeFromEnvironment();
+        restarted.shutdown();
+        restarted.initializeFromEnvironment();
+
+        auto& restartedScheduler = static_cast<AnimationScheduler&>(restarted.animationSink());
+        manager.setTheme(Theme::light(), false);
+        manager.setTheme(Theme::dark(), true);
+        expect(
+            restartedScheduler.hasActiveAnimations(),
+            "UIContext should rebind theme animation sink after shutdown and reinitialize");
+
+        restartedScheduler.tick(30.0);
+        restartedScheduler.tick(30.31);
+        expect(
+            sameColor(restarted.theme().background, Theme::dark().background),
+            "reinitialized UIContext should receive animated theme updates");
     }
 
     expect(notificationCount >= 4, "theme change listener should observe immediate and animated updates");
