@@ -58,15 +58,25 @@ std::optional<core::Rect> logicalToPhysicalRect(
 
 void syncResourceManagerDevicePixelRatio(
     platform::Window* window,
+    ui::DevicePixelRatioBindingId& bindingId,
     float& syncedDevicePixelRatio)
 {
     const float targetRatio =
         window != nullptr ? sanitizeDpiScale(window->dpiScale()) : 1.0f;
-    if (nearlyEqual(syncedDevicePixelRatio, targetRatio)) {
+    const bool bindingStateMatches = window != nullptr ? bindingId != 0 : bindingId == 0;
+    if (bindingStateMatches && nearlyEqual(syncedDevicePixelRatio, targetRatio)) {
         return;
     }
 
-    ui::ResourceManager::instance().setDevicePixelRatio(targetRatio);
+    ui::ResourceManager& resourceManager = ui::ResourceManager::instance();
+    if (window == nullptr) {
+        resourceManager.detachDevicePixelRatio(bindingId);
+        bindingId = 0;
+    } else if (bindingId == 0) {
+        bindingId = resourceManager.attachDevicePixelRatio(targetRatio);
+    } else {
+        resourceManager.updateDevicePixelRatio(bindingId, targetRatio);
+    }
     syncedDevicePixelRatio = targetRatio;
 }
 
@@ -80,6 +90,7 @@ struct Application::Impl {
     rendering::RenderSurface surface;
     UIContext uiContext;
     ui::ClipboardBindingId clipboardBindingId = 0;
+    ui::DevicePixelRatioBindingId resourceManagerBindingId = 0;
     bool skiaInitialized = false;
     int surfaceWidth = 0;
     int surfaceHeight = 0;
@@ -306,6 +317,7 @@ bool Application::tryInitializeBackend(
     impl_->backendPlan.activate(backendIndex);
     syncResourceManagerDevicePixelRatio(
         impl_->window.get(),
+        impl_->resourceManagerBindingId,
         impl_->syncedDevicePixelRatio);
     return true;
 }
@@ -376,7 +388,10 @@ void Application::resetRenderState()
     impl_->surfaceWidth = 0;
     impl_->surfaceHeight = 0;
     impl_->backendPlan.reset(impl_->config.backend);
-    syncResourceManagerDevicePixelRatio(nullptr, impl_->syncedDevicePixelRatio);
+    syncResourceManagerDevicePixelRatio(
+        nullptr,
+        impl_->resourceManagerBindingId,
+        impl_->syncedDevicePixelRatio);
     impl_->lastRenderFrameOutcome = RenderFrameOutcome::Deferred;
 }
 
@@ -474,6 +489,7 @@ void Application::handleEvent(core::Event& event)
         : 1.0f;
     syncResourceManagerDevicePixelRatio(
         impl_->window.get(),
+        impl_->resourceManagerBindingId,
         impl_->syncedDevicePixelRatio);
     impl_->uiContext.handleEvent(event, [this] { requestClose(); }, dpiScale);
     syncTextInputState();
@@ -686,6 +702,7 @@ bool Application::renderFrame()
     }
     syncResourceManagerDevicePixelRatio(
         impl_->window.get(),
+        impl_->resourceManagerBindingId,
         impl_->syncedDevicePixelRatio);
     const bool fullRedraw =
         impl_->uiContext.render(canvas, framebufferWidth, framebufferHeight, dpiScale);
