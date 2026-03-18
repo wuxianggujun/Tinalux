@@ -15,9 +15,10 @@ namespace tinalux::ui {
 
 namespace {
 
-constexpr float kDropdownItemHeight = 32.0f;
-constexpr float kDropdownPadding = 8.0f;
-constexpr float kDropdownIconSize = 12.0f;
+constexpr float kBaseDropdownItemHeight = 32.0f;
+constexpr float kBaseDropdownMinWidth = 120.0f;
+constexpr float kBaseDropdownPadding = 8.0f;
+constexpr float kBaseDropdownIconSize = 12.0f;
 
 core::Color brighten(core::Color color, int delta)
 {
@@ -33,13 +34,28 @@ core::Color brighten(core::Color color, int delta)
         clampChannel(color.blue()));
 }
 
-core::Rect indicatorBounds(float width)
+float dropdownItemHeight(const Theme& theme)
+{
+    return std::max(kBaseDropdownItemHeight, theme.minimumTouchTargetSize);
+}
+
+float dropdownPadding(const Theme& theme)
+{
+    return std::max(kBaseDropdownPadding, theme.spacingScale.sm);
+}
+
+float dropdownIconSize(const Theme& theme)
+{
+    return std::max(kBaseDropdownIconSize, theme.typography.caption.fontSize);
+}
+
+core::Rect indicatorBounds(float width, float itemHeight, float padding, float iconSize)
 {
     return core::Rect::MakeXYWH(
-        width - kDropdownPadding - kDropdownIconSize,
-        (kDropdownItemHeight - kDropdownIconSize) * 0.5f,
-        kDropdownIconSize,
-        kDropdownIconSize);
+        width - padding - iconSize,
+        (itemHeight - iconSize) * 0.5f,
+        iconSize,
+        iconSize);
 }
 
 void drawChevron(
@@ -208,7 +224,10 @@ DropdownIndicatorLoadState Dropdown::indicatorIconLoadState() const
 core::Size Dropdown::measure(const Constraints& constraints)
 {
     const Theme& theme = resolvedTheme();
-    float maxTextWidth = kMinWidth;
+    const float itemHeight = dropdownItemHeight(theme);
+    const float padding = dropdownPadding(theme);
+    const float iconSize = dropdownIconSize(theme);
+    float maxTextWidth = kBaseDropdownMinWidth;
     const TextMetrics placeholderMetrics = measureTextMetrics(placeholder_, theme.fontSize);
     maxTextWidth = std::max(maxTextWidth, placeholderMetrics.width);
     for (const std::string& item : items_) {
@@ -216,9 +235,9 @@ core::Size Dropdown::measure(const Constraints& constraints)
         maxTextWidth = std::max(maxTextWidth, metrics.width);
     }
 
-    const float width = maxTextWidth + kPadding * 3.0f + kIconSize;
+    const float width = maxTextWidth + padding * 3.0f + iconSize;
     const int visibleCount = std::min(static_cast<int>(items_.size()), maxVisibleItems_);
-    const float height = kItemHeight + (expanded_ ? visibleCount * kItemHeight : 0.0f);
+    const float height = itemHeight + (expanded_ ? visibleCount * itemHeight : 0.0f);
     return constraints.constrain(core::Size::Make(width, height));
 }
 
@@ -229,7 +248,10 @@ void Dropdown::onDraw(rendering::Canvas& canvas)
     }
 
     const Theme& theme = resolvedTheme();
-    const core::Rect buttonBounds = core::Rect::MakeXYWH(0.0f, 0.0f, bounds_.width(), kItemHeight);
+    const float itemHeight = dropdownItemHeight(theme);
+    const float padding = dropdownPadding(theme);
+    const float iconSize = dropdownIconSize(theme);
+    const core::Rect buttonBounds = core::Rect::MakeXYWH(0.0f, 0.0f, bounds_.width(), itemHeight);
     const core::Color backgroundColor = focused()
         ? theme.primary
         : (hovered_ ? brighten(theme.surface, 20) : theme.surface);
@@ -256,18 +278,22 @@ void Dropdown::onDraw(rendering::Canvas& canvas)
     }
 
     const TextMetrics textMetrics = measureTextMetrics(displayText, theme.fontSize);
-    const float textY = (kItemHeight - textMetrics.height) * 0.5f + textMetrics.baseline;
+    const float textY = (itemHeight - textMetrics.height) * 0.5f + textMetrics.baseline;
     canvas.drawText(
         displayText,
-        kPadding + textMetrics.drawX,
+        padding + textMetrics.drawX,
         textY,
         theme.fontSize,
         textColor);
 
     if (!expanded_ && indicatorIcon_) {
-        canvas.drawImage(indicatorIcon_, indicatorBounds(bounds_.width()));
+        canvas.drawImage(indicatorIcon_, indicatorBounds(bounds_.width(), itemHeight, padding, iconSize));
     } else {
-        drawChevron(canvas, indicatorBounds(bounds_.width()), textColor, expanded_);
+        drawChevron(
+            canvas,
+            indicatorBounds(bounds_.width(), itemHeight, padding, iconSize),
+            textColor,
+            expanded_);
     }
 
     if (!expanded_ || items_.empty()) {
@@ -290,12 +316,12 @@ void Dropdown::onDraw(rendering::Canvas& canvas)
 
     const int visibleCount = std::min(static_cast<int>(items_.size()), maxVisibleItems_);
     for (int i = 0; i < visibleCount; ++i) {
-        const float itemY = dropdownBounds.y() + static_cast<float>(i) * kItemHeight;
+        const float itemY = dropdownBounds.y() + static_cast<float>(i) * itemHeight;
         const core::Rect itemRect = core::Rect::MakeXYWH(
             dropdownBounds.x(),
             itemY,
             dropdownBounds.width(),
-            kItemHeight);
+            itemHeight);
 
         if (i == hoveredItem_) {
             canvas.drawRect(itemRect, core::colorARGB(56, 255, 255, 255));
@@ -310,10 +336,10 @@ void Dropdown::onDraw(rendering::Canvas& canvas)
         }
 
         const TextMetrics itemMetrics = measureTextMetrics(items_[static_cast<std::size_t>(i)], theme.fontSize);
-        const float itemTextY = itemRect.y() + (kItemHeight - itemMetrics.height) * 0.5f + itemMetrics.baseline;
+        const float itemTextY = itemRect.y() + (itemHeight - itemMetrics.height) * 0.5f + itemMetrics.baseline;
         canvas.drawText(
             items_[static_cast<std::size_t>(i)],
-            itemRect.x() + kPadding + itemMetrics.drawX,
+            itemRect.x() + padding + itemMetrics.drawX,
             itemTextY,
             theme.fontSize,
             theme.text);
@@ -338,18 +364,19 @@ bool Dropdown::onEvent(core::Event& event)
         return false;
     case core::EventType::MouseMove: {
         const auto& moveEvent = static_cast<const core::MouseMoveEvent&>(event);
+        const float itemHeight = dropdownItemHeight(resolvedTheme());
         const core::Point localPoint = globalToLocal(core::Point::Make(
             static_cast<float>(moveEvent.x),
             static_cast<float>(moveEvent.y)));
         const bool insideButton = localPoint.y() >= 0.0f
-            && localPoint.y() < kItemHeight
+            && localPoint.y() < itemHeight
             && containsLocalPoint(localPoint.x(), localPoint.y());
         const bool hoveredChanged = hovered_ != insideButton;
         hovered_ = insideButton;
 
         int newHoveredItem = -1;
         if (expanded_ && getDropdownBounds().contains(localPoint.x(), localPoint.y())) {
-            newHoveredItem = getItemAtY(localPoint.y() - kItemHeight);
+            newHoveredItem = getItemAtY(localPoint.y() - itemHeight);
         }
 
         if (hoveredChanged || newHoveredItem != hoveredItem_) {
@@ -364,17 +391,18 @@ bool Dropdown::onEvent(core::Event& event)
             return false;
         }
 
+        const float itemHeight = dropdownItemHeight(resolvedTheme());
         const core::Point localPoint = globalToLocal(core::Point::Make(
             static_cast<float>(mouseEvent.x),
             static_cast<float>(mouseEvent.y)));
-        if (localPoint.y() >= 0.0f && localPoint.y() < kItemHeight
-            && localPoint.x() >= 0.0f && localPoint.x() < bounds_.width()) {
+        if (localPoint.y() >= 0.0f && localPoint.y() < itemHeight
+            && containsLocalPoint(localPoint.x(), localPoint.y())) {
             toggleExpanded();
             return true;
         }
 
         if (expanded_ && getDropdownBounds().contains(localPoint.x(), localPoint.y())) {
-            const int itemIndex = getItemAtY(localPoint.y() - kItemHeight);
+            const int itemIndex = getItemAtY(localPoint.y() - itemHeight);
             if (itemIndex >= 0) {
                 selectItem(itemIndex);
                 return true;
@@ -430,12 +458,7 @@ bool Dropdown::onEvent(core::Event& event)
 
 Widget* Dropdown::hitTest(float x, float y)
 {
-    if (!visible_) {
-        return nullptr;
-    }
-
-    const core::Rect localBounds = core::Rect::MakeWH(bounds_.width(), bounds_.height());
-    return localBounds.contains(x, y) ? this : nullptr;
+    return Widget::hitTest(x, y);
 }
 
 void Dropdown::toggleExpanded()
@@ -461,7 +484,7 @@ int Dropdown::getItemAtY(float y) const
         return -1;
     }
 
-    const int index = static_cast<int>(y / kItemHeight);
+    const int index = static_cast<int>(y / dropdownItemHeight(resolvedTheme()));
     const int visibleCount = std::min(static_cast<int>(items_.size()), maxVisibleItems_);
     if (index >= 0 && index < visibleCount) {
         return index;
@@ -471,9 +494,10 @@ int Dropdown::getItemAtY(float y) const
 
 core::Rect Dropdown::getDropdownBounds() const
 {
+    const float itemHeight = dropdownItemHeight(resolvedTheme());
     const int visibleCount = std::min(static_cast<int>(items_.size()), maxVisibleItems_);
-    const float dropdownHeight = static_cast<float>(visibleCount) * kItemHeight;
-    return core::Rect::MakeXYWH(0.0f, kItemHeight, bounds_.width(), dropdownHeight);
+    const float dropdownHeight = static_cast<float>(visibleCount) * itemHeight;
+    return core::Rect::MakeXYWH(0.0f, itemHeight, bounds_.width(), dropdownHeight);
 }
 
 }  // namespace tinalux::ui

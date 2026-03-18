@@ -75,6 +75,29 @@ core::Rect Widget::drawBoundsInParent() const
     return localBounds.makeOffset(origin.x(), origin.y());
 }
 
+core::Rect Widget::localHitBounds() const
+{
+    const core::Rect localBounds = core::Rect::MakeWH(bounds_.width(), bounds_.height());
+    if (localBounds.isEmpty()) {
+        return localBounds;
+    }
+
+    const float minimumTouchTarget = (focusable() || wantsTextInput())
+        ? std::max(0.0f, resolvedTheme().minimumTouchTargetSize)
+        : 0.0f;
+    if (minimumTouchTarget <= 0.0f) {
+        return localBounds;
+    }
+
+    const float expandX = std::max(0.0f, minimumTouchTarget - localBounds.width()) * 0.5f;
+    const float expandY = std::max(0.0f, minimumTouchTarget - localBounds.height()) * 0.5f;
+    return core::Rect::MakeLTRB(
+        localBounds.left() - expandX,
+        localBounds.top() - expandY,
+        localBounds.right() + expandX,
+        localBounds.bottom() + expandY);
+}
+
 void Widget::arrange(const core::Rect& bounds)
 {
     if (!sameRect(bounds_, bounds)) {
@@ -106,8 +129,7 @@ Widget* Widget::hitTest(float x, float y)
         return nullptr;
     }
 
-    const core::Rect localBounds = core::Rect::MakeWH(bounds_.width(), bounds_.height());
-    return localBounds.contains(x, y) ? this : nullptr;
+    return localHitBounds().contains(x, y) ? this : nullptr;
 }
 
 Widget* Widget::hitTestGlobal(float x, float y)
@@ -203,8 +225,7 @@ bool Widget::containsLocalPoint(float x, float y) const
         return false;
     }
 
-    const core::Rect localBounds = core::Rect::MakeWH(bounds_.width(), bounds_.height());
-    return localBounds.contains(x, y);
+    return localHitBounds().contains(x, y);
 }
 
 bool Widget::containsGlobalPoint(float x, float y) const

@@ -2,10 +2,16 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 namespace tinalux::ui {
 
 namespace {
+
+float sanitizeScale(float value)
+{
+    return std::isfinite(value) && value > 0.0f ? value : 1.0f;
+}
 
 float clampUnit(float value)
 {
@@ -31,6 +37,107 @@ core::Color mixColor(core::Color lhs, core::Color rhs, float t)
         mixChannel(lhs.red(), rhs.red()),
         mixChannel(lhs.green(), rhs.green()),
         mixChannel(lhs.blue(), rhs.blue()));
+}
+
+void scaleTextStyle(TextStyle& style, float scale)
+{
+    style.fontSize *= scale;
+    style.letterSpacing *= scale;
+}
+
+Typography scaledTypography(Typography typography, float scale)
+{
+    scale = sanitizeScale(scale);
+    scaleTextStyle(typography.h1, scale);
+    scaleTextStyle(typography.h2, scale);
+    scaleTextStyle(typography.h3, scale);
+    scaleTextStyle(typography.h4, scale);
+    scaleTextStyle(typography.h5, scale);
+    scaleTextStyle(typography.h6, scale);
+    scaleTextStyle(typography.body1, scale);
+    scaleTextStyle(typography.body2, scale);
+    scaleTextStyle(typography.caption, scale);
+    scaleTextStyle(typography.button, scale);
+    return typography;
+}
+
+Spacing mobileSpacing()
+{
+    return {
+        .xs = 4.0f,
+        .sm = 8.0f,
+        .md = 14.0f,
+        .lg = 20.0f,
+        .xl = 24.0f,
+        .xxl = 32.0f,
+        .radiusXs = 2.0f,
+        .radiusSm = 4.0f,
+        .radiusMd = 8.0f,
+        .radiusLg = 12.0f,
+        .radiusXl = 16.0f,
+    };
+}
+
+Typography mobileTypography(float fontScale)
+{
+    Typography typography = Typography::defaultTypography();
+    typography.h1.fontSize = 34.0f;
+    typography.h2.fontSize = 30.0f;
+    typography.h3.fontSize = 24.0f;
+    typography.h4.fontSize = 20.0f;
+    typography.h5.fontSize = 18.0f;
+    typography.h6.fontSize = 16.0f;
+    typography.body1.fontSize = 16.0f;
+    typography.body2.fontSize = 14.0f;
+    typography.caption.fontSize = 12.0f;
+    typography.button.fontSize = 15.0f;
+    return scaledTypography(std::move(typography), sanitizeScale(fontScale));
+}
+
+Theme& applyComponentStyles(Theme& theme)
+{
+    theme.buttonStyle = ButtonStyle::primary(theme.colors, theme.typography, theme.spacingScale);
+    theme.textInputStyle = TextInputStyle::standard(theme.colors, theme.typography, theme.spacingScale);
+    theme.checkboxStyle = CheckboxStyle::standard(theme.colors, theme.typography, theme.spacingScale);
+    theme.radioStyle = RadioStyle::standard(theme.colors, theme.typography, theme.spacingScale);
+    theme.toggleStyle = ToggleStyle::standard(theme.colors, theme.typography, theme.spacingScale);
+    theme.sliderStyle = SliderStyle::standard(theme.colors, theme.typography, theme.spacingScale);
+    theme.scrollViewStyle = ScrollViewStyle::standard(theme.colors, theme.typography, theme.spacingScale);
+    theme.dialogStyle = DialogStyle::standard(theme.colors, theme.typography, theme.spacingScale);
+    theme.panelStyle = PanelStyle::standard(theme.colors, theme.typography, theme.spacingScale);
+    theme.listViewStyle = ListViewStyle::standard(theme.colors, theme.typography, theme.spacingScale);
+    theme.richTextStyle = RichTextStyle::standard(theme.colors, theme.typography, theme.spacingScale);
+
+    const float touchTarget = std::max(theme.minimumTouchTargetSize, 0.0f);
+    if (touchTarget <= 0.0f) {
+        return theme;
+    }
+
+    theme.buttonStyle.minHeight = std::max(theme.buttonStyle.minHeight, touchTarget);
+
+    theme.textInputStyle.minWidth = -1.0f;
+    theme.textInputStyle.minHeight = std::max(theme.textInputStyle.minHeight, touchTarget);
+
+    const float indicatorSize = std::max(24.0f * theme.platformScale, 24.0f);
+    theme.checkboxStyle.indicatorSize = std::max(theme.checkboxStyle.indicatorSize, indicatorSize);
+    theme.checkboxStyle.minHeight = std::max(theme.checkboxStyle.minHeight, touchTarget);
+
+    theme.radioStyle.indicatorSize = std::max(theme.radioStyle.indicatorSize, indicatorSize);
+    theme.radioStyle.innerDotSize = std::max(theme.radioStyle.innerDotSize, indicatorSize * 0.45f);
+    theme.radioStyle.minHeight = std::max(theme.radioStyle.minHeight, touchTarget);
+
+    theme.toggleStyle.trackWidth = std::max(theme.toggleStyle.trackWidth, 52.0f * theme.platformScale);
+    theme.toggleStyle.trackHeight = std::max(theme.toggleStyle.trackHeight, 28.0f * theme.platformScale);
+    theme.toggleStyle.thumbRadius = std::max(theme.toggleStyle.thumbRadius, 11.0f * theme.platformScale);
+    theme.toggleStyle.minHeight = std::max(theme.toggleStyle.minHeight, touchTarget);
+
+    theme.sliderStyle.preferredWidth = -1.0f;
+    theme.sliderStyle.preferredHeight = std::max(theme.sliderStyle.preferredHeight, touchTarget);
+    theme.sliderStyle.thumbRadius = std::max(theme.sliderStyle.thumbRadius, 12.0f * theme.platformScale);
+    theme.sliderStyle.activeThumbRadius = std::max(
+        theme.sliderStyle.activeThumbRadius,
+        theme.sliderStyle.thumbRadius + 2.0f);
+    return theme;
 }
 
 }  // namespace
@@ -99,18 +206,7 @@ Theme& Theme::syncDerivedTokens()
     fontSizeLarge = typography.h3.fontSize;
     padding = spacingScale.md;
     spacing = (spacingScale.sm + spacingScale.md) * 0.5f;
-    buttonStyle = ButtonStyle::primary(colors, typography, spacingScale);
-    textInputStyle = TextInputStyle::standard(colors, typography, spacingScale);
-    checkboxStyle = CheckboxStyle::standard(colors, typography, spacingScale);
-    radioStyle = RadioStyle::standard(colors, typography, spacingScale);
-    toggleStyle = ToggleStyle::standard(colors, typography, spacingScale);
-    sliderStyle = SliderStyle::standard(colors, typography, spacingScale);
-    scrollViewStyle = ScrollViewStyle::standard(colors, typography, spacingScale);
-    dialogStyle = DialogStyle::standard(colors, typography, spacingScale);
-    panelStyle = PanelStyle::standard(colors, typography, spacingScale);
-    listViewStyle = ListViewStyle::standard(colors, typography, spacingScale);
-    richTextStyle = RichTextStyle::standard(colors, typography, spacingScale);
-    return *this;
+    return applyComponentStyles(*this);
 }
 
 Theme& Theme::syncStructuredTokens()
@@ -132,18 +228,7 @@ Theme& Theme::syncStructuredTokens()
     spacingScale.radiusXl = cornerRadius;
     spacingScale.sm = std::max(0.0f, spacing * 2.0f - spacingScale.md);
 
-    buttonStyle = ButtonStyle::primary(colors, typography, spacingScale);
-    textInputStyle = TextInputStyle::standard(colors, typography, spacingScale);
-    checkboxStyle = CheckboxStyle::standard(colors, typography, spacingScale);
-    radioStyle = RadioStyle::standard(colors, typography, spacingScale);
-    toggleStyle = ToggleStyle::standard(colors, typography, spacingScale);
-    sliderStyle = SliderStyle::standard(colors, typography, spacingScale);
-    scrollViewStyle = ScrollViewStyle::standard(colors, typography, spacingScale);
-    dialogStyle = DialogStyle::standard(colors, typography, spacingScale);
-    panelStyle = PanelStyle::standard(colors, typography, spacingScale);
-    listViewStyle = ListViewStyle::standard(colors, typography, spacingScale);
-    richTextStyle = RichTextStyle::standard(colors, typography, spacingScale);
-    return *this;
+    return applyComponentStyles(*this);
 }
 
 void Theme::setColors(const ColorScheme& value)
@@ -167,6 +252,9 @@ void Theme::setSpacingScale(const Spacing& value)
 Theme Theme::dark()
 {
     Theme theme;
+    theme.platformScale = 1.0f;
+    theme.fontScale = 1.0f;
+    theme.minimumTouchTargetSize = 0.0f;
     theme.setColors(ColorScheme::dark());
     theme.setTypography(Typography::defaultTypography());
     theme.setSpacingScale(Spacing::defaultSpacing());
@@ -177,10 +265,26 @@ Theme Theme::dark()
 Theme Theme::light()
 {
     Theme theme;
+    theme.platformScale = 1.0f;
+    theme.fontScale = 1.0f;
+    theme.minimumTouchTargetSize = 0.0f;
     theme.setColors(ColorScheme::light());
     theme.setTypography(Typography::defaultTypography());
     theme.setSpacingScale(Spacing::defaultSpacing());
     theme.setName("light");
+    return theme;
+}
+
+Theme Theme::mobile(float systemFontScale)
+{
+    Theme theme;
+    theme.platformScale = 1.0f;
+    theme.fontScale = sanitizeScale(systemFontScale);
+    theme.minimumTouchTargetSize = 48.0f;
+    theme.setColors(ColorScheme::dark());
+    theme.setTypography(mobileTypography(theme.fontScale));
+    theme.setSpacingScale(mobileSpacing());
+    theme.setName("mobile");
     return theme;
 }
 

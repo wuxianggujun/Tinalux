@@ -98,6 +98,7 @@ tinalux_add_smoke_test(TinaluxAppResourceManagerBindingSmoke
 tinalux_add_smoke_test(TinaluxAppAndroidRuntimeLifecycleSmoke
     SOURCE app/android_runtime_lifecycle_smoke.cpp
     LINK_LIBS Tinalux::App
+    COPY_SKIA_DATA
 )
 
 tinalux_add_smoke_test(TinaluxAppDpiSmoke
@@ -163,15 +164,23 @@ tinalux_add_smoke_test(TinaluxUITextInputModelSmoke
 tinalux_add_smoke_test(TinaluxUITextInputStyleSmoke
     SOURCE ui/text_input_style_smoke.cpp
     LINK_LIBS Tinalux::UI
+    COPY_SKIA_DATA
 )
 
 tinalux_add_smoke_test(TinaluxUITextInputIconSmoke
     SOURCE ui/text_input_icon_smoke.cpp
     LINK_LIBS Tinalux::UI
+    COPY_SKIA_DATA
 )
 
 tinalux_add_smoke_test(TinaluxUIDemoSceneSmoke
     SOURCE ui/demo_scene_smoke.cpp
+    LINK_LIBS Tinalux::UI
+    COPY_SKIA_DATA
+)
+
+tinalux_add_smoke_test(TinaluxUIMobileThemeSmoke
+    SOURCE ui/mobile_theme_smoke.cpp
     LINK_LIBS Tinalux::UI
     COPY_SKIA_DATA
 )
@@ -254,6 +263,7 @@ endif()
 tinalux_add_smoke_test(TinaluxUIDropdownSmoke
     SOURCE ui/dropdown_smoke.cpp
     LINK_LIBS Tinalux::UI
+    COPY_SKIA_DATA
 )
 
 tinalux_add_smoke_test(TinaluxUISelectionControlStyleSmoke

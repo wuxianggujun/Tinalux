@@ -21,6 +21,9 @@ struct Theme {
     ColorScheme colors = ColorScheme::dark();
     Typography typography = Typography::defaultTypography();
     Spacing spacingScale = Spacing::defaultSpacing();
+    float platformScale = 1.0f;
+    float fontScale = 1.0f;
+    float minimumTouchTargetSize = 0.0f;
     ButtonStyle buttonStyle = ButtonStyle::primary(colors, typography, spacingScale);
     TextInputStyle textInputStyle = TextInputStyle::standard(colors, typography, spacingScale);
     CheckboxStyle checkboxStyle = CheckboxStyle::standard(colors, typography, spacingScale);
@@ -48,6 +51,7 @@ struct Theme {
 
     static Theme dark();
     static Theme light();
+    static Theme mobile(float systemFontScale = 1.0f);
     static Theme custom(const ColorScheme& colors);
 
     void setColors(const ColorScheme& value);

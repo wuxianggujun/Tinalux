@@ -91,11 +91,6 @@ private:
     DropdownIndicatorLoadState indicatorIconLoadState_ = DropdownIndicatorLoadState::Idle;
     int maxVisibleItems_ = 5;
     std::function<void(int)> onSelectionChanged_;
-    
-    static constexpr float kItemHeight = 32.0f;
-    static constexpr float kMinWidth = 120.0f;
-    static constexpr float kPadding = 8.0f;
-    static constexpr float kIconSize = 12.0f;
 };
 
 }  // namespace tinalux::ui

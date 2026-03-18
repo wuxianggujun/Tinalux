@@ -1,6 +1,7 @@
 #include "tinalux/app/android/AndroidRuntime.h"
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 
 #include "tinalux/core/KeyCodes.h"
@@ -11,6 +12,19 @@ namespace tinalux::app::android {
 
 namespace {
 
+float sanitizeAndroidDpiScale(float dpiScale)
+{
+    if (std::isfinite(dpiScale) && dpiScale > 0.0f) {
+        return dpiScale;
+    }
+
+    core::logWarnCat(
+        "app.android",
+        "Android runtime received an invalid dpiScale ({:.3f}); falling back to 1.0",
+        dpiScale);
+    return 1.0f;
+}
+
 platform::WindowConfig makeWindowConfig(
     const platform::WindowConfig& baseConfig,
     void* nativeWindow,
@@ -19,7 +33,7 @@ platform::WindowConfig makeWindowConfig(
     platform::WindowConfig windowConfig = baseConfig;
     windowConfig.android = platform::WindowConfig::AndroidNativeWindowConfig {
         .nativeWindow = nativeWindow,
-        .dpiScale = std::max(dpiScale, 0.1f),
+        .dpiScale = sanitizeAndroidDpiScale(dpiScale),
     };
     if (windowConfig.title == nullptr) {
         windowConfig.title = "Tinalux Android";
@@ -124,7 +138,7 @@ bool AndroidRuntime::attachWindow(void* nativeWindow, float dpiScale)
     }
 
     impl_->attachedNativeWindow = nativeWindow;
-    impl_->attachedDpiScale = std::max(dpiScale, 0.1f);
+    impl_->attachedDpiScale = sanitizeAndroidDpiScale(dpiScale);
 
     ApplicationConfig launchConfig = impl_->config.application;
     launchConfig.window = makeWindowConfig(

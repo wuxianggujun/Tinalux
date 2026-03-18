@@ -91,11 +91,17 @@ int main()
         std::dynamic_pointer_cast<ui::Container>(pageHost->children()[0]) != nullptr,
         "active showcase page should be a container-based page root");
 
-    root->measure(ui::Constraints::tight(720.0f, 960.0f));
-    root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 720.0f, 960.0f));
+    root->measure(ui::Constraints::tight(520.0f, 960.0f));
+    root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 520.0f, 960.0f));
     expect(
         shell->children()[1]->bounds().y() > shell->children()[0]->bounds().y(),
-        "narrow demo scene should stack content below navigation");
+        "mobile-width demo scene should stack content below navigation");
+
+    root->measure(ui::Constraints::tight(800.0f, 960.0f));
+    root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 800.0f, 960.0f));
+    expect(
+        shell->children()[1]->bounds().x() > shell->children()[0]->bounds().x(),
+        "tablet-width demo scene should place content beside navigation");
 
     root->measure(ui::Constraints::tight(1280.0f, 960.0f));
     root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 1280.0f, 960.0f));

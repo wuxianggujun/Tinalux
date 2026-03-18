@@ -453,9 +453,12 @@ core::Size TextInput::measure(const Constraints& constraints)
 {
     const TextInputStyle& style = resolvedStyle();
     ensureTextLayout(style.textStyle.fontSize);
+    const float minimumWidth = style.minWidth < 0.0f && std::isfinite(constraints.maxWidth)
+        ? constraints.maxWidth
+        : style.minWidth;
     return constraints.constrain(core::Size::Make(
         std::max(
-            style.minWidth,
+            minimumWidth,
             layoutCache_->textWidth()
                 + style.paddingHorizontal * 2.0f
                 + leadingIconSlotWidth(style)

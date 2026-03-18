@@ -231,7 +231,10 @@ void Slider::updateHovered(bool hovered)
 core::Size Slider::measure(const Constraints& constraints)
 {
     const SliderStyle& style = resolvedStyle();
-    return constraints.constrain(core::Size::Make(style.preferredWidth, style.preferredHeight));
+    const float preferredWidth = style.preferredWidth < 0.0f && std::isfinite(constraints.maxWidth)
+        ? constraints.maxWidth
+        : style.preferredWidth;
+    return constraints.constrain(core::Size::Make(preferredWidth, style.preferredHeight));
 }
 
 void Slider::onDraw(rendering::Canvas& canvas)

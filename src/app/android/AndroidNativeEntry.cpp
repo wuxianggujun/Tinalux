@@ -138,7 +138,7 @@ bool tinaluxAndroidInstallDemoScene(void* runtimeHandle)
         return false;
     }
 
-    const tinalux::ui::Theme theme = tinalux::ui::Theme::dark();
+    const tinalux::ui::Theme theme = tinalux::ui::Theme::mobile();
     tinalux::core::logInfoCat(
         "app.android",
         "Installing Android demo scene with theme background=#{:08x} primary=#{:08x}",

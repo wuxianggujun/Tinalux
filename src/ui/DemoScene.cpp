@@ -94,7 +94,7 @@ private:
         setCornerRadius(0.0f);
 
         auto rootLayout = std::make_unique<VBoxLayout>();
-        rootLayout->padding = 36.0f;
+        rootLayout->padding = theme_.minimumTouchTargetSize > 0.0f ? 20.0f : 36.0f;
         rootLayout->spacing = theme_.spacing;
         setLayout(std::move(rootLayout));
 
@@ -116,15 +116,21 @@ private:
 
         auto shell = std::make_shared<Container>();
         auto responsiveLayout = std::make_unique<ResponsiveLayout>();
-        auto stackedLayout = std::make_unique<VBoxLayout>();
-        stackedLayout->spacing = 18.0f;
-        auto wideLayout = std::make_unique<FlexLayout>();
-        auto* wideFlexLayout = wideLayout.get();
-        wideLayout->direction = FlexDirection::Row;
-        wideLayout->spacing = 22.0f;
-        wideLayout->alignItems = AlignItems::Stretch;
-        responsiveLayout->addBreakpoint(0.0f, std::move(stackedLayout));
-        responsiveLayout->addBreakpoint(1024.0f, std::move(wideLayout));
+        auto mobileLayout = std::make_unique<VBoxLayout>();
+        mobileLayout->spacing = 16.0f;
+        auto tabletLayout = std::make_unique<FlexLayout>();
+        auto* tabletFlexLayout = tabletLayout.get();
+        tabletLayout->direction = FlexDirection::Row;
+        tabletLayout->spacing = 18.0f;
+        tabletLayout->alignItems = AlignItems::Stretch;
+        auto desktopLayout = std::make_unique<FlexLayout>();
+        auto* desktopFlexLayout = desktopLayout.get();
+        desktopLayout->direction = FlexDirection::Row;
+        desktopLayout->spacing = 22.0f;
+        desktopLayout->alignItems = AlignItems::Stretch;
+        responsiveLayout->addBreakpoint(0.0f, std::move(mobileLayout));
+        responsiveLayout->addBreakpoint(600.0f, std::move(tabletLayout));
+        responsiveLayout->addBreakpoint(1000.0f, std::move(desktopLayout));
         shell->setLayout(std::move(responsiveLayout));
 
         auto navPanel = std::make_shared<Panel>();
@@ -186,7 +192,8 @@ private:
 
         shell->addChild(navPanel);
         shell->addChild(contentPanel);
-        wideFlexLayout->setFlex(contentPanel.get(), 1.0f, 1.0f);
+        tabletFlexLayout->setFlex(contentPanel.get(), 1.0f, 1.0f);
+        desktopFlexLayout->setFlex(contentPanel.get(), 1.0f, 1.0f);
         addChild(shell);
 
         std::string currentCategory;

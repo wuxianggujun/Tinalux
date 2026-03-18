@@ -109,6 +109,12 @@ Spacing lerpSpacing(const Spacing& from, const Spacing& to, float t)
 Theme interpolateTheme(const Theme& from, const Theme& to, float t)
 {
     Theme interpolated = from;
+    interpolated.platformScale = lerpFloat(from.platformScale, to.platformScale, t);
+    interpolated.fontScale = lerpFloat(from.fontScale, to.fontScale, t);
+    interpolated.minimumTouchTargetSize = lerpFloat(
+        from.minimumTouchTargetSize,
+        to.minimumTouchTargetSize,
+        t);
     interpolated.colors = lerpColors(from.colors, to.colors, t);
     interpolated.typography = lerpTypography(from.typography, to.typography, t);
     interpolated.spacingScale = lerpSpacing(from.spacingScale, to.spacingScale, t);

@@ -1,6 +1,7 @@
 #include "AndroidWindow.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <mutex>
 #include <vector>
@@ -101,6 +102,19 @@ void* lookupGlSymbol(const char* name)
     }
 
     return nullptr;
+}
+
+float sanitizeAndroidDpiScale(float dpiScale)
+{
+    if (std::isfinite(dpiScale) && dpiScale > 0.0f) {
+        return dpiScale;
+    }
+
+    tinalux::core::logWarnCat(
+        "platform",
+        "Android window received an invalid dpiScale ({:.3f}); falling back to 1.0",
+        dpiScale);
+    return 1.0f;
 }
 
 }  // namespace
@@ -382,7 +396,7 @@ bool AndroidWindow::initialize(const WindowConfig& config)
 
     ANativeWindow_acquire(nativeWindow);
     nativeWindow_ = nativeWindow;
-    dpiScale_ = std::max(config.android->dpiScale, 0.1f);
+    dpiScale_ = sanitizeAndroidDpiScale(config.android->dpiScale);
     fallbackWidth_ = std::max(config.width, 1);
     fallbackHeight_ = std::max(config.height, 1);
     refreshWindowMetrics();

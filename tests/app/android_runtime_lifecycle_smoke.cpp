@@ -240,6 +240,19 @@ int main()
         resetScenario();
 
         app::android::AndroidRuntime runtime;
+        expect(
+            runtime.attachWindow(reinterpret_cast<void*>(0x002), 0.0f),
+            "Android runtime should tolerate an invalid dpi scale by falling back to 1.0");
+        expect(gWindowCreates.size() == 1, "Fallback dpi attach should still create one window");
+        expect(
+            gWindowCreates[0].dpiScale == 1.0f,
+            "Android runtime should sanitize invalid dpi scales before window creation");
+    }
+
+    {
+        resetScenario();
+
+        app::android::AndroidRuntime runtime;
         app::android::AndroidRuntimeConfig config;
         config.application.window.width = 800;
         config.application.window.height = 600;

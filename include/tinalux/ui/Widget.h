@@ -77,6 +77,7 @@ protected:
     AnimationSink& animationSink() const;
     float resolvedDevicePixelRatio() const;
     std::uint64_t resolvedThemeGeneration() const;
+    core::Rect localHitBounds() const;
     virtual core::Point childOffsetAdjustment(const Widget& child) const;
     core::Point parentAdjustedOrigin() const;
     virtual core::Rect localDrawBounds() const;
