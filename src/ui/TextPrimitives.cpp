@@ -2,7 +2,7 @@
 
 #include <bit>
 #include <cstdint>
-#include <deque>
+#include <list>
 #include <string>
 #include <unordered_map>
 
@@ -32,30 +32,97 @@ struct TextMetricsCacheKeyHash {
     }
 };
 
+struct TextMetricsCacheEntry {
+    TextMetrics metrics;
+    std::list<TextMetricsCacheKey>::iterator usage;
+};
+
+class TextMetricsCache {
+public:
+    TextMetrics get(std::string_view text, float fontSize)
+    {
+        const float sanitizedFontSize = fontSize > 1.0f ? fontSize : 1.0f;
+        TextMetricsCacheKey key {
+            .text = std::string(text),
+            .fontSize = sanitizedFontSize,
+        };
+
+        if (auto it = cache_.find(key); it != cache_.end()) {
+            usage_.splice(usage_.end(), usage_, it->second.usage);
+            ++stats_.hitCount;
+            return it->second.metrics;
+        }
+
+        ++stats_.missCount;
+        TextMetrics metrics = measureTextMetricsBackend(key.text, key.fontSize);
+        if (cache_.size() >= kMaxCacheEntries) {
+            evictLeastRecentlyUsed();
+        }
+
+        usage_.push_back(key);
+        auto usage = std::prev(usage_.end());
+        cache_.emplace(*usage, TextMetricsCacheEntry {
+                                   .metrics = metrics,
+                                   .usage = usage,
+                               });
+        return metrics;
+    }
+
+    void clear()
+    {
+        cache_.clear();
+        usage_.clear();
+        stats_ = {};
+    }
+
+    [[nodiscard]] TextMetricsCacheStats stats() const
+    {
+        TextMetricsCacheStats stats = stats_;
+        stats.entryCount = cache_.size();
+        return stats;
+    }
+
+private:
+    static constexpr std::size_t kMaxCacheEntries = 512;
+
+    void evictLeastRecentlyUsed()
+    {
+        if (usage_.empty()) {
+            return;
+        }
+
+        const TextMetricsCacheKey& key = usage_.front();
+        cache_.erase(key);
+        usage_.pop_front();
+        ++stats_.evictionCount;
+    }
+
+    std::unordered_map<TextMetricsCacheKey, TextMetricsCacheEntry, TextMetricsCacheKeyHash> cache_;
+    std::list<TextMetricsCacheKey> usage_;
+    TextMetricsCacheStats stats_ {};
+};
+
+TextMetricsCache& textMetricsCache()
+{
+    static TextMetricsCache cache;
+    return cache;
+}
+
 }  // namespace
 
 TextMetrics measureTextMetrics(std::string_view text, float fontSize)
 {
-    static std::unordered_map<TextMetricsCacheKey, TextMetrics, TextMetricsCacheKeyHash> cache;
-    static std::deque<TextMetricsCacheKey> evictionQueue;
-    constexpr std::size_t kMaxCacheEntries = 512;
-    const float sanitizedFontSize = fontSize > 1.0f ? fontSize : 1.0f;
+    return textMetricsCache().get(text, fontSize);
+}
 
-    TextMetricsCacheKey key {
-        .text = std::string(text),
-        .fontSize = sanitizedFontSize,
-    };
-    if (const auto it = cache.find(key); it != cache.end()) {
-        return it->second;
-    }
-    const TextMetrics metrics = measureTextMetricsBackend(key.text, key.fontSize);
-    if (cache.size() >= kMaxCacheEntries) {
-        cache.erase(evictionQueue.front());
-        evictionQueue.pop_front();
-    }
-    evictionQueue.push_back(key);
-    cache.emplace(std::move(key), metrics);
-    return metrics;
+void clearTextMetricsCache()
+{
+    textMetricsCache().clear();
+}
+
+TextMetricsCacheStats textMetricsCacheStats()
+{
+    return textMetricsCache().stats();
 }
 
 }  // namespace tinalux::ui

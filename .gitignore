@@ -54,6 +54,7 @@ Desktop.ini
 
 # Runtime logs and ad-hoc temp files
 logs/
+*.log
 *.tmp
 *.temp
 *.bak
