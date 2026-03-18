@@ -71,9 +71,29 @@ val tinaluxNdkPath = providers.gradleProperty("tinalux.ndkPath")
     )
 
 fun File.normalizedPath(): String = canonicalFile.absolutePath
+fun collectStagedNativeLibraries(jniLibRoot: File): Map<String, File> {
+    if (!jniLibRoot.exists()) {
+        return emptyMap()
+    }
+
+    return jniLibRoot.listFiles()
+        ?.filter { it.isDirectory }
+        ?.sortedBy { it.name }
+        ?.mapNotNull { abiDir ->
+            val library = abiDir.resolve("libtinalux_native.so")
+            if (library.exists() && library.isFile) {
+                abiDir.name to library
+            } else {
+                null
+            }
+        }
+        ?.toMap()
+        ?: emptyMap()
+}
 
 val repoRoot = layout.projectDirectory.dir("../..").asFile.canonicalFile
 val sdkModuleRoot = layout.projectDirectory.asFile.canonicalFile
+val supportedNativeAbis = setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
 val configuredNativeBuildRoot = tinaluxNativeBuildRoot.map { file(it).canonicalFile.absolutePath }
     .orElse(
         provider {
@@ -84,30 +104,82 @@ val configuredNativeBuildRoot = tinaluxNativeBuildRoot.map { file(it).canonicalF
     )
 val configuredNdkPath = tinaluxNdkPath.map { file(it).canonicalFile.absolutePath }
 
+val validateTinaluxNativeConfiguration by tasks.registering {
+    group = "verification"
+    description = "Validates Tinalux Android native build inputs before packaging the SDK."
+
+    doLast {
+        val requestedAbi = tinaluxNativeAbi.get()
+        if (requestedAbi !in supportedNativeAbis) {
+            throw GradleException(
+                "Unsupported Tinalux Android ABI '$requestedAbi'. Supported values: ${supportedNativeAbis.joinToString(", ")}",
+            )
+        }
+
+        val configuredBuildType = tinaluxNativeBuildType.get()
+        if (configuredBuildType != "Debug" && configuredBuildType != "Release") {
+            throw GradleException("Unsupported Tinalux Android build type '$configuredBuildType'. Use Debug or Release.")
+        }
+
+        val configuredApiLevel = tinaluxAndroidApi.get().toIntOrNull()
+            ?: throw GradleException("Configured tinalux.androidApi must be an integer, but was '${tinaluxAndroidApi.get()}'.")
+        if (configuredApiLevel < 26) {
+            throw GradleException("Configured tinalux.androidApi must be >= 26, but was $configuredApiLevel.")
+        }
+
+        val icuDataPath = tinaluxNativeIcuData.orNull
+        if (!icuDataPath.isNullOrBlank()) {
+            val sourceIcuData = file(icuDataPath)
+            if (!sourceIcuData.exists()) {
+                throw GradleException("Configured ICU data file does not exist: ${sourceIcuData.normalizedPath()}")
+            }
+        }
+
+        if (tinaluxAutoBuildNative.get()) {
+            val ndkPath = configuredNdkPath.orNull
+                ?: throw GradleException(
+                    "Missing Android NDK path. Set -Ptinalux.ndkPath or ANDROID_NDK_ROOT/ANDROID_NDK_HOME.",
+                )
+            val toolchainFile = file(ndkPath).resolve("build/cmake/android.toolchain.cmake")
+            if (!toolchainFile.exists()) {
+                throw GradleException("Android toolchain file not found: ${toolchainFile.normalizedPath()}")
+            }
+        }
+    }
+}
+
 val verifyTinaluxNativeArtifacts by tasks.registering {
     group = "verification"
     description = "Ensures the staged Tinalux native artifacts exist before packaging the SDK."
 
     doLast {
         val jniLibRoot = layout.projectDirectory.dir("src/main/jniLibs").asFile
-        val nativeLibraries = if (jniLibRoot.exists()) {
-            jniLibRoot.walkTopDown()
-                .filter { it.isFile && it.name == "libtinalux_native.so" }
-                .toList()
-        } else {
-            emptyList()
-        }
+        val stagedLibraries = collectStagedNativeLibraries(jniLibRoot)
+        val requestedAbi = tinaluxNativeAbi.get()
+        val requestedLibrary = stagedLibraries[requestedAbi]
 
-        if (nativeLibraries.isEmpty()) {
+        if (requestedLibrary == null) {
+            val availableAbis = if (stagedLibraries.isEmpty()) {
+                "(none)"
+            } else {
+                stagedLibraries.keys.joinToString(", ")
+            }
             throw GradleException(
                 """
-                Missing staged Tinalux native library.
-                Build the Android shared library first, then stage it into this module.
+                Missing staged Tinalux native library for ABI '$requestedAbi'.
+                Build the Android shared library for the requested ABI first, then stage it into this module.
 
                 Recommended command:
-                  powershell -ExecutionPolicy Bypass -File ../../scripts/build_android_native.ps1 -Abi arm64-v8a -StageToSdk
+                  powershell -ExecutionPolicy Bypass -File ../../scripts/build_android_native.ps1 -Abi $requestedAbi -StageToSdk
+
+                Currently staged ABIs:
+                  $availableAbis
                 """.trimIndent(),
             )
+        }
+
+        if (requestedLibrary.length() <= 0L) {
+            throw GradleException("Staged Tinalux native library is empty: ${requestedLibrary.normalizedPath()}")
         }
 
         val assetsDir = layout.projectDirectory.dir("src/main/assets").asFile
@@ -117,6 +189,29 @@ val verifyTinaluxNativeArtifacts by tasks.registering {
                     "If your Android configuration requires it, stage it alongside the native library."
             )
         }
+    }
+}
+
+val describeTinaluxNativeArtifacts by tasks.registering {
+    group = "help"
+    description = "Prints the currently staged Tinalux Android native artifacts for diagnosis."
+
+    doLast {
+        val jniLibRoot = layout.projectDirectory.dir("src/main/jniLibs").asFile
+        val stagedLibraries = collectStagedNativeLibraries(jniLibRoot)
+        logger.lifecycle("Requested ABI: ${tinaluxNativeAbi.get()}")
+        if (stagedLibraries.isEmpty()) {
+            logger.lifecycle("Staged native libraries: (none)")
+        } else {
+            stagedLibraries.forEach { (abi, library) ->
+                logger.lifecycle("Staged native library [$abi]: ${library.normalizedPath()}")
+            }
+        }
+
+        val icuAsset = layout.projectDirectory.file("src/main/assets/icudtl.dat").asFile
+        logger.lifecycle(
+            "Optional ICU asset: ${if (icuAsset.exists()) icuAsset.normalizedPath() else "(not staged)"}",
+        )
     }
 }
 
@@ -206,10 +301,15 @@ val cleanStagedTinaluxNative by tasks.registering(Delete::class) {
 }
 
 tasks.named("preBuild").configure {
+    dependsOn(validateTinaluxNativeConfiguration)
     if (tinaluxAutoBuildNative.get()) {
         dependsOn(buildAndStageTinaluxNative)
     }
     dependsOn(verifyTinaluxNativeArtifacts)
+}
+
+buildAndStageTinaluxNative.configure {
+    dependsOn(validateTinaluxNativeConfiguration)
 }
 
 afterEvaluate {

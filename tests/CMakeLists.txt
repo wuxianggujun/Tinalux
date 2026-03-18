@@ -1,6 +1,7 @@
 include(CheckIncludeFileCXX)
 
 check_include_file_cxx("vulkan/vulkan_core.h" TINALUX_TEST_HAS_VULKAN_HEADERS)
+find_program(TINALUX_POWERSHELL_EXECUTABLE NAMES pwsh pwsh.exe powershell powershell.exe)
 
 function(tinalux_add_smoke_test target_name)
     set(options COPY_SKIA_DATA)
@@ -290,6 +291,30 @@ tinalux_add_smoke_test(TinaluxUIParagraphClipboardSmoke
     LINK_LIBS Tinalux::App
     COPY_SKIA_DATA
 )
+
+if(TINALUX_POWERSHELL_EXECUTABLE)
+    add_test(NAME TinaluxAndroidStageScriptSmoke
+        COMMAND
+            ${TINALUX_POWERSHELL_EXECUTABLE}
+            -NoProfile
+            -File
+            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/android_stage_script_smoke.ps1
+            -RepoRoot
+            ${CMAKE_SOURCE_DIR}
+    )
+
+    add_test(NAME TinaluxAndroidBuildValidateScriptSmoke
+        COMMAND
+            ${TINALUX_POWERSHELL_EXECUTABLE}
+            -NoProfile
+            -File
+            ${CMAKE_CURRENT_SOURCE_DIR}/scripts/android_build_validate_smoke.ps1
+            -RepoRoot
+            ${CMAKE_SOURCE_DIR}
+    )
+else()
+    message(STATUS "Skipping Android PowerShell smoke tests because no PowerShell executable was found")
+endif()
 
 get_property(TINALUX_SMOKE_TEST_TARGETS GLOBAL PROPERTY TINALUX_SMOKE_TEST_TARGETS)
 

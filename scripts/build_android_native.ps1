@@ -1,5 +1,7 @@
 param(
+    [ValidateSet("armeabi-v7a", "arm64-v8a", "x86", "x86_64")]
     [string]$Abi = "arm64-v8a",
+    [ValidateRange(21, 1000)]
     [int]$ApiLevel = 26,
     [ValidateSet("Debug", "Release")]
     [string]$BuildType = "Release",
@@ -7,6 +9,7 @@ param(
     [string]$Generator = "Ninja",
     [string]$BuildRoot = "",
     [switch]$StageToSdk,
+    [switch]$ValidateOnly,
     [string]$SdkModuleRoot = "",
     [string]$SourceIcuData = "",
     [string]$CmakePath = "",
@@ -93,6 +96,11 @@ if ([string]::IsNullOrWhiteSpace($BuildRoot)) {
 }
 $BuildRoot = [System.IO.Path]::GetFullPath($BuildRoot)
 
+$resolvedIcuData = ""
+if (-not [string]::IsNullOrWhiteSpace($SourceIcuData)) {
+    $resolvedIcuData = Resolve-FullPath $SourceIcuData
+}
+
 if ([string]::IsNullOrWhiteSpace($NdkPath)) {
     if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_NDK_ROOT)) {
         $NdkPath = $env:ANDROID_NDK_ROOT
@@ -177,10 +185,44 @@ Write-Host "  API Level:  android-$ApiLevel"
 Write-Host "  BuildType:  $BuildType"
 Write-Host "  NDK:        $NdkPath"
 Write-Host "  CMake:      $CmakePath ($detectedCmakeVersion)"
+Write-Host "  Mode:       $(if ($ValidateOnly.IsPresent) { "ValidateOnly" } else { "Build" })"
 if ($Generator -eq "Ninja") {
     Write-Host "  Ninja:      $NinjaPath"
 }
+if (-not [string]::IsNullOrWhiteSpace($resolvedIcuData)) {
+    Write-Host "  ICU Data:   $resolvedIcuData"
+}
+if ($StageToSdk.IsPresent) {
+    $resolvedSdkModuleRoot = if ([string]::IsNullOrWhiteSpace($SdkModuleRoot)) {
+        [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\android\tinalux-sdk"))
+    } else {
+        [System.IO.Path]::GetFullPath($SdkModuleRoot)
+    }
+    Write-Host "  Stage SDK:  $resolvedSdkModuleRoot"
+}
 Write-Host ""
+
+if ($ValidateOnly.IsPresent) {
+    if ($StageToSdk.IsPresent) {
+        $stageScript = Join-Path $PSScriptRoot "stage_android_validation_artifacts.ps1"
+        $stageArgs = @{
+            Abi = $Abi
+            ValidateOnly = $true
+        }
+        if (-not [string]::IsNullOrWhiteSpace($SdkModuleRoot)) {
+            $stageArgs.SdkModuleRoot = $SdkModuleRoot
+        }
+        if (-not [string]::IsNullOrWhiteSpace($resolvedIcuData)) {
+            $stageArgs.SourceIcuData = $resolvedIcuData
+        }
+
+        & $stageScript @stageArgs
+    }
+
+    Write-Host "Validation complete."
+    Write-Host "  Environment is ready for an Android native configure/build run."
+    return
+}
 
 & $CmakePath @configureArgs
 if ($LASTEXITCODE -ne 0) {
@@ -206,25 +248,20 @@ Write-Host "  $($library.FullName)"
 
 if ($StageToSdk.IsPresent) {
     $stageScript = Join-Path $PSScriptRoot "stage_android_validation_artifacts.ps1"
-    $stageArgs = @(
-        "-ExecutionPolicy", "Bypass",
-        "-File", $stageScript,
-        "-SourceLibrary", $library.FullName,
-        "-Abi", $Abi
-    )
-    if (-not [string]::IsNullOrWhiteSpace($SdkModuleRoot)) {
-        $stageArgs += @("-SdkModuleRoot", $SdkModuleRoot)
+    $stageArgs = @{
+        SourceLibrary = $library.FullName
+        Abi = $Abi
     }
-    if (-not [string]::IsNullOrWhiteSpace($SourceIcuData)) {
-        $stageArgs += @("-SourceIcuData", $SourceIcuData)
+    if (-not [string]::IsNullOrWhiteSpace($SdkModuleRoot)) {
+        $stageArgs.SdkModuleRoot = $SdkModuleRoot
+    }
+    if (-not [string]::IsNullOrWhiteSpace($resolvedIcuData)) {
+        $stageArgs.SourceIcuData = $resolvedIcuData
     }
 
     Write-Host ""
     Write-Host "Staging Android SDK artifacts..."
-    & powershell @stageArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "Artifact staging failed."
-    }
+    & $stageScript @stageArgs
 }
 
 Write-Host ""

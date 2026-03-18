@@ -25,25 +25,34 @@ How to use:
 
 Gradle-native workflow:
 
-- opt in to automatic native build/staging with:
-  - `./gradlew :tinalux-sdk:assembleDebug -Ptinalux.autoBuildNative=true`
+- validate the Android native toolchain without building first:
+  - `powershell -ExecutionPolicy Bypass -File ../../scripts/build_android_native.ps1 -Abi arm64-v8a -StageToSdk -ValidateOnly`
+- opt in to automatic native build/staging with a local Gradle installation:
+  - `gradle :tinalux-sdk:assembleDebug -Ptinalux.autoBuildNative=true`
 - configurable properties:
   - `-Ptinalux.ndkPath=...`
   - `-Ptinalux.nativeAbi=arm64-v8a`
   - `-Ptinalux.nativeBuildType=Release`
   - `-Ptinalux.androidApi=26`
   - `-Ptinalux.nativeIcuData=...`
+  - `gradle :tinalux-sdk:describeTinaluxNativeArtifacts`
+
+Command-line Gradle notes:
+
+- this repository does not commit a Gradle wrapper for the Android sample yet
+- use Android Studio, or invoke `gradle` from a local Gradle installation
 
 Build guard:
 
-- `preBuild` verifies that `src/main/jniLibs/<abi>/libtinalux_native.so` exists
+- `preBuild` validates the configured ABI/build/API settings before packaging
+- `preBuild` verifies that `src/main/jniLibs/<configured abi>/libtinalux_native.so` exists
 - if the library is missing, the Gradle build fails with an actionable message
 
 Publishing:
 
 - this module now supports `maven-publish`
 - publish locally with:
-  - `./gradlew :tinalux-sdk:publishTinaluxSdkToMavenLocal`
+  - `gradle :tinalux-sdk:publishTinaluxSdkToMavenLocal`
 - default coordinates:
   - `groupId = com.tinalux`
   - `artifactId = tinalux-android-sdk`
