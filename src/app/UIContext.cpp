@@ -26,6 +26,8 @@ namespace tinalux::app {
 namespace {
 
 constexpr float kGeometryTolerance = 0.001f;
+constexpr std::size_t kMaxPartialRedrawRegions = 8;
+constexpr float kMaxPartialRedrawCoverage = 0.3f;
 
 float sanitizeDpiScale(float dpiScale)
 {
@@ -61,6 +63,44 @@ void appendRedrawRegion(std::vector<core::Rect>& regions, const core::Rect& cand
             }
         }
     }
+}
+
+bool shouldPromoteToFullRedraw(
+    const std::vector<core::Rect>& regions,
+    const core::Size& logicalSize)
+{
+    if (regions.empty()) {
+        return false;
+    }
+
+    if (regions.size() > kMaxPartialRedrawRegions) {
+        return true;
+    }
+
+    const float logicalWidth = std::max(0.0f, logicalSize.width());
+    const float logicalHeight = std::max(0.0f, logicalSize.height());
+    const float fullArea = logicalWidth * logicalHeight;
+    if (fullArea <= 0.0f) {
+        return false;
+    }
+
+    float coveredArea = 0.0f;
+    for (const auto& region : regions) {
+        const float left = std::clamp(region.left(), 0.0f, logicalWidth);
+        const float top = std::clamp(region.top(), 0.0f, logicalHeight);
+        const float right = std::clamp(region.right(), 0.0f, logicalWidth);
+        const float bottom = std::clamp(region.bottom(), 0.0f, logicalHeight);
+        if (right <= left || bottom <= top) {
+            continue;
+        }
+
+        coveredArea += (right - left) * (bottom - top);
+        if (coveredArea >= fullArea * kMaxPartialRedrawCoverage) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 core::Size logicalFramebufferSize(
@@ -748,7 +788,7 @@ bool UIContext::render(
     }
 
     constexpr core::Color kClearColor = core::colorRGB(18, 20, 28);
-    const bool fullRedraw = (rootWidget_ == nullptr && overlayWidget_ == nullptr)
+    const bool baseFullRedraw = (rootWidget_ == nullptr && overlayWidget_ == nullptr)
         || (rootWidget_ != nullptr
             && (rootWidget_->isLayoutDirty() || !rootWidget_->hasDirtyRegion()))
         || (overlayWidget_ != nullptr
@@ -757,7 +797,7 @@ bool UIContext::render(
         || dpiChanged;
     std::vector<core::Rect> redrawRegions;
     core::Rect redrawRegion = core::Rect::MakeEmpty();
-    if (!fullRedraw) {
+    if (!baseFullRedraw) {
         if (rootWidget_ != nullptr && rootWidget_->hasDirtyRegion()) {
             std::vector<core::Rect> rootRegions;
             rootWidget_->collectDirtyDrawRegions(rootRegions);
@@ -778,6 +818,8 @@ bool UIContext::render(
             debugHudBounds(logicalSize.width(), logicalSize.height());
         appendRedrawRegion(redrawRegions, hudBounds);
     }
+    const bool fullRedraw = baseFullRedraw
+        || shouldPromoteToFullRedraw(redrawRegions, logicalSize);
     for (const auto& region : redrawRegions) {
         if (redrawRegion.isEmpty()) {
             redrawRegion = region;
