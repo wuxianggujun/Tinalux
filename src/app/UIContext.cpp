@@ -1209,6 +1209,7 @@ void UIContext::resetForStartup()
         runtimeState_->devicePixelRatio = 1.0f;
         ++runtimeState_->themeGeneration;
     }
+    ui::ResourceLoader::instance().clear();
 
     if (const auto focused = lockWidget(focusedWidget_)) {
         focused->setFocused(false);
