@@ -1,133 +1,84 @@
-# UI库核心能力完善 - 资源管理和开发工具
+# UI 库核心能力完善：资源和工具
 
-> 创建日期：2026-03-15
+> 更新时间：2026-03-18  
+> 状态：资源能力已初步落地；开发者工具仍明显不足。
 
----
+## 资源能力现状
 
-## 一、异步资源加载 ⭐⭐⭐
+### ResourceManager
 
-### 当前问题
-- 图片加载阻塞主线程
-- 无预加载机制
+当前 `ResourceManager` 已支持：
 
-### 解决方案
+- 设置设备像素比
+- 搜索路径管理
+- 根据 DPI 解析资源路径
+- 自动尝试 `@2x / @3x`
 
-```cpp
-// include/tinalux/ui/ResourceLoader.h
-template<typename T>
-class ResourceHandle {
-public:
-    bool isReady() const;
-    const T& get() const;
-    void onReady(std::function<void(const T&)> callback);
-};
+这意味着“多分辨率适配完全没有实现”已经不准确。
 
-class ResourceLoader {
-public:
-    static ResourceLoader& instance();
-    ResourceHandle<rendering::Image> loadImageAsync(const std::string& path);
-    void preload(const std::vector<std::string>& paths);
-};
-```
+### ResourceLoader
 
-### 使用示例
-```cpp
-auto handle = ResourceLoader::instance().loadImageAsync("avatar.png");
-handle.onReady([this](const auto& image) {
-    this->image_ = image;
-    this->markDirty();
-});
-```
+当前 `ResourceLoader` 已支持：
 
----
+- 异步图片加载
+- worker 线程处理
+- in-flight 去重
+- `preload`
+- 主线程 pump 回调
+- `clear`
 
-## 二、多分辨率适配 ⭐⭐
+适用场景：
 
-```cpp
-class ResourceManager {
-public:
-    void setDevicePixelRatio(float ratio);
-    
-    // 自动选择：icon.png / icon@2x.png / icon@3x.png
-    rendering::Image getImage(const std::string& name);
-};
-```
+- `TextInput` 图标异步加载
+- `ImageWidget` 异步图片加载
+- 其他控件的图片资源预热
 
----
+### IconRegistry
 
-## 三、热重载 ⭐
+当前 `IconRegistry` 已支持三类注册方式：
 
-```cpp
-class HotReload {
-public:
-    void enable();
-    void watch(const std::string& path);
-    void onResourceChanged(std::function<void(const std::string&)> callback);
-};
-```
+- 路径
+- 编码后的字节数据
+- 工厂函数
 
----
+## 当前已有的工具化能力
 
-## 四、Widget树可视化 ⭐⭐
+### Debug HUD / 性能摘要
 
-```cpp
-class WidgetInspector {
-public:
-    static WidgetInspector& instance();
-    void enable();
-    void showTree(Widget* root);
-    void highlightWidget(Widget* widget);
-    void showProperties(Widget* widget);
-};
-```
+应用层当前已有：
 
----
+- `FrameStats`
+- 周期性性能日志
+- Debug HUD
 
-## 五、布局调试 ⭐⭐
+这部分能力存在于 `Application` / `UIContext`，不应继续写成“完全没有开发者工具”。
 
-```cpp
-class LayoutDebugger {
-public:
-    void enableBoundsDisplay();    // 显示边界
-    void enablePaddingDisplay();   // 显示padding
-    void highlightLayoutIssues();  // 高亮布局问题
-};
-```
+### 渲染缓存与基础性能设施
 
----
+当前已有：
 
-## 六、性能分析 ⭐⭐
+- 字体缓存
+- 图片缓存
+- 组件级渲染缓存
+- 异步资源回调泵送
 
-```cpp
-class Profiler {
-public:
-    void beginFrame();
-    void endFrame();
-    
-    struct Stats {
-        float layoutTime;
-        float drawTime;
-        int widgetCount;
-        int drawCallCount;
-    };
-    
-    Stats currentFrameStats() const;
-    void exportTrace(const std::string& path);  // 导出火焰图
-};
+## 当前缺失的工具
 
-// RAII使用
-class ProfileScope {
-public:
-    explicit ProfileScope(const std::string& name);
-};
-```
+下面这些工具仍然没有：
 
----
+- Widget Inspector
+- 资源热重载
+- 布局调试器 UI
+- 可视化 trace / flame graph 导出工具
 
-## 实施优先级
+所以更准确的描述是：
 
-1. **第1周**：异步资源加载
-2. **第2周**：多分辨率适配
-3. **第3周**：Widget树可视化
-4. **第4周**：性能分析器
-5. **第5周**：热重载（可选）
+- 资源层基础设施已经初具规模
+- 开发者可视化工具仍基本缺失
+
+## 推荐文档表述
+
+- `ResourceManager`：已实现基础资源解析和 DPI 适配
+- `ResourceLoader`：已实现异步图片加载，但不是完整通用资源系统
+- `IconRegistry`：已实现注册与按需获取
+- 开发者工具：仅有 Debug HUD 和性能摘要，暂无 inspector / hot reload

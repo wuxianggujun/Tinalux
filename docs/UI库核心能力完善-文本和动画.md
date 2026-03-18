@@ -1,145 +1,113 @@
-# UI库核心能力完善 - 文本和动画系统
+# UI 库核心能力完善：文本和动画
 
-> 创建日期：2026-03-15
+> 更新时间：2026-03-18  
+> 状态：本文改为当前文本与动画能力说明。
 
----
+## 文本能力现状
 
-## 一、富文本系统 ⭐⭐⭐
+### 富文本
 
-### 当前问题
-- 无富文本支持（不同颜色、字体混排）
-- 无超链接支持
-- 无跨Widget文本选择
+`RichTextWidget` 已实现，当前能力包括：
 
-### 解决方案
+- `TextSpan`
+- `RichTextBuilder`
+- 链接点击
+- 标题、说明文字、引用、代码块
+- 项目符号列表和有序列表
+- 行高倍率
+- 对齐方式
+- `maxLines`
+- 行内背景色和删除线 / 下划线
+
+当前可用构建器接口包括：
+
+- `addText`
+- `addParagraph`
+- `addBold`
+- `addItalic`
+- `addHeading`
+- `addCaption`
+- `addQuote`
+- `addCode`
+- `addCodeBlock`
+- `addBulletItem`
+- `addOrderedItem`
+- `addLink`
+
+### 文本输入
+
+`TextInput` 已支持：
+
+- UTF-8 文本编辑
+- 光标移动
+- 选择与拖拽选择
+- `Ctrl+A`
+- 密码遮蔽
+- IME 组合态
+- 剪贴板
+- 前后缀图标
+- 异步图标加载
+
+因此“富文本未实现”“IME 未接通”这类旧说法都不再准确。
+
+## 动画能力现状
+
+动画系统已具备：
+
+- `AnimationSink`
+- `AnimationScheduler`
+- 补间动画
+- `requestAnimationFrame`
+- 缓动函数
+- 主循环接线
+- 主题切换动画
+
+并且已被多个控件实际使用。
+
+## 示例
+
+### RichText
 
 ```cpp
-// include/tinalux/ui/RichText.h
-struct TextSpan {
-    std::string text;
-    std::optional<core::Color> color;
-    std::optional<float> fontSize;
-    bool bold = false;
-    bool italic = false;
-    bool underline = false;
-    std::function<void()> onClick;  // 超链接
-};
+using namespace tinalux::ui;
 
-class RichTextBuilder {
-public:
-    RichTextBuilder& addText(const std::string& text);
-    RichTextBuilder& addBold(const std::string& text);
-    RichTextBuilder& addColored(const std::string& text, core::Color color);
-    RichTextBuilder& addLink(const std::string& text, std::function<void()> onClick);
-    std::vector<TextSpan> build() const;
-};
-
-class RichTextWidget : public Widget {
-public:
-    explicit RichTextWidget(const std::vector<TextSpan>& spans);
-    void setSpans(const std::vector<TextSpan>& spans);
-};
-```
-
-### 使用示例
-```cpp
-auto richText = std::make_shared<RichTextWidget>(
+auto widget = std::make_shared<RichTextWidget>(
     RichTextBuilder()
-        .addText("普通文本，")
-        .addBold("粗体，")
-        .addColored("红色", core::colorRGB(255, 0, 0))
-        .addLink("链接", []{ /* 点击处理 */ })
-        .build()
-);
+        .addHeading("Release Notes")
+        .addParagraphBreak()
+        .addText("Current backend: ")
+        .addBold("Vulkan")
+        .addText(" / ")
+        .addLink("Open docs", [] {})
+        .build());
 ```
 
----
-
-## 二、字形缓存 ⭐⭐
+### 动画
 
 ```cpp
-// src/rendering/text/GlyphCache.h
-class GlyphCache {
-public:
-    static GlyphCache& instance();
-    rendering::Image getGlyph(uint32_t codepoint, float fontSize);
-    void setMaxCacheSize(size_t bytes);
-    float hitRate() const;
-};
+application.animationSink().animate(
+    {
+        .from = 0.0f,
+        .to = 1.0f,
+        .durationSeconds = 0.2,
+        .easing = tinalux::ui::Easing::EaseOutCubic,
+    },
+    [](float value) {
+        (void)value;
+    });
 ```
 
----
+## 当前缺口
 
-## 三、布局动画 ⭐⭐
+下面这些能力目前仍未形成统一框架：
 
-### 当前问题
-- 添加/删除Widget无过渡动画
-- 布局变化生硬
+- 页面切换动画
+- 布局变化动画
+- 动画编排 / 时间轴
+- 跨 Widget 文本选择
+- 更高级的文本编辑控件族
 
-### 解决方案
+## 当前建议
 
-```cpp
-// include/tinalux/ui/LayoutAnimation.h
-class LayoutAnimation {
-public:
-    enum class Type { None, Fade, Slide, Scale };
-    
-    static void enable(Container* container, Type type = Type::Fade);
-    void setDuration(float seconds);
-};
-```
-
-### 使用示例
-```cpp
-auto container = std::make_shared<Container>();
-LayoutAnimation::enable(container.get(), LayoutAnimation::Type::Slide);
-
-container->addChild(newWidget);  // 自动播放滑入动画
-```
-
----
-
-## 四、页面切换动画 ⭐⭐
-
-```cpp
-class PageNavigator : public Container {
-public:
-    enum class Transition { Slide, Fade, Zoom };
-    
-    void push(std::shared_ptr<Widget> page, Transition transition = Transition::Slide);
-    void pop(Transition transition = Transition::Slide);
-    Widget* currentPage() const;
-};
-```
-
----
-
-## 五、动画编排 ⭐
-
-```cpp
-class AnimationSequence {
-public:
-    AnimationSequence& then(std::shared_ptr<Animation> anim);  // 串行
-    AnimationSequence& with(std::shared_ptr<Animation> anim);  // 并行
-    AnimationSequence& delay(float seconds);
-    AnimationSequence& repeat(int count);
-    void start();
-};
-
-// 使用
-AnimationSequence()
-    .then(fadeIn)
-    .delay(0.5)
-    .with(slideUp).with(scaleUp)  // 同时执行
-    .then(fadeOut)
-    .start();
-```
-
----
-
-## 实施优先级
-
-1. **第1-2周**：富文本系统
-2. **第3周**：字形缓存
-3. **第4周**：布局动画
-4. **第5周**：页面切换和动画编排
+- 文档中把富文本定位为“已实现并可用”，不要再当作规划项
+- 动画系统应描述为“已实现并已接入部分控件”，不要再写成“只有调度器，没有实际使用”
