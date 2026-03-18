@@ -2,40 +2,115 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
+#include <set>
+#include <vector>
 
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Container.h"
-#include "tinalux/ui/Layout.h"
 #include "tinalux/ui/Theme.h"
 
 namespace tinalux::ui {
 
-ListView::ListView()
-    : items_(std::make_shared<Container>())
+namespace {
+
+constexpr float kGeometryTolerance = 0.001f;
+constexpr std::size_t kVisibleOverscanItems = 1;
+
+bool nearlyEqual(float lhs, float rhs)
 {
-    auto layout = std::make_unique<VBoxLayout>();
-    layout->padding = 8.0f;
-    layout->spacing = 8.0f;
-    layout_ = layout.get();
-    items_->setLayout(std::move(layout));
+    return std::abs(lhs - rhs) <= kGeometryTolerance;
+}
+
+class VirtualListContent final : public Container {
+public:
+    core::Size measure(const Constraints& constraints) override
+    {
+        return constraints.constrain(measuredSize_);
+    }
+
+    void arrange(const core::Rect& bounds) override
+    {
+        Widget::arrange(bounds);
+        for (std::size_t index = 0; index < children_.size() && index < childBounds_.size(); ++index) {
+            children_[index]->arrange(childBounds_[index]);
+        }
+    }
+
+    void setMeasuredSize(core::Size size)
+    {
+        measuredSize_ = size;
+    }
+
+    void setVisibleChildren(
+        const std::vector<std::shared_ptr<Widget>>& children,
+        const std::vector<core::Rect>& bounds)
+    {
+        if (children.size() != bounds.size()) {
+            return;
+        }
+
+        bool sameChildren = children_.size() == children.size();
+        if (sameChildren) {
+            for (std::size_t index = 0; index < children.size(); ++index) {
+                if (children_[index].get() != children[index].get()) {
+                    sameChildren = false;
+                    break;
+                }
+            }
+        }
+
+        childBounds_.clear();
+        childBounds_.reserve(bounds.size());
+        for (const auto& bound : bounds) {
+            childBounds_.push_back(bound);
+        }
+
+        if (!sameChildren) {
+            replaceChildrenDirect(std::vector<std::shared_ptr<Widget>>(children.begin(), children.end()));
+        }
+    }
+
+private:
+    core::Size measuredSize_ = core::Size::Make(0.0f, 0.0f);
+    std::vector<core::Rect> childBounds_;
+};
+
+}  // namespace
+
+ListView::ListView()
+    : items_(std::make_shared<VirtualListContent>())
+{
     setContent(items_);
     applyResolvedStyle();
 }
 
 void ListView::addItem(std::shared_ptr<Widget> item)
 {
-    applyResolvedStyle();
-    items_->addChild(std::move(item));
+    if (item == nullptr) {
+        return;
+    }
+
+    itemStorage_.push_back(std::move(item));
+    invalidateItemLayoutCache();
+    markLayoutDirty();
 }
 
 void ListView::clearItems()
 {
     const bool hadSelection = selectedIndex_ != -1;
     items_->clearChildren();
+    itemStorage_.clear();
+    itemBounds_.clear();
+    itemLayoutVersions_.clear();
+    measuredContentSize_ = core::Size::Make(0.0f, 0.0f);
+    cachedViewportWidth_ = -1.0f;
+    itemLayoutCacheValid_ = false;
     pressedIndex_ = -1;
     selectedIndex_ = -1;
+    markLayoutDirty();
     if (hadSelection && onSelectionChanged_) {
         onSelectionChanged_(selectedIndex_);
     }
@@ -114,14 +189,24 @@ bool ListView::focusable() const
 core::Size ListView::measure(const Constraints& constraints)
 {
     applyResolvedStyle();
-    return ScrollView::measure(constraints);
+    ensureItemLayoutCache(constraints.maxWidth);
+
+    const float desiredHeight = preferredHeight_ > 0.0f
+        ? std::min(preferredHeight_, measuredContentSize_.height())
+        : measuredContentSize_.height();
+    contentHeight_ = measuredContentSize_.height();
+    return constraints.constrain(core::Size::Make(measuredContentSize_.width(), desiredHeight));
 }
 
 void ListView::arrange(const core::Rect& bounds)
 {
     applyResolvedStyle();
-    ScrollView::arrange(bounds);
+    Widget::arrange(bounds);
+    ensureItemLayoutCache(bounds.width());
+    contentHeight_ = measuredContentSize_.height();
+    clampScrollOffset();
     ensureItemVisible(selectedIndex_);
+    applyVisibleItemLayout();
 }
 
 void ListView::onDraw(rendering::Canvas& canvas)
@@ -192,7 +277,7 @@ bool ListView::onEventCapture(core::Event& event)
     }
     case core::EventType::KeyPress: {
         const auto& keyEvent = static_cast<const core::KeyEvent&>(event);
-        if (items_->children().empty()) {
+        if (itemStorage_.empty()) {
             return false;
         }
 
@@ -202,14 +287,14 @@ bool ListView::onEventCapture(core::Event& event)
             return true;
         case core::keys::kDown:
             updateSelection(
-                selectedIndex_ < 0 ? 0 : std::min(selectedIndex_ + 1, static_cast<int>(items_->children().size()) - 1),
+                selectedIndex_ < 0 ? 0 : std::min(selectedIndex_ + 1, static_cast<int>(itemStorage_.size()) - 1),
                 true);
             return true;
         case core::keys::kHome:
             updateSelection(0, true);
             return true;
         case core::keys::kEnd:
-            updateSelection(static_cast<int>(items_->children().size()) - 1, true);
+            updateSelection(static_cast<int>(itemStorage_.size()) - 1, true);
             return true;
         default:
             return false;
@@ -222,7 +307,11 @@ bool ListView::onEventCapture(core::Event& event)
 
 bool ListView::onEvent(core::Event& event)
 {
-    return ScrollView::onEvent(event);
+    const bool handled = ScrollView::onEvent(event);
+    if (handled && event.type() == core::EventType::MouseScroll) {
+        applyVisibleItemLayout();
+    }
+    return handled;
 }
 
 ListViewStyle ListView::resolvedStyle() const
@@ -239,27 +328,183 @@ ListViewStyle ListView::resolvedStyle() const
 
 void ListView::applyResolvedStyle()
 {
-    if (layout_ == nullptr) {
-        return;
-    }
-
     const ListViewStyle style = resolvedStyle();
-    if (layout_->padding == style.padding && layout_->spacing == style.spacing) {
+    if (nearlyEqual(appliedPadding_, style.padding) && nearlyEqual(appliedSpacing_, style.spacing)) {
         return;
     }
 
-    layout_->padding = style.padding;
-    layout_->spacing = style.spacing;
-    items_->markLayoutDirty();
+    appliedPadding_ = style.padding;
+    appliedSpacing_ = style.spacing;
+    invalidateItemLayoutCache();
     markLayoutDirty();
+}
+
+void ListView::invalidateItemLayoutCache()
+{
+    itemBounds_.clear();
+    itemLayoutVersions_.clear();
+    measuredContentSize_ = core::Size::Make(0.0f, 0.0f);
+    cachedViewportWidth_ = -1.0f;
+    itemLayoutCacheValid_ = false;
+}
+
+void ListView::ensureItemLayoutCache(float viewportWidth)
+{
+    const ListViewStyle style = resolvedStyle();
+    const float normalizedViewportWidth = std::isfinite(viewportWidth)
+        ? std::max(0.0f, viewportWidth)
+        : std::numeric_limits<float>::infinity();
+
+    bool canReuseCache = itemLayoutCacheValid_
+        && itemBounds_.size() == itemStorage_.size()
+        && itemLayoutVersions_.size() == itemStorage_.size()
+        && ((std::isfinite(normalizedViewportWidth) && nearlyEqual(cachedViewportWidth_, normalizedViewportWidth))
+            || (!std::isfinite(normalizedViewportWidth) && !std::isfinite(cachedViewportWidth_)));
+
+    if (canReuseCache) {
+        for (std::size_t index = 0; index < itemStorage_.size(); ++index) {
+            if (itemLayoutVersions_[index] != itemStorage_[index]->layoutVersion()) {
+                canReuseCache = false;
+                break;
+            }
+        }
+    }
+
+    if (canReuseCache) {
+        return;
+    }
+
+    const float innerWidth = std::isfinite(normalizedViewportWidth)
+        ? std::max(0.0f, normalizedViewportWidth - style.padding * 2.0f)
+        : std::numeric_limits<float>::infinity();
+
+    itemBounds_.clear();
+    itemLayoutVersions_.clear();
+    itemBounds_.reserve(itemStorage_.size());
+    itemLayoutVersions_.reserve(itemStorage_.size());
+
+    float cursorY = style.padding;
+    float widestChild = 0.0f;
+    for (std::size_t index = 0; index < itemStorage_.size(); ++index) {
+        const core::Size itemSize = itemStorage_[index]->measure({
+            .minWidth = 0.0f,
+            .maxWidth = innerWidth,
+            .minHeight = 0.0f,
+            .maxHeight = std::numeric_limits<float>::infinity(),
+        });
+        const float itemWidth = std::isfinite(innerWidth)
+            ? std::min(itemSize.width(), innerWidth)
+            : itemSize.width();
+        widestChild = std::max(widestChild, itemWidth);
+        itemBounds_.push_back(core::Rect::MakeXYWH(
+            style.padding,
+            cursorY,
+            itemWidth,
+            itemSize.height()));
+        itemLayoutVersions_.push_back(itemStorage_[index]->layoutVersion());
+        cursorY += itemSize.height();
+        if (index + 1 < itemStorage_.size()) {
+            cursorY += style.spacing;
+        }
+    }
+
+    measuredContentSize_ = core::Size::Make(
+        widestChild + style.padding * 2.0f,
+        itemStorage_.empty() ? style.padding * 2.0f : cursorY + style.padding);
+    cachedViewportWidth_ = normalizedViewportWidth;
+    itemLayoutCacheValid_ = true;
+}
+
+std::size_t ListView::firstItemIntersecting(float contentY) const
+{
+    std::size_t low = 0;
+    std::size_t high = itemBounds_.size();
+    while (low < high) {
+        const std::size_t index = low + (high - low) / 2;
+        if (itemBounds_[index].bottom() <= contentY) {
+            low = index + 1;
+        } else {
+            high = index;
+        }
+    }
+    return low;
+}
+
+std::size_t ListView::firstItemStartingAfter(float contentY) const
+{
+    std::size_t low = 0;
+    std::size_t high = itemBounds_.size();
+    while (low < high) {
+        const std::size_t index = low + (high - low) / 2;
+        if (itemBounds_[index].top() < contentY) {
+            low = index + 1;
+        } else {
+            high = index;
+        }
+    }
+    return low;
+}
+
+void ListView::syncVisibleItems()
+{
+    std::vector<std::shared_ptr<Widget>> visibleItems;
+    std::vector<core::Rect> visibleBounds;
+
+    if (!itemStorage_.empty()) {
+        const float visibleTop = scrollOffset_;
+        const float visibleBottom = scrollOffset_ + bounds_.height();
+        std::size_t start = firstItemIntersecting(visibleTop);
+        std::size_t end = firstItemStartingAfter(visibleBottom);
+
+        if (start > 0) {
+            start -= std::min(start, kVisibleOverscanItems);
+        }
+        end = std::min(itemStorage_.size(), end + kVisibleOverscanItems);
+
+        std::set<std::size_t> activeIndices;
+        for (std::size_t index = start; index < end; ++index) {
+            activeIndices.insert(index);
+        }
+        for (std::size_t index = 0; index < itemStorage_.size(); ++index) {
+            if (itemStorage_[index]->focused()) {
+                activeIndices.insert(index);
+            }
+        }
+
+        visibleItems.reserve(activeIndices.size());
+        visibleBounds.reserve(activeIndices.size());
+        for (const std::size_t index : activeIndices) {
+            visibleItems.push_back(itemStorage_[index]);
+            visibleBounds.push_back(itemBounds_[index]);
+        }
+    }
+
+    if (auto* virtualContent = dynamic_cast<VirtualListContent*>(items_.get()); virtualContent != nullptr) {
+        virtualContent->setVisibleChildren(visibleItems, visibleBounds);
+    }
+}
+
+void ListView::applyVisibleItemLayout()
+{
+    if (auto* virtualContent = dynamic_cast<VirtualListContent*>(items_.get()); virtualContent != nullptr) {
+        virtualContent->setMeasuredSize(core::Size::Make(
+            std::max(bounds_.width(), measuredContentSize_.width()),
+            contentHeight_));
+    }
+    syncVisibleItems();
+    items_->arrange(core::Rect::MakeXYWH(
+        0.0f,
+        0.0f,
+        std::max(bounds_.width(), measuredContentSize_.width()),
+        contentHeight_));
 }
 
 Widget* ListView::itemAtIndex(int index) const
 {
-    if (index < 0 || index >= static_cast<int>(items_->children().size())) {
+    if (index < 0 || index >= static_cast<int>(itemStorage_.size())) {
         return nullptr;
     }
-    return items_->children()[static_cast<std::size_t>(index)].get();
+    return itemStorage_[static_cast<std::size_t>(index)].get();
 }
 
 int ListView::indexForPoint(core::Point localPoint) const
@@ -269,35 +514,22 @@ int ListView::indexForPoint(core::Point localPoint) const
     }
 
     const float contentY = localPoint.y() + scrollOffset_;
-    const auto& children = items_->children();
-    std::size_t low = 0;
-    std::size_t high = children.size();
-    while (low < high) {
-        const std::size_t index = low + (high - low) / 2;
-        const core::Rect childBounds = children[index]->bounds();
-        if (contentY < childBounds.top()) {
-            high = index;
-            continue;
-        }
-        if (contentY >= childBounds.bottom()) {
-            low = index + 1;
-            continue;
-        }
-        return childBounds.contains(localPoint.x(), contentY)
-            ? static_cast<int>(index)
-            : -1;
+    const std::size_t index = firstItemIntersecting(contentY);
+    if (index >= itemBounds_.size()) {
+        return -1;
     }
-    return -1;
+    return itemBounds_[index].contains(localPoint.x(), contentY)
+        ? static_cast<int>(index)
+        : -1;
 }
 
 void ListView::ensureItemVisible(int index)
 {
-    Widget* item = itemAtIndex(index);
-    if (item == nullptr) {
+    if (index < 0 || index >= static_cast<int>(itemBounds_.size())) {
         return;
     }
 
-    const core::Rect itemBounds = item->bounds();
+    const core::Rect itemBounds = itemBounds_[static_cast<std::size_t>(index)];
     if (itemBounds.isEmpty() || bounds_.height() <= 0.0f) {
         return;
     }
@@ -316,11 +548,12 @@ void ListView::ensureItemVisible(int index)
 
     scrollOffset_ = nextOffset;
     markPaintDirty();
+    applyVisibleItemLayout();
 }
 
 void ListView::updateSelection(int index, bool emitCallback)
 {
-    if (index < -1 || index >= static_cast<int>(items_->children().size())) {
+    if (index < -1 || index >= static_cast<int>(itemStorage_.size())) {
         index = -1;
     }
 

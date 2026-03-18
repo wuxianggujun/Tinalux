@@ -173,6 +173,11 @@ tinalux_add_smoke_test(TinaluxUIListViewSelectionSmoke
     LINK_LIBS Tinalux::UI Tinalux::App
 )
 
+tinalux_add_smoke_test(TinaluxUIListViewVirtualizationSmoke
+    SOURCE ui/list_view_virtualization_smoke.cpp
+    LINK_LIBS Tinalux::UI
+)
+
 tinalux_add_smoke_test(TinaluxUIRenderCacheSmoke
     SOURCE ui/render_cache_smoke.cpp
     LINK_LIBS Tinalux::UI

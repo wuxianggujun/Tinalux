@@ -3,6 +3,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "tinalux/ui/ListViewStyle.h"
 #include "tinalux/ui/ScrollView.h"
@@ -10,7 +11,6 @@
 namespace tinalux::ui {
 
 class Container;
-class VBoxLayout;
 
 class ListView final : public ScrollView {
 public:
@@ -38,13 +38,26 @@ public:
 private:
     ListViewStyle resolvedStyle() const;
     void applyResolvedStyle();
+    void invalidateItemLayoutCache();
+    void ensureItemLayoutCache(float viewportWidth);
+    void syncVisibleItems();
+    void applyVisibleItemLayout();
+    std::size_t firstItemIntersecting(float contentY) const;
+    std::size_t firstItemStartingAfter(float contentY) const;
     Widget* itemAtIndex(int index) const;
     int indexForPoint(core::Point localPoint) const;
     void ensureItemVisible(int index);
     void updateSelection(int index, bool emitCallback);
 
     std::shared_ptr<Container> items_;
-    VBoxLayout* layout_ = nullptr;
+    std::vector<std::shared_ptr<Widget>> itemStorage_;
+    std::vector<core::Rect> itemBounds_;
+    std::vector<std::uint64_t> itemLayoutVersions_;
+    core::Size measuredContentSize_ = core::Size::Make(0.0f, 0.0f);
+    float cachedViewportWidth_ = -1.0f;
+    float appliedPadding_ = -1.0f;
+    float appliedSpacing_ = -1.0f;
+    bool itemLayoutCacheValid_ = false;
     std::optional<ListViewStyle> customStyle_;
     std::optional<float> spacingOverride_;
     std::optional<float> paddingOverride_;

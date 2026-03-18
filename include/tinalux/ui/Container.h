@@ -26,6 +26,7 @@ public:
 
 protected:
     void drawChildren(rendering::Canvas& canvas);
+    void replaceChildrenDirect(std::vector<std::shared_ptr<Widget>> children);
 
     std::vector<std::shared_ptr<Widget>> children_;
     std::unique_ptr<Layout> layout_;

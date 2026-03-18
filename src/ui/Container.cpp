@@ -185,4 +185,21 @@ void Container::drawChildren(rendering::Canvas& canvas)
     }
 }
 
+void Container::replaceChildrenDirect(std::vector<std::shared_ptr<Widget>> children)
+{
+    for (const auto& child : children_) {
+        child->setParent(nullptr);
+    }
+
+    children_.clear();
+    children_.reserve(children.size());
+    for (auto& child : children) {
+        if (child == nullptr) {
+            continue;
+        }
+        child->setParent(this);
+        children_.push_back(std::move(child));
+    }
+}
+
 }  // namespace tinalux::ui
