@@ -161,9 +161,6 @@ bool AndroidRuntime::attachWindow(void* nativeWindow, float dpiScale)
         "app.android",
         "Android runtime attached a native window and initialized backend '{}'",
         rendering::backendName(impl_->application.renderBackend()));
-    if (impl_->application.window() != nullptr) {
-        impl_->application.window()->setClipboardText(impl_->clipboardText);
-    }
     return true;
 }
 
@@ -194,6 +191,7 @@ bool AndroidRuntime::renderOnce()
             "app.android",
             "Android runtime stopped because the application requested close");
         impl_->application.shutdown();
+        impl_->sessionActive = false;
     }
     return keepRunning;
 }

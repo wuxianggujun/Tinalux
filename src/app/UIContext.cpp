@@ -367,8 +367,7 @@ UIContext::UIContext()
         ++runtimeState_->themeGeneration;
         needsRedraw_ = true;
     });
-    themeManager.setAnimationSink(&runtimeState_->animationScheduler);
-    themeManager.setInvalidateCallback([this] { needsRedraw_ = true; });
+    bindThemeRuntime();
 }
 
 UIContext::~UIContext()
@@ -376,12 +375,12 @@ UIContext::~UIContext()
     shutdown();
     ui::ThemeManager& themeManager = ui::ThemeManager::instance();
     themeManager.removeThemeChangeListener(themeListenerId_);
-    themeManager.setAnimationSink(nullptr);
-    themeManager.setInvalidateCallback({});
 }
 
 void UIContext::initializeFromEnvironment()
 {
+    resetForStartup();
+
     if (!perfLogConfiguredExplicitly_) {
         perfLogConfig_ = applyPerfLogEnvironmentOverrides(perfLogConfig_);
     } else {
@@ -428,6 +427,7 @@ void UIContext::shutdown()
         core::flushLog();
     }
 
+    unbindThemeRuntime();
     runtimeState_->animationScheduler.clear();
     ui::ResourceLoader::instance().clear();
     ui::clearClipboardHandlers();
@@ -444,6 +444,8 @@ void UIContext::shutdown()
     needsRedraw_ = true;
     layoutWidth_ = 0;
     layoutHeight_ = 0;
+    lastDpiScale_ = 1.0f;
+    frameStats_ = {};
     perfLogIntervalStats_ = {};
 }
 
@@ -1174,6 +1176,57 @@ void UIContext::logPeriodicPerfSummary(const char* reason)
         perfLogIntervalStats_.maxFrameMs,
         perfLogIntervalStats_.lastFrameMs);
     perfLogIntervalStats_ = {};
+}
+
+void UIContext::bindThemeRuntime()
+{
+    if (runtimeState_ == nullptr || themeRuntimeBindingId_ != 0) {
+        return;
+    }
+
+    themeRuntimeBindingId_ = ui::ThemeManager::instance().attachRuntime(
+        &runtimeState_->animationScheduler,
+        [this] { needsRedraw_ = true; });
+}
+
+void UIContext::unbindThemeRuntime()
+{
+    if (themeRuntimeBindingId_ == 0) {
+        return;
+    }
+
+    ui::ThemeManager::instance().detachRuntime(themeRuntimeBindingId_);
+    themeRuntimeBindingId_ = 0;
+}
+
+void UIContext::resetForStartup()
+{
+    shutdown_ = false;
+    bindThemeRuntime();
+
+    if (runtimeState_ != nullptr) {
+        runtimeState_->theme = ui::ThemeManager::instance().currentTheme();
+        runtimeState_->devicePixelRatio = 1.0f;
+        ++runtimeState_->themeGeneration;
+    }
+
+    if (const auto focused = lockWidget(focusedWidget_)) {
+        focused->setFocused(false);
+    }
+
+    rootWidget_.reset();
+    overlayWidget_.reset();
+    focusedWidget_.reset();
+    hoveredWidget_.reset();
+    mouseCaptureWidget_.reset();
+    needsRedraw_ = true;
+    layoutWidth_ = 0.0f;
+    layoutHeight_ = 0.0f;
+    lastDpiScale_ = 1.0f;
+    frameStats_ = {};
+    perfLogIntervalStats_ = {};
+    loggedEmptyScene_ = false;
+    loggedSceneReady_ = false;
 }
 
 core::Rect UIContext::debugHudBounds(float logicalWidth, float logicalHeight) const

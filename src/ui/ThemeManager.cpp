@@ -195,14 +195,16 @@ void ThemeManager::setTheme(const Theme& theme, bool animated)
     Theme target = normalizeTheme(theme);
     cancelOngoingAnimation();
 
-    if (!animated || animationSink_ == nullptr) {
+    AnimationSink* runtimeAnimationSink = activeAnimationSink();
+    if (!animated || runtimeAnimationSink == nullptr) {
         applyTheme(std::move(target));
         return;
     }
 
     const Theme from = currentTheme_;
     const Theme to = std::move(target);
-    animationHandle_ = animationSink_->animate(
+    animationSink_ = runtimeAnimationSink;
+    animationHandle_ = runtimeAnimationSink->animate(
         {
             .from = 0.0f,
             .to = 1.0f,
@@ -217,6 +219,7 @@ void ThemeManager::setTheme(const Theme& theme, bool animated)
         },
         [this, to]() mutable {
             animationHandle_ = 0;
+            animationSink_ = nullptr;
             applyTheme(std::move(to));
         });
 }
@@ -304,15 +307,55 @@ std::string ThemeManager::loadThemePreference() const
     return trimTrailingWhitespace(value);
 }
 
+ThemeManager::RuntimeBindingId ThemeManager::attachRuntime(
+    AnimationSink* sink,
+    std::function<void()> invalidateCallback)
+{
+    if (sink == nullptr && !invalidateCallback) {
+        return 0;
+    }
+
+    const RuntimeBindingId id = nextRuntimeBindingId_++;
+    runtimeBindings_[id] = RuntimeBinding {
+        .animationSink = sink,
+        .invalidateCallback = std::move(invalidateCallback),
+    };
+    return id;
+}
+
+void ThemeManager::detachRuntime(RuntimeBindingId id)
+{
+    if (id == 0) {
+        return;
+    }
+
+    const auto it = runtimeBindings_.find(id);
+    if (it == runtimeBindings_.end()) {
+        return;
+    }
+
+    if (animationHandle_ != 0
+        && animationSink_ != nullptr
+        && it->second.animationSink == animationSink_) {
+        cancelOngoingAnimation();
+    }
+
+    runtimeBindings_.erase(it);
+    if (legacyRuntimeBindingId_ == id) {
+        legacyRuntimeBindingId_ = 0;
+    }
+}
+
 void ThemeManager::setAnimationSink(AnimationSink* sink)
 {
-    cancelOngoingAnimation();
-    animationSink_ = sink;
+    legacyAnimationSink_ = sink;
+    updateLegacyRuntimeBinding();
 }
 
 void ThemeManager::setInvalidateCallback(std::function<void()> callback)
 {
-    invalidateCallback_ = std::move(callback);
+    legacyInvalidateCallback_ = std::move(callback);
+    updateLegacyRuntimeBinding();
 }
 
 void ThemeManager::cancelOngoingAnimation()
@@ -321,6 +364,7 @@ void ThemeManager::cancelOngoingAnimation()
         animationSink_->cancelAnimation(animationHandle_);
     }
     animationHandle_ = 0;
+    animationSink_ = nullptr;
 }
 
 void ThemeManager::applyTheme(Theme theme)
@@ -333,8 +377,17 @@ void ThemeManager::notifyThemeChanged()
 {
     ++version_;
 
-    if (invalidateCallback_) {
-        invalidateCallback_();
+    std::vector<std::function<void()>> invalidateCallbacks;
+    invalidateCallbacks.reserve(runtimeBindings_.size());
+    for (const auto& [id, binding] : runtimeBindings_) {
+        (void)id;
+        if (binding.invalidateCallback) {
+            invalidateCallbacks.push_back(binding.invalidateCallback);
+        }
+    }
+
+    for (const auto& invalidate : invalidateCallbacks) {
+        invalidate();
     }
 
     std::vector<ThemeChangeCallback> callbacks;
@@ -349,6 +402,31 @@ void ThemeManager::notifyThemeChanged()
     for (const auto& callback : callbacks) {
         callback(currentTheme_);
     }
+}
+
+AnimationSink* ThemeManager::activeAnimationSink() const
+{
+    for (auto it = runtimeBindings_.rbegin(); it != runtimeBindings_.rend(); ++it) {
+        if (it->second.animationSink != nullptr) {
+            return it->second.animationSink;
+        }
+    }
+    return nullptr;
+}
+
+void ThemeManager::updateLegacyRuntimeBinding()
+{
+    if (legacyRuntimeBindingId_ != 0) {
+        detachRuntime(legacyRuntimeBindingId_);
+    }
+
+    if (legacyAnimationSink_ == nullptr && !legacyInvalidateCallback_) {
+        return;
+    }
+
+    legacyRuntimeBindingId_ = attachRuntime(
+        legacyAnimationSink_,
+        legacyInvalidateCallback_);
 }
 
 }  // namespace tinalux::ui

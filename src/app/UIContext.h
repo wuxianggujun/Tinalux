@@ -92,6 +92,9 @@ private:
     void advanceFocus(bool reverse = false);
     void maybeLogPeriodicPerfSummary();
     void logPeriodicPerfSummary(const char* reason);
+    void bindThemeRuntime();
+    void unbindThemeRuntime();
+    void resetForStartup();
     core::Rect debugHudBounds(float logicalWidth, float logicalHeight) const;
     void drawDebugHud(
         rendering::Canvas& canvas,
@@ -120,6 +123,7 @@ private:
     DebugHudConfig debugHudConfig_ {};
     bool debugHudConfiguredExplicitly_ = false;
     std::uint64_t themeListenerId_ = 0;
+    std::uint64_t themeRuntimeBindingId_ = 0;
     bool loggedEmptyScene_ = false;
     bool loggedSceneReady_ = false;
     bool shutdown_ = false;

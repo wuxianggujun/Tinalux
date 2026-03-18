@@ -37,6 +37,7 @@ std::vector<WindowCreateRecord> gWindowCreates;
 std::vector<Backend> gContextRequests;
 std::size_t gContextCreates = 0;
 std::size_t gSurfaceCreates = 0;
+bool gShouldCloseWindow = false;
 
 void destroyFakeHandle(void*, void*) {}
 
@@ -61,11 +62,11 @@ public:
     {
     }
 
-    bool shouldClose() const override { return false; }
+    bool shouldClose() const override { return shouldClose_; }
     void pollEvents() override {}
     void waitEventsTimeout(double) override {}
     void swapBuffers() override {}
-    void requestClose() override {}
+    void requestClose() override { shouldClose_ = true; }
 
     int width() const override { return width_; }
     int height() const override { return height_; }
@@ -117,6 +118,7 @@ private:
     int height_ = 0;
     void* nativeWindow_ = nullptr;
     float dpiScale_ = 1.0f;
+    bool shouldClose_ = false;
     std::string clipboardText_;
     tinalux::platform::EventCallback callback_;
 };
@@ -130,7 +132,11 @@ std::unique_ptr<tinalux::platform::Window> createFakeWindow(const tinalux::platf
         .nativeWindow = config.android.has_value() ? config.android->nativeWindow : nullptr,
         .dpiScale = config.android.has_value() ? config.android->dpiScale : 1.0f,
     });
-    return std::make_unique<FakeWindow>(config);
+    auto window = std::make_unique<FakeWindow>(config);
+    if (gShouldCloseWindow) {
+        window->requestClose();
+    }
+    return window;
 }
 
 tinalux::rendering::RenderContext createFakeContext(const tinalux::rendering::ContextConfig& config)
@@ -154,6 +160,7 @@ void resetScenario()
     gContextRequests.clear();
     gContextCreates = 0;
     gSurfaceCreates = 0;
+    gShouldCloseWindow = false;
 }
 
 }  // namespace
@@ -314,6 +321,37 @@ int main()
         expect(
             gContextRequests.size() == 4 && gContextRequests[3] == Backend::OpenGL,
             "Switching backend while active should request the new backend");
+    }
+
+    {
+        resetScenario();
+
+        app::android::AndroidRuntime runtime;
+        app::android::AndroidRuntimeConfig config;
+        config.application.backend = Backend::Vulkan;
+        runtime.setConfig(config);
+
+        expect(
+            runtime.attachWindow(reinterpret_cast<void*>(0x303), 1.0f),
+            "Android runtime should attach before close lifecycle smoke");
+        expect(runtime.ready(), "Runtime should be ready before requestClose");
+
+        app::Application* application = runtime.application();
+        expect(application != nullptr, "Runtime should expose the active application");
+        application->requestClose();
+
+        expect(
+            !runtime.renderOnce(),
+            "renderOnce should report false after the application requests close");
+        expect(!runtime.ready(), "Runtime should no longer be ready after application shutdown");
+
+        expect(
+            runtime.attachWindow(reinterpret_cast<void*>(0x404), 1.25f),
+            "Android runtime should create a fresh application session after close");
+        expect(runtime.ready(), "Runtime should be ready again after reattach");
+        expect(gWindowCreates.size() == 2, "Close and reattach should create a second window");
+        expect(gContextCreates == 2, "Close and reattach should create a second render context");
+        expect(gSurfaceCreates == 2, "Close and reattach should create a second render surface");
     }
 
     return 0;

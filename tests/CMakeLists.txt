@@ -1,3 +1,7 @@
+include(CheckIncludeFileCXX)
+
+check_include_file_cxx("vulkan/vulkan_core.h" TINALUX_TEST_HAS_VULKAN_HEADERS)
+
 function(tinalux_add_smoke_test target_name)
     set(options COPY_SKIA_DATA)
     set(oneValueArgs SOURCE)
@@ -46,10 +50,14 @@ target_include_directories(TinaluxCoreRenderBackendSmoke PRIVATE
     ${TINALUX_GLFW_SOURCE_DIR}/deps
 )
 
-tinalux_add_smoke_test(TinaluxCoreFramePrepareSmoke
-    SOURCE core/frame_prepare_smoke.cpp
-    LINK_LIBS Tinalux::Rendering
-)
+if(TINALUX_TEST_HAS_VULKAN_HEADERS)
+    tinalux_add_smoke_test(TinaluxCoreFramePrepareSmoke
+        SOURCE core/frame_prepare_smoke.cpp
+        LINK_LIBS Tinalux::Rendering
+    )
+else()
+    message(STATUS "Skipping TinaluxCoreFramePrepareSmoke because Vulkan headers are unavailable")
+endif()
 
 tinalux_add_smoke_test(TinaluxCoreMetalContextSmoke
     SOURCE core/metal_context_smoke.cpp

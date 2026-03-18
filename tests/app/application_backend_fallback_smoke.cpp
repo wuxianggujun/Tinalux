@@ -9,6 +9,7 @@
 #include "../../src/app/ApplicationTestAccess.h"
 #include "../../src/app/RuntimeHooks.h"
 #include "../../src/rendering/RenderHandles.h"
+#include "tinalux/core/events/Event.h"
 #include "tinalux/platform/Window.h"
 #include "tinalux/rendering/rendering.h"
 
@@ -218,6 +219,37 @@ int main()
         expect(
             gContextRequests.size() == 1,
             "Surface recreation without backend failure should not create a second context");
+    }
+
+    {
+        resetScenario();
+        gFailSecondVulkanSurface = true;
+
+        app::Application app;
+        expect(
+            app.init(app::ApplicationConfig { .backend = Backend::Auto }),
+            "Auto backend init should succeed for deferred frame stats smoke");
+        const app::FrameStats statsBeforeFallback = app.frameStats();
+        expect(
+            statsBeforeFallback.totalFrames == 0,
+            "Fallback smoke should start with zero recorded rendered frames");
+        expect(
+            statsBeforeFallback.skippedFrames == 0,
+            "Fallback smoke should start with zero skipped frames");
+
+        gFramebufferWidthOverride = 1280;
+        gFramebufferHeightOverride = 720;
+        core::WindowResizeEvent resizeEvent(gFramebufferWidthOverride, gFramebufferHeightOverride);
+        app.handleEvent(resizeEvent);
+
+        expect(app.pumpOnce(), "Runtime fallback frame should keep the application alive");
+        const app::FrameStats statsAfterFallback = app.frameStats();
+        expect(
+            statsAfterFallback.totalFrames == statsBeforeFallback.totalFrames,
+            "Backend recovery without a presented frame should not increment rendered frame count");
+        expect(
+            statsAfterFallback.skippedFrames == statsBeforeFallback.skippedFrames + 1,
+            "Backend recovery without a presented frame should be recorded as a skipped frame");
     }
 
     return 0;

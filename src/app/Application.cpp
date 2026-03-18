@@ -22,6 +22,11 @@ namespace {
 
 constexpr double kIdleWaitSeconds = 0.05;
 
+enum class RenderFrameOutcome {
+    Deferred,
+    Presented,
+};
+
 float sanitizeDpiScale(float dpiScale)
 {
     return std::isfinite(dpiScale) && dpiScale > 0.0f ? dpiScale : 1.0f;
@@ -78,6 +83,7 @@ struct Application::Impl {
     int surfaceWidth = 0;
     int surfaceHeight = 0;
     float syncedDevicePixelRatio = 0.0f;
+    RenderFrameOutcome lastRenderFrameOutcome = RenderFrameOutcome::Deferred;
 };
 
 Application::Application()
@@ -370,6 +376,7 @@ void Application::resetRenderState()
     impl_->surfaceHeight = 0;
     impl_->backendPlan.reset(impl_->config.backend);
     syncResourceManagerDevicePixelRatio(nullptr, impl_->syncedDevicePixelRatio);
+    impl_->lastRenderFrameOutcome = RenderFrameOutcome::Deferred;
 }
 
 bool Application::pumpOnce()
@@ -411,8 +418,12 @@ bool Application::pumpOnce()
         const double frameMs =
             std::chrono::duration<double, std::milli>(frameEnd - frameStart).count();
 
-        impl_->uiContext.noteFrameRendered(fullRedraw, frameMs);
-        impl_->uiContext.clearNeedsRedraw();
+        if (impl_->lastRenderFrameOutcome == RenderFrameOutcome::Presented) {
+            impl_->uiContext.noteFrameRendered(fullRedraw, frameMs);
+            impl_->uiContext.clearNeedsRedraw();
+        } else {
+            impl_->uiContext.noteFrameSkipped();
+        }
     } else {
         impl_->uiContext.noteFrameSkipped();
     }
@@ -595,6 +606,8 @@ bool Application::renderFrame()
         return true;
     }
 
+    impl_->lastRenderFrameOutcome = RenderFrameOutcome::Deferred;
+
     const int framebufferWidth = impl_->window->framebufferWidth();
     const int framebufferHeight = impl_->window->framebufferHeight();
     const float dpiScale = sanitizeDpiScale(impl_->window->dpiScale());
@@ -677,6 +690,7 @@ bool Application::renderFrame()
     syncTextInputState();
     rendering::flushFrame(impl_->context, impl_->surface);
     impl_->window->swapBuffers();
+    impl_->lastRenderFrameOutcome = RenderFrameOutcome::Presented;
     return fullRedraw;
 }
 
