@@ -52,6 +52,7 @@ private:
     float fallbackItemHeight(const ListViewStyle& style) const;
     float resolveViewportHeight(float viewportHeightHint) const;
     void rebuildMeasuredContentFrom(std::size_t startIndex, float innerWidth, const ListViewStyle& style);
+    core::Rect itemBoundsAt(std::size_t index) const;
     std::vector<std::size_t> collectActiveItemIndices(float viewportHeight) const;
     bool measureItemMetrics(std::size_t index, float innerWidth);
     void syncVisibleItems();
@@ -71,7 +72,7 @@ private:
     std::shared_ptr<Container> items_;
     mutable std::unordered_map<std::size_t, std::shared_ptr<Widget>> realizedItems_;
     mutable std::vector<std::shared_ptr<Widget>> recycledItems_;
-    std::vector<core::Rect> itemBounds_;
+    std::vector<float> itemTops_;
     std::vector<float> itemHeights_;
     std::vector<float> itemWidths_;
     std::vector<std::uint64_t> itemLayoutVersions_;

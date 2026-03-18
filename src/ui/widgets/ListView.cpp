@@ -92,7 +92,7 @@ void ListView::clearSource()
     items_->clearChildren();
     realizedItems_.clear();
     recycledItems_.clear();
-    itemBounds_.clear();
+    itemTops_.clear();
     itemHeights_.clear();
     itemWidths_.clear();
     itemLayoutVersions_.clear();
@@ -131,7 +131,7 @@ void ListView::setItemFactory(
     items_->clearChildren();
     realizedItems_.clear();
     recycledItems_.clear();
-    itemBounds_.clear();
+    itemTops_.clear();
     itemHeights_.clear();
     itemWidths_.clear();
     itemLayoutVersions_.clear();
@@ -269,11 +269,11 @@ void ListView::onDraw(rendering::Canvas& canvas)
         return;
     }
 
-    if (selectedIndex_ < 0 || selectedIndex_ >= static_cast<int>(itemBounds_.size())) {
+    if (selectedIndex_ < 0 || selectedIndex_ >= static_cast<int>(itemCount())) {
         return;
     }
 
-    core::Rect highlightBounds = itemBounds_[static_cast<std::size_t>(selectedIndex_)].makeOffset(0.0f, -scrollOffset_);
+    core::Rect highlightBounds = itemBoundsAt(static_cast<std::size_t>(selectedIndex_)).makeOffset(0.0f, -scrollOffset_);
     highlightBounds = highlightBounds.makeInset(1.0f, 1.0f);
     if (highlightBounds.isEmpty() || !highlightBounds.intersects(core::Rect::MakeWH(bounds_.width(), bounds_.height()))) {
         return;
@@ -393,7 +393,7 @@ void ListView::applyResolvedStyle()
 
 void ListView::invalidateItemLayoutCache()
 {
-    itemBounds_.clear();
+    itemTops_.clear();
     itemHeights_.clear();
     itemWidths_.clear();
     itemLayoutVersions_.clear();
@@ -445,8 +445,8 @@ float ListView::resolveViewportHeight(float viewportHeightHint) const
 void ListView::rebuildMeasuredContentFrom(std::size_t startIndex, float innerWidth, const ListViewStyle& style)
 {
     const std::size_t totalItems = itemCount();
-    if (itemBounds_.size() != totalItems) {
-        itemBounds_.assign(totalItems, core::Rect::MakeEmpty());
+    if (itemTops_.size() != totalItems) {
+        itemTops_.assign(totalItems, 0.0f);
         startIndex = 0;
     } else {
         startIndex = std::min(startIndex, totalItems);
@@ -454,15 +454,18 @@ void ListView::rebuildMeasuredContentFrom(std::size_t startIndex, float innerWid
 
     float cursorY = style.padding;
     if (startIndex > 0) {
-        cursorY = itemBounds_[startIndex - 1].bottom() + style.spacing;
+        cursorY = itemTops_[startIndex - 1] + itemHeights_[startIndex - 1] + style.spacing;
     }
 
     float widestChild = 0.0f;
-    for (const auto& cachedBounds : itemBounds_) {
-        widestChild = std::max(widestChild, cachedBounds.width());
+    const float defaultWidth = std::isfinite(innerWidth) ? innerWidth : 0.0f;
+    for (std::size_t index = 0; index < sourceItemCount_; ++index) {
+        const float cachedWidth = index < itemWidths_.size() && itemWidths_[index] > 0.0f
+            ? itemWidths_[index]
+            : defaultWidth;
+        widestChild = std::max(widestChild, cachedWidth);
     }
     const float estimatedHeight = fallbackItemHeight(style);
-    const float defaultWidth = std::isfinite(innerWidth) ? innerWidth : 0.0f;
     for (std::size_t index = startIndex; index < sourceItemCount_; ++index) {
         const float itemHeight = index < itemHeights_.size() && itemHeights_[index] > 0.0f
             ? itemHeights_[index]
@@ -471,11 +474,7 @@ void ListView::rebuildMeasuredContentFrom(std::size_t startIndex, float innerWid
             ? itemWidths_[index]
             : defaultWidth;
         widestChild = std::max(widestChild, itemWidth);
-        itemBounds_[index] = core::Rect::MakeXYWH(
-            style.padding,
-            cursorY,
-            itemWidth,
-            itemHeight);
+        itemTops_[index] = cursorY;
         cursorY += itemHeight;
         if (index + 1 < sourceItemCount_) {
             cursorY += style.spacing;
@@ -486,8 +485,29 @@ void ListView::rebuildMeasuredContentFrom(std::size_t startIndex, float innerWid
         widestChild + style.padding * 2.0f,
         totalItems == 0
             ? style.padding * 2.0f
-            : itemBounds_.back().bottom() + style.padding);
+            : itemTops_.back() + itemHeights_.back() + style.padding);
 }
+
+core::Rect ListView::itemBoundsAt(std::size_t index) const
+{
+    if (index >= itemCount()
+        || index >= itemTops_.size()
+        || index >= itemHeights_.size()
+        || index >= itemWidths_.size()) {
+        return core::Rect::MakeEmpty();
+    }
+
+    const ListViewStyle style = resolvedStyle();
+    const float itemHeight = itemHeights_[index] > 0.0f
+        ? itemHeights_[index]
+        : fallbackItemHeight(style);
+    const float fallbackWidth = std::isfinite(cachedViewportWidth_)
+        ? std::max(0.0f, cachedViewportWidth_ - style.padding * 2.0f)
+        : 0.0f;
+    const float itemWidth = itemWidths_[index] > 0.0f ? itemWidths_[index] : fallbackWidth;
+    return core::Rect::MakeXYWH(appliedPadding_, itemTops_[index], itemWidth, itemHeight);
+}
+
 
 std::vector<std::size_t> ListView::collectActiveItemIndices(float viewportHeight) const
 {
@@ -580,25 +600,21 @@ void ListView::ensureItemLayoutCache(float viewportWidth, float viewportHeight)
         : std::numeric_limits<float>::infinity();
 
     const bool widthChanged = !itemLayoutCacheValid_
-        || itemBounds_.size() != itemCount()
+        || itemTops_.size() != itemCount()
         || ((std::isfinite(normalizedViewportWidth) && !nearlyEqual(cachedViewportWidth_, normalizedViewportWidth))
             || (!std::isfinite(normalizedViewportWidth) && std::isfinite(cachedViewportWidth_)));
 
     if (usesUniformItemLayout()) {
-        itemBounds_.clear();
-        itemHeights_.clear();
-        itemWidths_.clear();
-        itemLayoutVersions_.clear();
-        itemBounds_.reserve(itemCount());
+        itemTops_.clear();
+        itemHeights_.assign(itemCount(), uniformItemHeight_);
+        itemWidths_.assign(itemCount(), std::isfinite(innerWidth) ? innerWidth : 0.0f);
+        itemLayoutVersions_.assign(itemCount(), 0);
+        itemTops_.reserve(itemCount());
 
         float cursorY = style.padding;
         const float itemWidth = std::isfinite(innerWidth) ? innerWidth : 0.0f;
         for (std::size_t index = 0; index < sourceItemCount_; ++index) {
-            itemBounds_.push_back(core::Rect::MakeXYWH(
-                style.padding,
-                cursorY,
-                itemWidth,
-                uniformItemHeight_));
+            itemTops_.push_back(cursorY);
             cursorY += uniformItemHeight_;
             if (index + 1 < sourceItemCount_) {
                 cursorY += style.spacing;
@@ -640,7 +656,7 @@ void ListView::ensureItemLayoutCache(float viewportWidth, float viewportHeight)
 
     const bool needsProvisionalLayout = widthChanged
         || !itemLayoutCacheValid_
-        || itemBounds_.size() != itemCount();
+        || itemTops_.size() != itemCount();
     if (needsProvisionalLayout) {
         rebuildMeasuredContentFrom(0, innerWidth, style);
     }
@@ -679,10 +695,10 @@ void ListView::ensureItemLayoutCache(float viewportWidth, float viewportHeight)
 std::size_t ListView::firstItemIntersecting(float contentY) const
 {
     std::size_t low = 0;
-    std::size_t high = itemBounds_.size();
+    std::size_t high = itemTops_.size();
     while (low < high) {
         const std::size_t index = low + (high - low) / 2;
-        if (itemBounds_[index].bottom() <= contentY) {
+        if (itemTops_[index] + itemHeights_[index] <= contentY) {
             low = index + 1;
         } else {
             high = index;
@@ -694,10 +710,10 @@ std::size_t ListView::firstItemIntersecting(float contentY) const
 std::size_t ListView::firstItemStartingAfter(float contentY) const
 {
     std::size_t low = 0;
-    std::size_t high = itemBounds_.size();
+    std::size_t high = itemTops_.size();
     while (low < high) {
         const std::size_t index = low + (high - low) / 2;
-        if (itemBounds_[index].top() < contentY) {
+        if (itemTops_[index] < contentY) {
             low = index + 1;
         } else {
             high = index;
@@ -724,7 +740,7 @@ void ListView::syncVisibleItems()
                 continue;
             }
             visibleItems.push_back(item);
-            visibleBounds.push_back(itemBounds_[index]);
+            visibleBounds.push_back(itemBoundsAt(index));
         }
     } else {
         recycleInactiveItems(activeIndices);
@@ -799,21 +815,21 @@ int ListView::indexForPoint(core::Point localPoint) const
 
     const float contentY = localPoint.y() + scrollOffset_;
     const std::size_t index = firstItemIntersecting(contentY);
-    if (index >= itemBounds_.size()) {
+    if (index >= itemTops_.size()) {
         return -1;
     }
-    return itemBounds_[index].contains(localPoint.x(), contentY)
+    return itemBoundsAt(index).contains(localPoint.x(), contentY)
         ? static_cast<int>(index)
         : -1;
 }
 
 float ListView::desiredScrollOffsetForItem(int index) const
 {
-    if (index < 0 || index >= static_cast<int>(itemBounds_.size())) {
+    if (index < 0 || index >= static_cast<int>(itemCount())) {
         return scrollOffset_;
     }
 
-    const core::Rect itemBounds = itemBounds_[static_cast<std::size_t>(index)];
+    const core::Rect itemBounds = itemBoundsAt(static_cast<std::size_t>(index));
     if (itemBounds.isEmpty() || bounds_.height() <= 0.0f) {
         return scrollOffset_;
     }
