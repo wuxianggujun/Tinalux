@@ -21,6 +21,7 @@ public:
 
     void onDraw(rendering::Canvas& canvas) override;
     void drawPartial(rendering::Canvas& canvas, const core::Rect& redrawRegion) override;
+    void collectDirtyDrawRegions(std::vector<core::Rect>& regions) const override;
 
 protected:
     core::Rect localDrawBounds() const override;

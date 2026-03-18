@@ -47,6 +47,7 @@ public:
     void arrange(const core::Rect& bounds) override;
     void onDraw(rendering::Canvas& canvas) override;
     void drawPartial(rendering::Canvas& canvas, const core::Rect& redrawRegion) override;
+    void collectDirtyDrawRegions(std::vector<core::Rect>& regions) const override;
     Widget* hitTest(float x, float y) override;
     bool onEvent(core::Event& event) override;
 

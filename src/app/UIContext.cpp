@@ -37,6 +37,32 @@ bool nearlyEqual(float lhs, float rhs)
     return std::abs(lhs - rhs) <= kGeometryTolerance;
 }
 
+void appendRedrawRegion(std::vector<core::Rect>& regions, const core::Rect& candidate)
+{
+    if (candidate.isEmpty()) {
+        return;
+    }
+
+    regions.push_back(candidate);
+
+    bool merged = true;
+    while (merged) {
+        merged = false;
+        for (std::size_t index = 0; index < regions.size() && !merged; ++index) {
+            for (std::size_t other = index + 1; other < regions.size(); ++other) {
+                if (!regions[index].intersects(regions[other])) {
+                    continue;
+                }
+
+                regions[index].join(regions[other]);
+                regions.erase(regions.begin() + static_cast<std::ptrdiff_t>(other));
+                merged = true;
+                break;
+            }
+        }
+    }
+}
+
 core::Size logicalFramebufferSize(
     int framebufferWidth,
     int framebufferHeight,
@@ -729,26 +755,34 @@ bool UIContext::render(
             && (overlayWidget_->isLayoutDirty() || !overlayWidget_->hasDirtyRegion()))
         || logicalSizeChanged
         || dpiChanged;
+    std::vector<core::Rect> redrawRegions;
     core::Rect redrawRegion = core::Rect::MakeEmpty();
     if (!fullRedraw) {
         if (rootWidget_ != nullptr && rootWidget_->hasDirtyRegion()) {
-            redrawRegion = rootWidget_->dirtyRegion();
+            std::vector<core::Rect> rootRegions;
+            rootWidget_->collectDirtyDrawRegions(rootRegions);
+            for (const auto& region : rootRegions) {
+                appendRedrawRegion(redrawRegions, region);
+            }
         }
         if (overlayWidget_ != nullptr && overlayWidget_->hasDirtyRegion()) {
-            if (redrawRegion.isEmpty()) {
-                redrawRegion = overlayWidget_->dirtyRegion();
-            } else {
-                redrawRegion.join(overlayWidget_->dirtyRegion());
+            std::vector<core::Rect> overlayRegions;
+            overlayWidget_->collectDirtyDrawRegions(overlayRegions);
+            for (const auto& region : overlayRegions) {
+                appendRedrawRegion(redrawRegions, region);
             }
         }
     }
     if (debugHudConfig_.enabled) {
         const core::Rect hudBounds =
             debugHudBounds(logicalSize.width(), logicalSize.height());
+        appendRedrawRegion(redrawRegions, hudBounds);
+    }
+    for (const auto& region : redrawRegions) {
         if (redrawRegion.isEmpty()) {
-            redrawRegion = hudBounds;
+            redrawRegion = region;
         } else {
-            redrawRegion.join(hudBounds);
+            redrawRegion.join(region);
         }
     }
 
@@ -759,7 +793,9 @@ bool UIContext::render(
     // 布局统一使用逻辑像素，最终在这里一次性映射到物理像素。
     canvas.scale(deviceScale, deviceScale);
     if (!fullRedraw) {
-        canvas.clearRect(redrawRegion, kClearColor);
+        for (const auto& region : redrawRegions) {
+            canvas.clearRect(region, kClearColor);
+        }
     }
 
     const auto fullBounds = core::Rect::MakeXYWH(
@@ -790,20 +826,24 @@ bool UIContext::render(
         if (fullRedraw) {
             rootWidget_->draw(canvas);
         } else {
-            canvas.save();
-            canvas.clipRect(redrawRegion);
-            rootWidget_->drawPartial(canvas, redrawRegion);
-            canvas.restore();
+            for (const auto& region : redrawRegions) {
+                canvas.save();
+                canvas.clipRect(region);
+                rootWidget_->drawPartial(canvas, region);
+                canvas.restore();
+            }
         }
     }
     if (overlayWidget_ != nullptr) {
         if (fullRedraw) {
             overlayWidget_->draw(canvas);
         } else {
-            canvas.save();
-            canvas.clipRect(redrawRegion);
-            overlayWidget_->drawPartial(canvas, redrawRegion);
-            canvas.restore();
+            for (const auto& region : redrawRegions) {
+                canvas.save();
+                canvas.clipRect(region);
+                overlayWidget_->drawPartial(canvas, region);
+                canvas.restore();
+            }
         }
     }
 

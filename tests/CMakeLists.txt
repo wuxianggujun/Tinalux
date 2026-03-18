@@ -193,6 +193,11 @@ tinalux_add_smoke_test(TinaluxUIDirtySubtreePruneSmoke
     LINK_LIBS Tinalux::App
 )
 
+tinalux_add_smoke_test(TinaluxUIDirtySubtreeIslandsSmoke
+    SOURCE ui/dirty_subtree_islands_smoke.cpp
+    LINK_LIBS Tinalux::App
+)
+
 tinalux_add_smoke_test(TinaluxUIPanelStyleSmoke
     SOURCE ui/panel_style_smoke.cpp
     LINK_LIBS Tinalux::UI

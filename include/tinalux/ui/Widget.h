@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "tinalux/core/Geometry.h"
 #include "tinalux/ui/Constraints.h"
@@ -42,6 +43,7 @@ public:
     virtual void onDraw(rendering::Canvas& canvas) = 0;
     void draw(rendering::Canvas& canvas);
     virtual void drawPartial(rendering::Canvas& canvas, const core::Rect& redrawRegion);
+    virtual void collectDirtyDrawRegions(std::vector<core::Rect>& regions) const;
 
     core::Rect bounds() const;
     core::Rect globalDrawBounds() const;

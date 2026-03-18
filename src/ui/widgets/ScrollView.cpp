@@ -304,6 +304,39 @@ void ScrollView::drawPartial(rendering::Canvas& canvas, const core::Rect& redraw
     clearDirtyState();
 }
 
+void ScrollView::collectDirtyDrawRegions(std::vector<core::Rect>& regions) const
+{
+    if (!visible_) {
+        return;
+    }
+
+    if (layoutDirty_) {
+        const core::Rect drawBounds = globalDrawBounds();
+        if (!drawBounds.isEmpty()) {
+            regions.push_back(drawBounds);
+        }
+        return;
+    }
+
+    if (!hasDirtyRegion()) {
+        return;
+    }
+
+    if (paintDirty_ || content_ == nullptr) {
+        regions.push_back(dirtyRegion_);
+        return;
+    }
+
+    const std::size_t regionCountBeforeContent = regions.size();
+    if (content_->visible() && content_->hasDirtyRegion()) {
+        content_->collectDirtyDrawRegions(regions);
+    }
+
+    if (regions.size() == regionCountBeforeContent && !dirtyRegion_.isEmpty()) {
+        regions.push_back(dirtyRegion_);
+    }
+}
+
 Widget* ScrollView::hitTest(float x, float y)
 {
     if (!visible_) {

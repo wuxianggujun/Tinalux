@@ -190,6 +190,42 @@ void Panel::drawPartial(rendering::Canvas& canvas, const core::Rect& redrawRegio
     clearDirtyState();
 }
 
+void Panel::collectDirtyDrawRegions(std::vector<core::Rect>& regions) const
+{
+    if (!visible_) {
+        return;
+    }
+
+    if (layoutDirty_) {
+        const core::Rect drawBounds = globalDrawBounds();
+        if (!drawBounds.isEmpty()) {
+            regions.push_back(drawBounds);
+        }
+        return;
+    }
+
+    if (!hasDirtyRegion()) {
+        return;
+    }
+
+    if (paintDirty_) {
+        regions.push_back(dirtyRegion_);
+        return;
+    }
+
+    const std::size_t regionCountBeforeChildren = regions.size();
+    for (const auto& child : children_) {
+        if (child == nullptr || !child->visible() || !child->hasDirtyRegion()) {
+            continue;
+        }
+        child->collectDirtyDrawRegions(regions);
+    }
+
+    if (regions.size() == regionCountBeforeChildren && !dirtyRegion_.isEmpty()) {
+        regions.push_back(dirtyRegion_);
+    }
+}
+
 void Panel::drawPanelContents(rendering::Canvas& canvas)
 {
     const PanelStyle style = resolvedStyle();

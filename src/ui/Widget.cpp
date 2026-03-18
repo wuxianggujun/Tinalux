@@ -140,6 +140,25 @@ void Widget::drawPartial(rendering::Canvas& canvas, const core::Rect& redrawRegi
     draw(canvas);
 }
 
+void Widget::collectDirtyDrawRegions(std::vector<core::Rect>& regions) const
+{
+    if (!visible_) {
+        return;
+    }
+
+    if (layoutDirty_) {
+        const core::Rect drawBounds = globalDrawBounds();
+        if (!drawBounds.isEmpty()) {
+            regions.push_back(drawBounds);
+        }
+        return;
+    }
+
+    if (!dirtyRegion_.isEmpty()) {
+        regions.push_back(dirtyRegion_);
+    }
+}
+
 core::Rect Widget::bounds() const
 {
     return bounds_;
