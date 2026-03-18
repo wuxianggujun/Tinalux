@@ -1,17 +1,11 @@
-#include <array>
-#include <chrono>
 #include <cstdlib>
-#include <filesystem>
-#include <fstream>
 #include <iostream>
 #include <memory>
-#include <thread>
 
 #include "../../src/app/UIContext.h"
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
 #include "tinalux/ui/Panel.h"
-#include "tinalux/ui/ResourceLoader.h"
 #include "tinalux/ui/TextInput.h"
 
 namespace {
@@ -22,17 +16,6 @@ void expect(bool condition, const char* message)
         std::cerr << message << '\n';
         std::exit(1);
     }
-}
-
-bool waitUntil(const std::function<bool()>& predicate, int attempts = 200)
-{
-    for (int index = 0; index < attempts; ++index) {
-        if (predicate()) {
-            return true;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    }
-    return predicate();
 }
 
 std::shared_ptr<tinalux::ui::TextInput> makeArrangedInput(
@@ -63,30 +46,6 @@ int main()
 {
     using tinalux::app::FrameStats;
     using tinalux::app::UIContext;
-    using tinalux::rendering::Image;
-
-    const auto pngBytes = std::to_array<std::uint8_t>({
-        137, 80, 78, 71, 13, 10, 26, 10,
-        0,   0,  0,  13, 73, 72, 68, 82,
-        0,   0,  0,  1,  0,  0,  0,  1,
-        8,   6,  0,  0,  0,  31, 21, 196,
-        137, 0,  0,  0,  13, 73, 68, 65,
-        84,  120, 156, 99, 248, 255, 255, 63,
-        0,   5,  254, 2,  254, 167, 53, 129,
-        132, 0,  0,  0,  0,  73, 69, 78,
-        68,  174, 66, 96, 130,
-    });
-
-    const std::filesystem::path asyncPath =
-        std::filesystem::temp_directory_path() / "tinalux_ui_context_lifecycle_async.png";
-    {
-        std::ofstream output(asyncPath, std::ios::binary | std::ios::trunc);
-        expect(output.good(), "ui context lifecycle async resource file should open");
-        output.write(
-            reinterpret_cast<const char*>(pngBytes.data()),
-            static_cast<std::streamsize>(pngBytes.size()));
-        expect(output.good(), "ui context lifecycle async resource file should be written");
-    }
 
     UIContext context;
     context.initializeFromEnvironment();
@@ -110,12 +69,6 @@ int main()
     context.animationSink().requestAnimationFrame(
         [&staleAnimationCallbacks](double) { ++staleAnimationCallbacks; });
 
-    std::size_t staleResourceCallbacks = 0;
-    tinalux::ui::ResourceLoader& loader = tinalux::ui::ResourceLoader::instance();
-    loader.clear();
-    tinalux::ui::ResourceHandle<Image> pendingImage = loader.loadImageAsync(asyncPath.string());
-    pendingImage.onReady([&staleResourceCallbacks](const Image&) { ++staleResourceCallbacks; });
-
     context.noteWaitLoop();
     context.notePollLoop();
     context.noteFrameSkipped();
@@ -134,17 +87,12 @@ int main()
     expect(overlayInput->focused(), "overlay input should own focus before lifecycle reset");
     expect(context.textInputActive(), "focused overlay input should activate text input before lifecycle reset");
     expect(context.imeCursorRect().has_value(), "focused overlay input should expose IME rect before lifecycle reset");
-    expect(
-        waitUntil([&pendingImage] { return pendingImage.isReady(); }),
-        "ui context lifecycle smoke should wait for async resource completion before reinitialize");
 
     context.initializeFromEnvironment();
 
     expect(!context.hasActiveAnimations(), "reinitializing UIContext should clear pending animation work");
     expect(!context.tickAnimations(1.0), "reinitializing UIContext should drop stale animation callbacks");
     expect(staleAnimationCallbacks == 0, "reinitializing UIContext should not execute stale animation callbacks");
-    expect(!loader.pumpCallbacks(), "reinitializing UIContext should clear stale resource callbacks before they dispatch");
-    expect(staleResourceCallbacks == 0, "reinitializing UIContext should not dispatch stale async resource callbacks");
     expect(!context.textInputActive(), "reinitializing UIContext should clear retained text input focus");
     expect(!context.imeCursorRect().has_value(), "reinitializing UIContext should clear retained IME rect state");
     expect(!overlayInput->focused(), "reinitializing UIContext should clear focus on detached overlay widgets");
@@ -186,7 +134,5 @@ int main()
 
     expect(afterShutdownInput->focused(), "shutdown + reinitialize should restore focus traversal for a fresh tree");
     expect(context.textInputActive(), "shutdown + reinitialize should restore text input activation");
-    loader.clear();
-    std::filesystem::remove(asyncPath);
     return 0;
 }

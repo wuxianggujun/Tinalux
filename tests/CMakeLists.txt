@@ -140,6 +140,11 @@ tinalux_add_smoke_test(TinaluxUIContextLifecycleSmoke
     LINK_LIBS Tinalux::App
 )
 
+tinalux_add_smoke_test(TinaluxUIContextResourceLoaderIsolationSmoke
+    SOURCE ui/ui_context_resource_loader_isolation_smoke.cpp
+    LINK_LIBS Tinalux::App
+)
+
 tinalux_add_smoke_test(TinaluxUITextInputSmoke
     SOURCE ui/text_input_smoke.cpp
     LINK_LIBS Tinalux::App
