@@ -51,7 +51,7 @@ private:
     void ensureItemLayoutCache(float viewportWidth, float viewportHeight);
     float fallbackItemHeight(const ListViewStyle& style) const;
     float resolveViewportHeight(float viewportHeightHint) const;
-    void rebuildMeasuredContent(float innerWidth, const ListViewStyle& style);
+    void rebuildMeasuredContentFrom(std::size_t startIndex, float innerWidth, const ListViewStyle& style);
     std::vector<std::size_t> collectActiveItemIndices(float viewportHeight) const;
     bool measureItemMetrics(std::size_t index, float innerWidth);
     void syncVisibleItems();

@@ -442,16 +442,28 @@ float ListView::resolveViewportHeight(float viewportHeightHint) const
     return fallbackItemHeight(resolvedStyle()) * 8.0f;
 }
 
-void ListView::rebuildMeasuredContent(float innerWidth, const ListViewStyle& style)
+void ListView::rebuildMeasuredContentFrom(std::size_t startIndex, float innerWidth, const ListViewStyle& style)
 {
-    itemBounds_.clear();
-    itemBounds_.reserve(itemCount());
+    const std::size_t totalItems = itemCount();
+    if (itemBounds_.size() != totalItems) {
+        itemBounds_.assign(totalItems, core::Rect::MakeEmpty());
+        startIndex = 0;
+    } else {
+        startIndex = std::min(startIndex, totalItems);
+    }
 
     float cursorY = style.padding;
+    if (startIndex > 0) {
+        cursorY = itemBounds_[startIndex - 1].bottom() + style.spacing;
+    }
+
     float widestChild = 0.0f;
+    for (const auto& cachedBounds : itemBounds_) {
+        widestChild = std::max(widestChild, cachedBounds.width());
+    }
     const float estimatedHeight = fallbackItemHeight(style);
     const float defaultWidth = std::isfinite(innerWidth) ? innerWidth : 0.0f;
-    for (std::size_t index = 0; index < sourceItemCount_; ++index) {
+    for (std::size_t index = startIndex; index < sourceItemCount_; ++index) {
         const float itemHeight = index < itemHeights_.size() && itemHeights_[index] > 0.0f
             ? itemHeights_[index]
             : estimatedHeight;
@@ -459,11 +471,11 @@ void ListView::rebuildMeasuredContent(float innerWidth, const ListViewStyle& sty
             ? itemWidths_[index]
             : defaultWidth;
         widestChild = std::max(widestChild, itemWidth);
-        itemBounds_.push_back(core::Rect::MakeXYWH(
+        itemBounds_[index] = core::Rect::MakeXYWH(
             style.padding,
             cursorY,
             itemWidth,
-            itemHeight));
+            itemHeight);
         cursorY += itemHeight;
         if (index + 1 < sourceItemCount_) {
             cursorY += style.spacing;
@@ -472,7 +484,9 @@ void ListView::rebuildMeasuredContent(float innerWidth, const ListViewStyle& sty
 
     measuredContentSize_ = core::Size::Make(
         widestChild + style.padding * 2.0f,
-        itemCount() == 0 ? style.padding * 2.0f : cursorY + style.padding);
+        totalItems == 0
+            ? style.padding * 2.0f
+            : itemBounds_.back().bottom() + style.padding);
 }
 
 std::vector<std::size_t> ListView::collectActiveItemIndices(float viewportHeight) const
@@ -608,7 +622,8 @@ void ListView::ensureItemLayoutCache(float viewportWidth, float viewportHeight)
         itemLayoutVersions_.assign(itemCount(), 0);
     }
 
-    bool metricsChanged = widthChanged;
+    bool metricsChanged = false;
+    std::size_t firstChangedIndex = widthChanged ? 0 : itemCount();
     for (const auto& [index, item] : realizedItems_) {
         if (item == nullptr || index >= itemCount()) {
             continue;
@@ -619,14 +634,15 @@ void ListView::ensureItemLayoutCache(float viewportWidth, float viewportHeight)
             itemWidths_[index] = 0.0f;
             itemLayoutVersions_[index] = 0;
             metricsChanged = true;
+            firstChangedIndex = std::min(firstChangedIndex, index);
         }
     }
 
-    const bool needsProvisionalLayout = metricsChanged
+    const bool needsProvisionalLayout = widthChanged
         || !itemLayoutCacheValid_
         || itemBounds_.size() != itemCount();
     if (needsProvisionalLayout) {
-        rebuildMeasuredContent(innerWidth, style);
+        rebuildMeasuredContentFrom(0, innerWidth, style);
     }
 
     const float effectiveViewportHeight = resolveViewportHeight(viewportHeight);
@@ -644,11 +660,16 @@ void ListView::ensureItemLayoutCache(float viewportWidth, float viewportHeight)
     }
 
     for (const std::size_t index : measureIndices) {
-        metricsChanged = measureItemMetrics(index, innerWidth) || metricsChanged;
+        if (!measureItemMetrics(index, innerWidth)) {
+            continue;
+        }
+
+        metricsChanged = true;
+        firstChangedIndex = std::min(firstChangedIndex, index);
     }
 
     if (metricsChanged) {
-        rebuildMeasuredContent(innerWidth, style);
+        rebuildMeasuredContentFrom(firstChangedIndex, innerWidth, style);
     }
 
     cachedViewportWidth_ = normalizedViewportWidth;
