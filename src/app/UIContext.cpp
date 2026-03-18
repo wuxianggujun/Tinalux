@@ -1205,6 +1205,7 @@ void UIContext::resetForStartup()
     bindThemeRuntime();
 
     if (runtimeState_ != nullptr) {
+        runtimeState_->animationScheduler.clear();
         runtimeState_->theme = ui::ThemeManager::instance().currentTheme();
         runtimeState_->devicePixelRatio = 1.0f;
         ++runtimeState_->themeGeneration;
