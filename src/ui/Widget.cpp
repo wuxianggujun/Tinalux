@@ -112,7 +112,8 @@ void Widget::draw(rendering::Canvas& canvas)
     canvas.clipRect(core::Rect::MakeWH(bounds_.width(), bounds_.height()));
     onDraw(canvas);
     canvas.restore();
-    dirty_ = false;
+    paintDirty_ = false;
+    subtreePaintDirty_ = false;
     dirtyRegion_ = core::Rect::MakeEmpty();
 }
 
@@ -206,34 +207,35 @@ std::optional<core::Rect> Widget::imeCursorRect()
 
 void Widget::markLayoutDirty()
 {
-    const bool alreadyDirty = dirty_;
     const bool alreadyLayoutDirty = layoutDirty_;
-    dirty_ = true;
+    const bool alreadySubtreePaintDirty = subtreePaintDirty_;
+    paintDirty_ = true;
+    subtreePaintDirty_ = true;
     layoutDirty_ = true;
-    ++layoutVersion_;
+    if (!alreadyLayoutDirty) {
+        ++layoutVersion_;
+    }
     markDirtyRect(globalBounds());
 
-    if (alreadyDirty && alreadyLayoutDirty) {
+    if (alreadyLayoutDirty && alreadySubtreePaintDirty) {
         return;
     }
 
     if (parent_ != nullptr) {
-        parent_->markLayoutDirty();
+        parent_->markAncestorLayoutDirty();
     }
 }
 
 void Widget::markPaintDirty()
 {
     markDirtyRect(globalBounds());
-    dirty_ = true;
-    if (parent_ != nullptr) {
-        parent_->markPaintDirty();
-    }
+    paintDirty_ = true;
+    markSubtreePaintDirty();
 }
 
 bool Widget::isDirty() const
 {
-    return dirty_;
+    return paintDirty_ || subtreePaintDirty_ || layoutDirty_;
 }
 
 bool Widget::isLayoutDirty() const
@@ -291,6 +293,32 @@ void Widget::markDirtyRect(const core::Rect& rect)
 void Widget::setParent(Widget* parent)
 {
     parent_ = parent;
+}
+
+void Widget::markAncestorLayoutDirty()
+{
+    const bool alreadyLayoutDirty = layoutDirty_;
+    const bool alreadySubtreePaintDirty = subtreePaintDirty_;
+    subtreePaintDirty_ = true;
+    layoutDirty_ = true;
+    markDirtyRect(globalBounds());
+    if (!alreadyLayoutDirty) {
+        ++layoutVersion_;
+    }
+
+    if (parent_ != nullptr && !(alreadyLayoutDirty && alreadySubtreePaintDirty)) {
+        parent_->markAncestorLayoutDirty();
+    }
+}
+
+void Widget::markSubtreePaintDirty()
+{
+    const bool alreadySubtreePaintDirty = subtreePaintDirty_;
+    subtreePaintDirty_ = true;
+
+    if (parent_ != nullptr && !alreadySubtreePaintDirty) {
+        parent_->markSubtreePaintDirty();
+    }
 }
 
 }  // namespace tinalux::ui

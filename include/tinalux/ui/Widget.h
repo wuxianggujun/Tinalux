@@ -78,12 +78,15 @@ protected:
     void markPaintDirty();
     void markDirtyRect(const core::Rect& rect);
     void setParent(Widget* parent);
+    void markAncestorLayoutDirty();
+    void markSubtreePaintDirty();
 
     core::Rect bounds_ = core::Rect::MakeEmpty();
     core::Rect dirtyRegion_ = core::Rect::MakeEmpty();
     bool visible_ = true;
     bool focused_ = false;
-    bool dirty_ = true;
+    bool paintDirty_ = true;
+    bool subtreePaintDirty_ = true;
     bool layoutDirty_ = true;
     std::uint64_t layoutVersion_ = 1;
     Widget* parent_ = nullptr;

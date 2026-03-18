@@ -115,8 +115,7 @@ void Panel::onDraw(rendering::Canvas& canvas)
     if (renderCacheEnabled_) {
         const bool needsCacheRefresh = !cachedImage_
             || !cachedSurface_
-            || dirty_
-            || layoutDirty_
+            || isDirty()
             || cachedSurfaceWidth_ != targetWidth
             || cachedSurfaceHeight_ != targetHeight
             || !nearlyEqual(cachedDevicePixelRatio_, devicePixelRatio)
