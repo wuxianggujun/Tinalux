@@ -183,6 +183,16 @@ tinalux_add_smoke_test(TinaluxUIRenderCacheSmoke
     LINK_LIBS Tinalux::UI
 )
 
+tinalux_add_smoke_test(TinaluxUIDirtySubtreeOverlapSmoke
+    SOURCE ui/dirty_subtree_overlap_smoke.cpp
+    LINK_LIBS Tinalux::App
+)
+
+tinalux_add_smoke_test(TinaluxUIDirtySubtreePruneSmoke
+    SOURCE ui/dirty_subtree_prune_smoke.cpp
+    LINK_LIBS Tinalux::App
+)
+
 tinalux_add_smoke_test(TinaluxUIPanelStyleSmoke
     SOURCE ui/panel_style_smoke.cpp
     LINK_LIBS Tinalux::UI

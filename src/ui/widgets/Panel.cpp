@@ -56,6 +56,11 @@ bool Panel::renderCacheEnabled() const
     return renderCacheEnabled_;
 }
 
+core::Rect Panel::localDrawBounds() const
+{
+    return Widget::localDrawBounds();
+}
+
 void Panel::setCornerRadius(float radius)
 {
     const float clampedRadius = std::max(radius, 0.0f);

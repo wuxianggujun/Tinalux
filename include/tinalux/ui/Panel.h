@@ -22,6 +22,7 @@ public:
     void onDraw(rendering::Canvas& canvas) override;
 
 protected:
+    core::Rect localDrawBounds() const override;
     PanelStyle resolvedStyle() const;
 
 private:

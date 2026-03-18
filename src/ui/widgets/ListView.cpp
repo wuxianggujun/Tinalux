@@ -87,36 +87,19 @@ ListView::ListView()
     applyResolvedStyle();
 }
 
-void ListView::addItem(std::shared_ptr<Widget> item)
-{
-    if (item == nullptr) {
-        return;
-    }
-
-    if (usingUniformDataSource_) {
-        clearItems();
-    }
-
-    itemStorage_.push_back(std::move(item));
-    invalidateItemLayoutCache();
-    markLayoutDirty();
-}
-
-void ListView::clearItems()
+void ListView::clearSource()
 {
     const bool hadSelection = selectedIndex_ != -1;
     items_->clearChildren();
-    itemStorage_.clear();
-    dataSourceCache_.clear();
+    materializedItems_.clear();
     itemBounds_.clear();
     itemLayoutVersions_.clear();
     measuredContentSize_ = core::Size::Make(0.0f, 0.0f);
     cachedViewportWidth_ = -1.0f;
     uniformItemHeight_ = 0.0f;
-    uniformItemCount_ = 0;
+    sourceItemCount_ = 0;
     itemLayoutCacheValid_ = false;
-    usingUniformDataSource_ = false;
-    uniformItemFactory_ = {};
+    itemFactory_ = {};
     scrollOffset_ = 0.0f;
     contentHeight_ = 0.0f;
     contentMeasureCacheValid_ = false;
@@ -128,17 +111,23 @@ void ListView::clearItems()
     }
 }
 
-void ListView::setUniformDataSource(
+void ListView::setItemFactory(
+    std::size_t itemCountValue,
+    ItemFactory factory)
+{
+    setItemFactory(itemCountValue, 0.0f, std::move(factory));
+}
+
+void ListView::setItemFactory(
     std::size_t itemCountValue,
     float itemHeight,
-    UniformItemFactory factory)
+    ItemFactory factory)
 {
     const float clampedItemHeight = std::max(0.0f, itemHeight);
     const bool hadSelection = selectedIndex_ != -1;
 
     items_->clearChildren();
-    itemStorage_.clear();
-    dataSourceCache_.clear();
+    materializedItems_.clear();
     itemBounds_.clear();
     itemLayoutVersions_.clear();
     measuredContentSize_ = core::Size::Make(0.0f, 0.0f);
@@ -149,12 +138,17 @@ void ListView::setUniformDataSource(
     contentMeasureCacheValid_ = false;
     pressedIndex_ = -1;
 
-    uniformItemFactory_ = std::move(factory);
-    usingUniformDataSource_ = uniformItemFactory_ != nullptr
+    itemFactory_ = std::move(factory);
+    sourceItemCount_ = itemFactory_ != nullptr
         && itemCountValue > 0
-        && clampedItemHeight > 0.0f;
-    uniformItemCount_ = usingUniformDataSource_ ? itemCountValue : 0;
-    uniformItemHeight_ = usingUniformDataSource_ ? clampedItemHeight : 0.0f;
+        ? itemCountValue
+        : 0;
+    uniformItemHeight_ = sourceItemCount_ > 0 && clampedItemHeight > 0.0f
+        ? clampedItemHeight
+        : 0.0f;
+    if (sourceItemCount_ == 0) {
+        itemFactory_ = {};
+    }
 
     const int previousSelection = selectedIndex_;
     if (previousSelection >= static_cast<int>(itemCount())) {
@@ -165,14 +159,6 @@ void ListView::setUniformDataSource(
     if (hadSelection && selectedIndex_ == -1 && onSelectionChanged_) {
         onSelectionChanged_(selectedIndex_);
     }
-}
-
-void ListView::clearDataSource()
-{
-    if (!usingUniformDataSource_) {
-        return;
-    }
-    clearItems();
 }
 
 void ListView::setSpacing(float spacing)
@@ -418,12 +404,13 @@ void ListView::ensureItemLayoutCache(float viewportWidth)
         && ((std::isfinite(normalizedViewportWidth) && nearlyEqual(cachedViewportWidth_, normalizedViewportWidth))
             || (!std::isfinite(normalizedViewportWidth) && !std::isfinite(cachedViewportWidth_)));
 
-    if (canReuseCache && !usingUniformDataSource_) {
-        if (itemLayoutVersions_.size() != itemStorage_.size()) {
+    if (canReuseCache && !usesUniformItemLayout()) {
+        if (itemLayoutVersions_.size() != itemCount()) {
             canReuseCache = false;
         } else {
-            for (std::size_t index = 0; index < itemStorage_.size(); ++index) {
-                if (itemLayoutVersions_[index] != itemStorage_[index]->layoutVersion()) {
+            for (std::size_t index = 0; index < itemCount(); ++index) {
+                const auto item = materializeItem(index);
+                if (item == nullptr || itemLayoutVersions_[index] != item->layoutVersion()) {
                     canReuseCache = false;
                     break;
                 }
@@ -442,27 +429,39 @@ void ListView::ensureItemLayoutCache(float viewportWidth)
     itemBounds_.clear();
     itemLayoutVersions_.clear();
     itemBounds_.reserve(itemCount());
-    itemLayoutVersions_.reserve(itemStorage_.size());
+    if (!usesUniformItemLayout()) {
+        itemLayoutVersions_.reserve(itemCount());
+    }
 
     float cursorY = style.padding;
     float widestChild = 0.0f;
-    if (usingUniformDataSource_) {
+    if (usesUniformItemLayout()) {
         const float itemWidth = std::isfinite(innerWidth) ? innerWidth : 0.0f;
         widestChild = itemWidth;
-        for (std::size_t index = 0; index < uniformItemCount_; ++index) {
+        for (std::size_t index = 0; index < sourceItemCount_; ++index) {
             itemBounds_.push_back(core::Rect::MakeXYWH(
                 style.padding,
                 cursorY,
                 itemWidth,
                 uniformItemHeight_));
             cursorY += uniformItemHeight_;
-            if (index + 1 < uniformItemCount_) {
+            if (index + 1 < sourceItemCount_) {
                 cursorY += style.spacing;
             }
         }
     } else {
-        for (std::size_t index = 0; index < itemStorage_.size(); ++index) {
-            const core::Size itemSize = itemStorage_[index]->measure({
+        for (std::size_t index = 0; index < sourceItemCount_; ++index) {
+            const auto item = materializeItem(index);
+            if (item == nullptr) {
+                itemBounds_.push_back(core::Rect::MakeXYWH(style.padding, cursorY, 0.0f, 0.0f));
+                itemLayoutVersions_.push_back(0);
+                if (index + 1 < sourceItemCount_) {
+                    cursorY += style.spacing;
+                }
+                continue;
+            }
+
+            const core::Size itemSize = item->measure({
                 .minWidth = 0.0f,
                 .maxWidth = innerWidth,
                 .minHeight = 0.0f,
@@ -477,9 +476,9 @@ void ListView::ensureItemLayoutCache(float viewportWidth)
                 cursorY,
                 itemWidth,
                 itemSize.height()));
-            itemLayoutVersions_.push_back(itemStorage_[index]->layoutVersion());
+            itemLayoutVersions_.push_back(item->layoutVersion());
             cursorY += itemSize.height();
-            if (index + 1 < itemStorage_.size()) {
+            if (index + 1 < sourceItemCount_) {
                 cursorY += style.spacing;
             }
         }
@@ -545,17 +544,9 @@ void ListView::syncVisibleItems()
         if (selectedIndex_ >= 0 && selectedIndex_ < static_cast<int>(itemCount())) {
             activeIndices.insert(static_cast<std::size_t>(selectedIndex_));
         }
-        if (usingUniformDataSource_) {
-            for (const auto& [index, item] : dataSourceCache_) {
-                if (item != nullptr && item->focused()) {
-                    activeIndices.insert(index);
-                }
-            }
-        } else {
-            for (std::size_t index = 0; index < itemStorage_.size(); ++index) {
-                if (itemStorage_[index]->focused()) {
-                    activeIndices.insert(index);
-                }
+        for (const auto& [index, item] : materializedItems_) {
+            if (item != nullptr && item->focused()) {
+                activeIndices.insert(index);
             }
         }
 
@@ -570,14 +561,12 @@ void ListView::syncVisibleItems()
             visibleBounds.push_back(itemBounds_[index]);
         }
 
-        if (usingUniformDataSource_) {
-            for (auto it = dataSourceCache_.begin(); it != dataSourceCache_.end();) {
-                if (activeIndices.contains(it->first) || (it->second != nullptr && it->second->focused())) {
-                    ++it;
-                    continue;
-                }
-                it = dataSourceCache_.erase(it);
+        for (auto it = materializedItems_.begin(); it != materializedItems_.end();) {
+            if (activeIndices.contains(it->first) || (it->second != nullptr && it->second->focused())) {
+                ++it;
+                continue;
             }
+            it = materializedItems_.erase(it);
         }
     }
 
@@ -588,31 +577,29 @@ void ListView::syncVisibleItems()
 
 std::size_t ListView::itemCount() const
 {
-    return usingUniformDataSource_ ? uniformItemCount_ : itemStorage_.size();
+    return sourceItemCount_;
+}
+
+bool ListView::usesUniformItemLayout() const
+{
+    return itemFactory_ != nullptr && uniformItemHeight_ > 0.0f;
 }
 
 std::shared_ptr<Widget> ListView::materializeItem(std::size_t index) const
 {
-    if (usingUniformDataSource_) {
-        if (index >= uniformItemCount_ || uniformItemFactory_ == nullptr) {
-            return {};
-        }
-
-        if (const auto it = dataSourceCache_.find(index); it != dataSourceCache_.end()) {
-            return it->second;
-        }
-
-        auto item = uniformItemFactory_(index);
-        if (item != nullptr) {
-            dataSourceCache_.emplace(index, item);
-        }
-        return item;
-    }
-
-    if (index >= itemStorage_.size()) {
+    if (index >= sourceItemCount_ || itemFactory_ == nullptr) {
         return {};
     }
-    return itemStorage_[index];
+
+    if (const auto it = materializedItems_.find(index); it != materializedItems_.end()) {
+        return it->second;
+    }
+
+    auto item = itemFactory_(index);
+    if (item != nullptr) {
+        materializedItems_.emplace(index, item);
+    }
+    return item;
 }
 
 Widget* ListView::itemAtIndex(int index) const

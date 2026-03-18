@@ -55,11 +55,17 @@ int main()
 
     auto first = std::make_shared<FixedItem>(50.0f, 20.0f);
     auto second = std::make_shared<FixedItem>(60.0f, 24.0f);
+    auto items = std::make_shared<std::vector<std::shared_ptr<FixedItem>>>();
+    items->push_back(first);
+    items->push_back(second);
 
     ui::ListView listView;
     listView.setPreferredHeight(120.0f);
-    listView.addItem(first);
-    listView.addItem(second);
+    listView.setItemFactory(
+        items->size(),
+        [items](std::size_t index) -> std::shared_ptr<ui::Widget> {
+            return (*items)[index];
+        });
 
     listView.measure(ui::Constraints::loose(220.0f, 200.0f));
     listView.arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 220.0f, 120.0f));
@@ -102,9 +108,15 @@ int main()
 
     auto themedFirst = std::make_shared<FixedItem>(40.0f, 18.0f);
     auto themedSecond = std::make_shared<FixedItem>(42.0f, 18.0f);
+    auto themedItems = std::make_shared<std::vector<std::shared_ptr<FixedItem>>>();
+    themedItems->push_back(themedFirst);
+    themedItems->push_back(themedSecond);
     ui::ListView themedListView;
-    themedListView.addItem(themedFirst);
-    themedListView.addItem(themedSecond);
+    themedListView.setItemFactory(
+        themedItems->size(),
+        [themedItems](std::size_t index) -> std::shared_ptr<ui::Widget> {
+            return (*themedItems)[index];
+        });
     themedListView.arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 220.0f, 120.0f));
     expect(nearlyEqual(themedFirst->bounds().x(), 18.0f), "list view should observe runtime theme padding");
     expect(

@@ -15,17 +15,18 @@ class Container;
 
 class ListView final : public ScrollView {
 public:
-    using UniformItemFactory = std::function<std::shared_ptr<Widget>(std::size_t)>;
+    using ItemFactory = std::function<std::shared_ptr<Widget>(std::size_t)>;
 
     ListView();
 
-    void addItem(std::shared_ptr<Widget> item);
-    void clearItems();
-    void setUniformDataSource(
+    void clearSource();
+    void setItemFactory(
+        std::size_t itemCount,
+        ItemFactory factory);
+    void setItemFactory(
         std::size_t itemCount,
         float itemHeight,
-        UniformItemFactory factory);
-    void clearDataSource();
+        ItemFactory factory);
     void setSpacing(float spacing);
     void setPadding(float padding);
     void setStyle(const ListViewStyle& style);
@@ -51,6 +52,7 @@ private:
     void syncVisibleItems();
     void applyVisibleItemLayout();
     std::size_t itemCount() const;
+    bool usesUniformItemLayout() const;
     std::size_t firstItemIntersecting(float contentY) const;
     std::size_t firstItemStartingAfter(float contentY) const;
     std::shared_ptr<Widget> materializeItem(std::size_t index) const;
@@ -60,8 +62,7 @@ private:
     void updateSelection(int index, bool emitCallback);
 
     std::shared_ptr<Container> items_;
-    std::vector<std::shared_ptr<Widget>> itemStorage_;
-    mutable std::unordered_map<std::size_t, std::shared_ptr<Widget>> dataSourceCache_;
+    mutable std::unordered_map<std::size_t, std::shared_ptr<Widget>> materializedItems_;
     std::vector<core::Rect> itemBounds_;
     std::vector<std::uint64_t> itemLayoutVersions_;
     core::Size measuredContentSize_ = core::Size::Make(0.0f, 0.0f);
@@ -69,10 +70,9 @@ private:
     float appliedPadding_ = -1.0f;
     float appliedSpacing_ = -1.0f;
     float uniformItemHeight_ = 0.0f;
-    std::size_t uniformItemCount_ = 0;
+    std::size_t sourceItemCount_ = 0;
     bool itemLayoutCacheValid_ = false;
-    bool usingUniformDataSource_ = false;
-    UniformItemFactory uniformItemFactory_;
+    ItemFactory itemFactory_;
     std::optional<ListViewStyle> customStyle_;
     std::optional<float> spacingOverride_;
     std::optional<float> paddingOverride_;

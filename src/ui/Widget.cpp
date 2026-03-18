@@ -56,6 +56,25 @@ core::Point Widget::parentAdjustedOrigin() const
     return origin;
 }
 
+core::Rect Widget::localDrawBounds() const
+{
+    if (!visible_ || bounds_.isEmpty()) {
+        return core::Rect::MakeEmpty();
+    }
+    return core::Rect::MakeWH(bounds_.width(), bounds_.height());
+}
+
+core::Rect Widget::drawBoundsInParent() const
+{
+    const core::Rect localBounds = localDrawBounds();
+    if (localBounds.isEmpty()) {
+        return core::Rect::MakeEmpty();
+    }
+
+    const core::Point origin = parentAdjustedOrigin();
+    return localBounds.makeOffset(origin.x(), origin.y());
+}
+
 void Widget::arrange(const core::Rect& bounds)
 {
     if (!sameRect(bounds_, bounds)) {

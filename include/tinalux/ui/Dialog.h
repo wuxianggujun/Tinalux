@@ -54,6 +54,7 @@ public:
     void setLayout(std::unique_ptr<Layout>) = delete;
 
 protected:
+    core::Rect localDrawBounds() const override;
     DialogStyle resolvedStyle() const;
 
 private:

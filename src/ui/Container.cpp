@@ -179,13 +179,28 @@ const std::vector<std::shared_ptr<Widget>>& Container::children() const
     return children_;
 }
 
+core::Rect Container::localDrawBounds() const
+{
+    core::Rect bounds = core::Rect::MakeEmpty();
+    for (const auto& child : children_) {
+        if (child == nullptr || !child->visible()) {
+            continue;
+        }
+        bounds.join(child->drawBoundsInParent());
+    }
+    return bounds;
+}
+
 void Container::drawChildren(rendering::Canvas& canvas)
 {
     for (const auto& child : children_) {
+        const core::Rect childDrawBounds = child != nullptr
+            ? child->drawBoundsInParent()
+            : core::Rect::MakeEmpty();
         if (child == nullptr
             || !child->visible()
-            || child->bounds().isEmpty()
-            || canvas.quickReject(child->bounds())) {
+            || childDrawBounds.isEmpty()
+            || canvas.quickReject(childDrawBounds)) {
             continue;
         }
         child->draw(canvas);

@@ -243,7 +243,7 @@ void rebuildActivityList(
     }
 
     if (filteredIndices->empty()) {
-        list->setUniformDataSource(
+        list->setItemFactory(
             1,
             kActivityItemHeight,
             [theme](std::size_t) {
@@ -253,7 +253,7 @@ void rebuildActivityList(
                     theme);
             });
     } else {
-        list->setUniformDataSource(
+        list->setItemFactory(
             filteredIndices->size(),
             kActivityItemHeight,
             [entries, filteredIndices, theme](std::size_t index) {

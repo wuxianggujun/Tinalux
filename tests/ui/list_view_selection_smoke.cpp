@@ -62,13 +62,17 @@ int main()
 
     int clickedIndex = -1;
     std::vector<int> selectionChanges;
-    std::vector<std::shared_ptr<ui::Button>> items;
+    auto items = std::make_shared<std::vector<std::shared_ptr<ui::Button>>>();
     for (int index = 0; index < 6; ++index) {
         auto button = std::make_shared<ui::Button>("Item " + std::to_string(index + 1));
         button->onClick([&clickedIndex, index] { clickedIndex = index; });
-        items.push_back(button);
-        listView->addItem(button);
+        items->push_back(button);
     }
+    listView->setItemFactory(
+        items->size(),
+        [items](std::size_t index) -> std::shared_ptr<ui::Widget> {
+            return (*items)[index];
+        });
     listView->onSelectionChanged([&selectionChanges](int index) { selectionChanges.push_back(index); });
 
     root->addChild(listView);
@@ -78,10 +82,10 @@ int main()
     app::Application app;
     app.setRootWidget(root);
 
-    clickCenter(app, *items[1]);
+    clickCenter(app, *(*items)[1]);
     expect(clickedIndex == 1, "button click inside list view should remain functional");
     expect(listView->selectedIndex() == 1, "mouse click should update list view selection");
-    expect(listView->selectedItem() == items[1].get(), "selectedItem should expose the selected widget");
+    expect(listView->selectedItem() == (*items)[1].get(), "selectedItem should expose the selected widget");
     expect(selectionChanges.size() == 1 && selectionChanges.back() == 1, "mouse selection should emit callback");
 
     pressKey(app, core::keys::kDown);
@@ -100,7 +104,7 @@ int main()
         selectionChanges.size() == callbackCountBeforeRedundantSelect,
         "setting the same selection should not emit duplicate callbacks");
 
-    listView->clearItems();
+    listView->clearSource();
     expect(listView->selectedIndex() == -1, "clearing items should clear the selection");
     expect(!selectionChanges.empty() && selectionChanges.back() == -1, "clearing items should emit cleared selection");
 

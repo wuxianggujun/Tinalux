@@ -25,6 +25,7 @@ public:
     const std::vector<std::shared_ptr<Widget>>& children() const;
 
 protected:
+    core::Rect localDrawBounds() const override;
     void drawChildren(rendering::Canvas& canvas);
     void replaceChildrenDirect(std::vector<std::shared_ptr<Widget>> children);
 

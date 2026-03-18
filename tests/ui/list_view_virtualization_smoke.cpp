@@ -53,29 +53,33 @@ int main()
     listView.setPadding(8.0f);
     listView.setSpacing(4.0f);
 
-    std::vector<std::shared_ptr<FixedItem>> items;
+    auto items = std::make_shared<std::vector<std::shared_ptr<FixedItem>>>();
     for (int index = 0; index < 120; ++index) {
         auto item = std::make_shared<FixedItem>(180.0f, 20.0f);
-        items.push_back(item);
-        listView.addItem(item);
+        items->push_back(item);
     }
+    listView.setItemFactory(
+        items->size(),
+        [items](std::size_t index) -> std::shared_ptr<ui::Widget> {
+            return (*items)[index];
+        });
 
     listView.measure(ui::Constraints::tight(240.0f, 96.0f));
     listView.arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 240.0f, 96.0f));
 
     auto* content = dynamic_cast<ui::Container*>(listView.content());
     expect(content != nullptr, "list view content should remain container-based for virtualization");
-    expect(content->children().size() < items.size(), "virtualized list should not attach every item");
+    expect(content->children().size() < items->size(), "virtualized list should not attach every item");
     expect(!content->children().empty(), "virtualized list should attach visible items");
-    expect(items.front()->parent() == content, "first visible item should stay attached before scrolling");
-    expect(items.back()->parent() == nullptr, "far offscreen item should start detached");
+    expect(items->front()->parent() == content, "first visible item should stay attached before scrolling");
+    expect(items->back()->parent() == nullptr, "far offscreen item should start detached");
 
-    listView.setSelectedIndex(static_cast<int>(items.size()) - 1);
+    listView.setSelectedIndex(static_cast<int>(items->size()) - 1);
 
     expect(listView.scrollOffset() > 0.0f, "selecting a far item should scroll it into view");
-    expect(content->children().size() < items.size(), "virtualized list should stay sparse after scrolling");
-    expect(items.back()->parent() == content, "selected far item should become attached when brought into view");
-    expect(items.front()->parent() == nullptr, "top item should detach after scrolling far away");
+    expect(content->children().size() < items->size(), "virtualized list should stay sparse after scrolling");
+    expect(items->back()->parent() == content, "selected far item should become attached when brought into view");
+    expect(items->front()->parent() == nullptr, "top item should detach after scrolling far away");
 
     {
         ui::ListView dataDrivenListView;
@@ -84,7 +88,7 @@ int main()
         dataDrivenListView.setSpacing(4.0f);
 
         std::set<std::size_t> builtIndices;
-        dataDrivenListView.setUniformDataSource(
+        dataDrivenListView.setItemFactory(
             200,
             24.0f,
             [&builtIndices](std::size_t index) -> std::shared_ptr<ui::Widget> {

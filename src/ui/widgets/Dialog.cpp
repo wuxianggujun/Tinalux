@@ -414,6 +414,11 @@ void Dialog::onDraw(rendering::Canvas& canvas)
     drawChildren(canvas);
 }
 
+core::Rect Dialog::localDrawBounds() const
+{
+    return Widget::localDrawBounds();
+}
+
 Widget* Dialog::hitTest(float x, float y)
 {
     if (!visible_) {

@@ -75,6 +75,8 @@ protected:
     std::uint64_t resolvedThemeGeneration() const;
     virtual core::Point childOffsetAdjustment(const Widget& child) const;
     core::Point parentAdjustedOrigin() const;
+    virtual core::Rect localDrawBounds() const;
+    core::Rect drawBoundsInParent() const;
     void markPaintDirty();
     void markDirtyRect(const core::Rect& rect);
     void setParent(Widget* parent);
