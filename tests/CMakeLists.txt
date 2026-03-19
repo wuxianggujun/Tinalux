@@ -70,6 +70,11 @@ tinalux_add_smoke_test(TinaluxCoreMetalSurfaceSmoke
     LINK_LIBS Tinalux::Rendering
 )
 
+tinalux_add_smoke_test(TinaluxCoreOpenGLWindowSurfaceStateSmoke
+    SOURCE core/opengl_window_surface_state_smoke.cpp
+    LINK_LIBS Tinalux::Rendering
+)
+
 tinalux_add_smoke_test(TinaluxPlatformGLFWDpiScaleSmoke
     SOURCE platform/glfw_window_scale_smoke.cpp
     LINK_LIBS Tinalux::Platform

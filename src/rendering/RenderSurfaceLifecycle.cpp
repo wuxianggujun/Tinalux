@@ -3,12 +3,27 @@
 #include <cstdint>
 #include <utility>
 
+#if defined(ANDROID)
+#include <GLES3/gl3.h>
+#elif defined(__APPLE__)
+#include <OpenGL/gl3.h>
+#else
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <GL/gl.h>
+#endif
 #include "include/core/SkColorSpace.h"
 #include "include/gpu/ganesh/GrBackendSurface.h"
 #include "include/gpu/ganesh/SkSurfaceGanesh.h"
 #include "include/gpu/ganesh/gl/GrGLBackendSurface.h"
 #include "FrameLifecycle.h"
 #include "MetalBackend.h"
+#include "OpenGLWindowSurfaceState.h"
 #include "RenderHandles.h"
 #include "VulkanBackend.h"
 #include "tinalux/core/Log.h"
@@ -18,6 +33,15 @@ namespace {
 
 constexpr GrGLuint kDefaultFramebufferId = 0;
 constexpr GrGLenum kDefaultFramebufferFormat = 0x8058;  // GL_RGBA8
+
+void updateViewport(int x, int y, int width, int height)
+{
+    glViewport(
+        static_cast<GLint>(x),
+        static_cast<GLint>(y),
+        static_cast<GLsizei>(width),
+        static_cast<GLsizei>(height));
+}
 
 sk_sp<SkSurface> createOpenGLWindowSurface(GrDirectContext* context, int width, int height)
 {
@@ -41,6 +65,37 @@ sk_sp<SkSurface> createOpenGLWindowSurface(GrDirectContext* context, int width, 
 
 namespace tinalux::rendering {
 
+namespace detail {
+
+OpenGLWindowSurfaceHooks& openGLWindowSurfaceHooks()
+{
+    static OpenGLWindowSurfaceHooks hooks {
+        .viewport = &::updateViewport,
+    };
+    return hooks;
+}
+
+void syncOpenGLWindowSurfaceState(RenderSurface& surface)
+{
+    SkSurface* skiaSurface = RenderAccess::skiaSurface(surface);
+    if (skiaSurface == nullptr) {
+        return;
+    }
+
+    const int width = skiaSurface->width();
+    const int height = skiaSurface->height();
+    if (width <= 0 || height <= 0) {
+        return;
+    }
+
+    auto& hooks = openGLWindowSurfaceHooks();
+    if (hooks.viewport != nullptr) {
+        hooks.viewport(0, 0, width, height);
+    }
+}
+
+}  // namespace detail
+
 FramePrepareStatus prepareFrame(RenderContext& context, RenderSurface& surface)
 {
     if (!context || !surface) {
@@ -59,6 +114,7 @@ FramePrepareStatus prepareFrame(RenderContext& context, RenderSurface& surface)
         }
         return surface ? FramePrepareStatus::RetryLater : FramePrepareStatus::SurfaceLost;
     case Backend::OpenGL:
+        detail::syncOpenGLWindowSurfaceState(surface);
         RenderAccess::setSurfaceFailureReason(surface, SurfaceFailureReason::None);
         return surface ? FramePrepareStatus::Ready : FramePrepareStatus::SurfaceLost;
     case Backend::Vulkan:
