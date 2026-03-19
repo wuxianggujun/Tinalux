@@ -97,6 +97,12 @@ int main()
         shell->children()[1]->bounds().y() > shell->children()[0]->bounds().y(),
         "mobile-width demo scene should stack content below navigation");
 
+    root->measure(ui::Constraints::tight(680.0f, 960.0f));
+    root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 680.0f, 960.0f));
+    expect(
+        shell->children()[1]->bounds().y() > shell->children()[0]->bounds().y(),
+        "narrow desktop-width demo scene should keep stacked layout until the tablet breakpoint");
+
     root->measure(ui::Constraints::tight(800.0f, 960.0f));
     root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 800.0f, 960.0f));
     expect(

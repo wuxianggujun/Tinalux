@@ -18,16 +18,22 @@ namespace tinalux::ui {
 
 namespace {
 
+float visualDensity(const Theme& theme)
+{
+    return std::max({1.0f, theme.platformScale, theme.fontScale});
+}
+
 ButtonStyle makeNavigationButtonStyle(Theme theme, bool selected)
 {
     ButtonStyle style = selected
         ? ButtonStyle::primary(theme.colors, theme.typography, theme.spacingScale)
         : ButtonStyle::outlined(theme.colors, theme.typography, theme.spacingScale);
+    const float density = visualDensity(theme);
     style.minWidth = -1.0f;
-    style.minHeight = theme.minimumTouchTargetSize > 0.0f ? 48.0f : 44.0f;
+    style.minHeight = (theme.minimumTouchTargetSize > 0.0f ? 48.0f : 44.0f) * density;
     style.borderRadius = theme.cornerRadius();
-    style.paddingHorizontal = 14.0f;
-    style.paddingVertical = 10.0f;
+    style.paddingHorizontal = 14.0f * density;
+    style.paddingVertical = 10.0f * density;
     style.textStyle.fontSize = theme.bodyFontSize();
     style.textStyle.bold = true;
     if (selected) {
@@ -76,6 +82,7 @@ private:
     void rebuild(const Theme& theme)
     {
         theme_ = theme;
+        const float density = visualDensity(theme_);
         pages_ = showcase::buildShowcasePages(theme_, animations_);
         if (!pages_.empty()) {
             selectedPageIndex_ = std::min(selectedPageIndex_, pages_.size() - 1);
@@ -94,12 +101,12 @@ private:
         setCornerRadius(0.0f);
 
         auto rootLayout = std::make_unique<VBoxLayout>();
-        rootLayout->padding = theme_.minimumTouchTargetSize > 0.0f ? 20.0f : 36.0f;
+        rootLayout->padding = theme_.minimumTouchTargetSize > 0.0f ? 20.0f : 28.0f * density;
         rootLayout->spacing = theme_.contentSpacing();
         setLayout(std::move(rootLayout));
 
         auto eyebrow = std::make_shared<Label>("TIN ALUX");
-        eyebrow->setFontSize(13.0f);
+        eyebrow->setFontSize(13.0f * density);
         eyebrow->setColor(theme_.colors.primary);
         addChild(eyebrow);
 
@@ -117,28 +124,28 @@ private:
         auto shell = std::make_shared<Container>();
         auto responsiveLayout = std::make_unique<ResponsiveLayout>();
         auto mobileLayout = std::make_unique<VBoxLayout>();
-        mobileLayout->spacing = 16.0f;
+        mobileLayout->spacing = 16.0f * density;
         auto tabletLayout = std::make_unique<FlexLayout>();
         auto* tabletFlexLayout = tabletLayout.get();
         tabletLayout->direction = FlexDirection::Row;
-        tabletLayout->spacing = 18.0f;
+        tabletLayout->spacing = 18.0f * density;
         tabletLayout->alignItems = AlignItems::Stretch;
         auto desktopLayout = std::make_unique<FlexLayout>();
         auto* desktopFlexLayout = desktopLayout.get();
         desktopLayout->direction = FlexDirection::Row;
-        desktopLayout->spacing = 22.0f;
+        desktopLayout->spacing = 22.0f * density;
         desktopLayout->alignItems = AlignItems::Stretch;
         responsiveLayout->addBreakpoint(0.0f, std::move(mobileLayout));
-        responsiveLayout->addBreakpoint(600.0f, std::move(tabletLayout));
-        responsiveLayout->addBreakpoint(1000.0f, std::move(desktopLayout));
+        responsiveLayout->addBreakpoint(720.0f, std::move(tabletLayout));
+        responsiveLayout->addBreakpoint(1180.0f, std::move(desktopLayout));
         shell->setLayout(std::move(responsiveLayout));
 
         auto navPanel = std::make_shared<Panel>();
         navPanel->setBackgroundColor(theme_.colors.surface);
         navPanel->setCornerRadius(theme_.cornerRadius() + 4.0f);
         auto navLayout = std::make_unique<VBoxLayout>();
-        navLayout->padding = 20.0f;
-        navLayout->spacing = 10.0f;
+        navLayout->padding = 18.0f * density;
+        navLayout->spacing = 10.0f * density;
         navPanel->setLayout(std::move(navLayout));
 
         auto navTitle = std::make_shared<Label>("Showcase Pages");
@@ -150,7 +157,7 @@ private:
 
         auto navButtonsColumn = std::make_shared<Container>();
         auto navButtonsLayout = std::make_unique<VBoxLayout>();
-        navButtonsLayout->spacing = 8.0f;
+        navButtonsLayout->spacing = 8.0f * density;
         navButtonsColumn->setLayout(std::move(navButtonsLayout));
 
         auto navFootnote = std::make_shared<ParagraphLabel>(
@@ -167,12 +174,12 @@ private:
         contentPanel->setBackgroundColor(theme_.colors.surface);
         contentPanel->setCornerRadius(theme_.cornerRadius() + 6.0f);
         auto contentLayout = std::make_unique<VBoxLayout>();
-        contentLayout->padding = 24.0f;
-        contentLayout->spacing = 14.0f;
+        contentLayout->padding = 22.0f * density;
+        contentLayout->spacing = 14.0f * density;
         contentPanel->setLayout(std::move(contentLayout));
 
         auto pageEyebrow = std::make_shared<Label>("Current Page");
-        pageEyebrow->setFontSize(13.0f);
+        pageEyebrow->setFontSize(13.0f * density);
         pageEyebrow->setColor(theme_.colors.primary);
         pageTitle_ = std::make_shared<Label>("Overview");
         pageTitle_->setFontSize(theme_.titleFontSize());

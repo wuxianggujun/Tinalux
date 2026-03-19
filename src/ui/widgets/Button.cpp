@@ -389,10 +389,15 @@ void Button::onDraw(rendering::Canvas& canvas)
         backgroundColor);
 
     if (borderWidth > 0.0f) {
+        const float inset = borderWidth * 0.5f;
         canvas.drawRoundRect(
-            core::Rect::MakeWH(bounds_.width(), bounds_.height()),
-            style.borderRadius,
-            style.borderRadius,
+            core::Rect::MakeXYWH(
+                inset,
+                inset,
+                std::max(0.0f, bounds_.width() - borderWidth),
+                std::max(0.0f, bounds_.height() - borderWidth)),
+            std::max(0.0f, style.borderRadius - inset),
+            std::max(0.0f, style.borderRadius - inset),
             borderColor,
             rendering::PaintStyle::Stroke,
             borderWidth);

@@ -135,6 +135,34 @@ int main()
         nearlyEqualColor(readPixel(defaultSurface, 48, 24), runtime.theme.buttonStyle.backgroundColor.normal),
         "default primary button should paint its normal background before hover");
 
+    ui::ButtonStyle borderProbeStyle = runtime.theme.buttonStyle;
+    borderProbeStyle.backgroundColor.normal = core::colorRGB(18, 24, 36);
+    borderProbeStyle.borderColor.normal = core::colorRGB(240, 212, 64);
+    borderProbeStyle.borderWidth.normal = 4.0f;
+    borderProbeStyle.textColor.normal = core::colorARGB(0, 0, 0, 0);
+    ProbeButton borderProbeButton("");
+    borderProbeButton.setStyle(borderProbeStyle);
+    borderProbeButton.arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 96.0f, 48.0f));
+
+    const rendering::RenderSurface borderSurface = rendering::createRasterSurface(128, 96);
+    expect(static_cast<bool>(borderSurface), "border probe test should create raster surface");
+    rendering::Canvas borderCanvas = borderSurface.canvas();
+    expect(static_cast<bool>(borderCanvas), "border probe test should expose canvas");
+
+    borderProbeButton.draw(borderCanvas);
+    expect(
+        !nearlyEqualColor(readPixel(borderSurface, 48, 2), borderProbeStyle.backgroundColor.normal),
+        "button top border should remain visible inside the widget clip");
+    expect(
+        !nearlyEqualColor(readPixel(borderSurface, 2, 24), borderProbeStyle.backgroundColor.normal),
+        "button left border should remain visible inside the widget clip");
+    expect(
+        !nearlyEqualColor(readPixel(borderSurface, 93, 24), borderProbeStyle.backgroundColor.normal),
+        "button right border should remain visible inside the widget clip");
+    expect(
+        !nearlyEqualColor(readPixel(borderSurface, 48, 45), borderProbeStyle.backgroundColor.normal),
+        "button bottom border should remain visible inside the widget clip");
+
     ProbeButton textButton("Overview");
     const core::Size textButtonSize = textButton.measure(ui::Constraints::loose(240.0f, 80.0f));
     textButton.arrange(core::Rect::MakeXYWH(0.0f, 0.0f, textButtonSize.width(), textButtonSize.height()));

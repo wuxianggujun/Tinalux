@@ -1,11 +1,14 @@
 #include "tinalux/ui/ThemeManager.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <utility>
 #include <vector>
+
+#include "tinalux/ui/ResourceManager.h"
 
 namespace tinalux::ui {
 
@@ -107,6 +110,86 @@ Spacing lerpSpacing(const Spacing& from, const Spacing& to, float t)
     };
 }
 
+bool nearlyEqual(float lhs, float rhs)
+{
+    return std::abs(lhs - rhs) <= 0.001f;
+}
+
+float sanitizeDesktopScale(float value)
+{
+    if (!std::isfinite(value) || value <= 1.0f) {
+        return 1.0f;
+    }
+
+    return std::clamp(value, 1.0f, 2.5f);
+}
+
+void scaleTextStyle(TextStyle& style, float scale)
+{
+    style.fontSize *= scale;
+    style.letterSpacing *= scale;
+}
+
+void scaleTypography(Typography& typography, float scale)
+{
+    scaleTextStyle(typography.h1, scale);
+    scaleTextStyle(typography.h2, scale);
+    scaleTextStyle(typography.h3, scale);
+    scaleTextStyle(typography.h4, scale);
+    scaleTextStyle(typography.h5, scale);
+    scaleTextStyle(typography.h6, scale);
+    scaleTextStyle(typography.body1, scale);
+    scaleTextStyle(typography.body2, scale);
+    scaleTextStyle(typography.caption, scale);
+    scaleTextStyle(typography.button, scale);
+}
+
+void scaleSpacing(Spacing& spacing, float scale)
+{
+    spacing.xs *= scale;
+    spacing.sm *= scale;
+    spacing.md *= scale;
+    spacing.lg *= scale;
+    spacing.xl *= scale;
+    spacing.xxl *= scale;
+    spacing.radiusXs *= scale;
+    spacing.radiusSm *= scale;
+    spacing.radiusMd *= scale;
+    spacing.radiusLg *= scale;
+    spacing.radiusXl *= scale;
+}
+
+bool shouldAutoAdaptDesktopTheme(const Theme& theme)
+{
+    return theme.minimumTouchTargetSize <= 0.0f
+        && nearlyEqual(theme.platformScale, 1.0f)
+        && nearlyEqual(theme.fontScale, 1.0f);
+}
+
+Theme adaptThemeForDesktopDensity(Theme theme)
+{
+    if (!shouldAutoAdaptDesktopTheme(theme)) {
+        return theme;
+    }
+
+    const float devicePixelRatio =
+        sanitizeDesktopScale(ResourceManager::instance().devicePixelRatio());
+    if (devicePixelRatio <= 1.0f) {
+        return theme;
+    }
+
+    const float densityDelta = devicePixelRatio - 1.0f;
+    const float fontScale = 1.0f + densityDelta * 0.22f;
+    const float spacingScale = 1.0f + densityDelta * 0.16f;
+
+    theme.platformScale = spacingScale;
+    theme.fontScale = fontScale;
+    scaleTypography(theme.typography, fontScale);
+    scaleSpacing(theme.spacingScale, spacingScale);
+    theme.refreshComponentStyles();
+    return theme;
+}
+
 Theme interpolateTheme(const Theme& from, const Theme& to, float t)
 {
     Theme interpolated = from;
@@ -126,6 +209,7 @@ Theme interpolateTheme(const Theme& from, const Theme& to, float t)
 
 Theme normalizeTheme(Theme theme)
 {
+    theme = adaptThemeForDesktopDensity(std::move(theme));
     theme.refreshComponentStyles();
     return theme;
 }
