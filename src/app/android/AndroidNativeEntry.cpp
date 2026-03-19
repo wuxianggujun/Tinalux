@@ -145,8 +145,8 @@ bool tinaluxAndroidInstallDemoScene(void* runtimeHandle)
         static_cast<unsigned int>(theme.colors.background),
         static_cast<unsigned int>(theme.colors.primary));
     application->setTheme(theme);
-    application->setRootWidget(application->buildWidgetTree([application, theme] {
-        return tinalux::ui::createDemoScene(theme, application->animationSink());
+    application->setRootWidget(application->buildWidgetTree([application] {
+        return tinalux::ui::createDemoScene(application->theme(), application->animationSink());
     }));
     tinalux::core::logInfoCat(
         "app.android",

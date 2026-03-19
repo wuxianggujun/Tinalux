@@ -33,6 +33,9 @@ int main()
     manager.setTheme(Theme::dark(), false);
     const Theme adaptedDesktop = manager.currentTheme();
     const Theme defaultDesktop = Theme::dark();
+    expect(
+        defaultDesktop.typography.body1.fontSize >= 17.0f,
+        "desktop baseline typography should not default to undersized body text");
     expect(adaptedDesktop.fontScale > 1.0f, "desktop theme should grow typography on high-density displays");
     expect(adaptedDesktop.platformScale > 1.0f, "desktop theme should grow spacing on high-density displays");
     expect(

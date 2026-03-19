@@ -5,6 +5,7 @@ param(
     [string[]]$ClickRatios = @(),
     [string]$ResetCursorRatio = "0.92,0.92",
     [string]$PreferredWindowTitle = "Tinalux",
+    [switch]$CaptureClientArea,
     [int]$WindowX = 80,
     [int]$WindowY = 80,
     [int]$WindowWidth = 1280,
@@ -33,8 +34,20 @@ public static class TinaluxWindowAutomation {
         public int Bottom;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT {
+        public int X;
+        public int Y;
+    }
+
     [DllImport("user32.dll")]
     public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+
+    [DllImport("user32.dll")]
+    public static extern bool GetClientRect(IntPtr hWnd, out RECT rect);
+
+    [DllImport("user32.dll")]
+    public static extern bool ClientToScreen(IntPtr hWnd, ref POINT point);
 
     [DllImport("user32.dll")]
     public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
@@ -94,6 +107,47 @@ function Resolve-WindowPoint {
         X = $Rect.Left + [int][Math]::Round($width * $xRatio)
         Y = $Rect.Top + [int][Math]::Round($height * $yRatio)
     }
+}
+
+function Get-CaptureRect {
+    param(
+        [IntPtr]$Handle,
+        [switch]$ClientArea
+    )
+
+    if (-not $ClientArea) {
+        $windowRect = New-Object TinaluxWindowAutomation+RECT
+        if (-not [TinaluxWindowAutomation]::GetWindowRect($Handle, [ref]$windowRect)) {
+            throw "Failed to read the GUI window bounds."
+        }
+        return $windowRect
+    }
+
+    $clientRect = New-Object TinaluxWindowAutomation+RECT
+    if (-not [TinaluxWindowAutomation]::GetClientRect($Handle, [ref]$clientRect)) {
+        throw "Failed to read the GUI client bounds."
+    }
+
+    $topLeft = New-Object TinaluxWindowAutomation+POINT
+    $topLeft.X = $clientRect.Left
+    $topLeft.Y = $clientRect.Top
+    if (-not [TinaluxWindowAutomation]::ClientToScreen($Handle, [ref]$topLeft)) {
+        throw "Failed to translate GUI client origin to screen coordinates."
+    }
+
+    $bottomRight = New-Object TinaluxWindowAutomation+POINT
+    $bottomRight.X = $clientRect.Right
+    $bottomRight.Y = $clientRect.Bottom
+    if (-not [TinaluxWindowAutomation]::ClientToScreen($Handle, [ref]$bottomRight)) {
+        throw "Failed to translate GUI client extent to screen coordinates."
+    }
+
+    $captureRect = New-Object TinaluxWindowAutomation+RECT
+    $captureRect.Left = $topLeft.X
+    $captureRect.Top = $topLeft.Y
+    $captureRect.Right = $bottomRight.X
+    $captureRect.Bottom = $bottomRight.Y
+    return $captureRect
 }
 
 function Get-ProcessWindows {
@@ -269,10 +323,7 @@ try {
     [TinaluxWindowAutomation]::SetForegroundWindow($targetWindow.Handle) | Out-Null
     Start-Sleep -Milliseconds $SettleMs
 
-    $rect = $targetWindow.Rect
-    if (-not [TinaluxWindowAutomation]::GetWindowRect($targetWindow.Handle, [ref]$rect)) {
-        throw "Failed to read the GUI window bounds."
-    }
+    $rect = Get-CaptureRect -Handle $targetWindow.Handle -ClientArea:$CaptureClientArea
 
     if (-not [string]::IsNullOrWhiteSpace($ResetCursorRatio)) {
         $resetPoint = Resolve-WindowPoint -Rect $rect -RatioSpec $ResetCursorRatio

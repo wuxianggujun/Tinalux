@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <vector>
 
 #include "../../src/ui/RuntimeState.h"
 #include "tinalux/ui/Constraints.h"
@@ -45,6 +46,36 @@ std::size_t countLabels(const std::shared_ptr<tinalux::ui::Container>& container
         }
     }
     return count;
+}
+
+void collectBoundsPreorder(
+    const std::shared_ptr<tinalux::ui::Widget>& widget,
+    std::vector<tinalux::core::Rect>& bounds)
+{
+    expect(widget != nullptr, "widget should exist");
+    bounds.push_back(widget->bounds());
+
+    const auto container = std::dynamic_pointer_cast<tinalux::ui::Container>(widget);
+    if (container == nullptr) {
+        return;
+    }
+
+    for (const auto& child : container->children()) {
+        collectBoundsPreorder(child, bounds);
+    }
+}
+
+bool nearlyEqual(float lhs, float rhs)
+{
+    return std::abs(lhs - rhs) <= 0.05f;
+}
+
+bool sameRect(tinalux::core::Rect lhs, tinalux::core::Rect rhs)
+{
+    return nearlyEqual(lhs.x(), rhs.x())
+        && nearlyEqual(lhs.y(), rhs.y())
+        && nearlyEqual(lhs.width(), rhs.width())
+        && nearlyEqual(lhs.height(), rhs.height());
 }
 
 }  // namespace
@@ -114,6 +145,28 @@ int main()
     expect(
         shell->children()[1]->bounds().x() > shell->children()[0]->bounds().x(),
         "wide demo scene should place content beside navigation");
+
+    std::vector<core::Rect> narrowBoundsBeforeRoundTrip;
+    root->measure(ui::Constraints::tight(680.0f, 960.0f));
+    root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 680.0f, 960.0f));
+    collectBoundsPreorder(root, narrowBoundsBeforeRoundTrip);
+
+    root->measure(ui::Constraints::tight(1280.0f, 960.0f));
+    root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 1280.0f, 960.0f));
+
+    std::vector<core::Rect> narrowBoundsAfterRoundTrip;
+    root->measure(ui::Constraints::tight(680.0f, 960.0f));
+    root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 680.0f, 960.0f));
+    collectBoundsPreorder(root, narrowBoundsAfterRoundTrip);
+
+    expect(
+        narrowBoundsBeforeRoundTrip.size() == narrowBoundsAfterRoundTrip.size(),
+        "demo scene resize round-trip should preserve widget tree size");
+    for (std::size_t index = 0; index < narrowBoundsBeforeRoundTrip.size(); ++index) {
+        expect(
+            sameRect(narrowBoundsBeforeRoundTrip[index], narrowBoundsAfterRoundTrip[index]),
+            "demo scene resize round-trip should restore the same widget bounds at the same width");
+    }
 
     ui::ThemeManager::instance().setTheme(ui::Theme::light(), false);
     auto rebuiltShell = std::dynamic_pointer_cast<ui::Container>(root->children().back());

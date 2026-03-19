@@ -189,6 +189,11 @@ tinalux_add_smoke_test(TinaluxUIDemoSceneHoverIsolationSmoke
     LINK_LIBS Tinalux::App
 )
 
+tinalux_add_smoke_test(TinaluxUIDemoSceneResizeRoundTripRenderSmoke
+    SOURCE ui/demo_scene_resize_roundtrip_render_smoke.cpp
+    LINK_LIBS Tinalux::App
+)
+
 tinalux_add_smoke_test(TinaluxUIMobileThemeSmoke
     SOURCE ui/mobile_theme_smoke.cpp
     LINK_LIBS Tinalux::UI

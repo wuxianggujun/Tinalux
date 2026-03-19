@@ -5,16 +5,15 @@ int main()
 {
     tinalux::app::Application app;
     if (!app.init({
-            .window = { .width = 960, .height = 640, .title = "Tinalux" },
+            .window = { .width = 1180, .height = 820, .title = "Tinalux" },
             .backend = tinalux::rendering::Backend::Auto,
         })) {
         return 1;
     }
 
-    const tinalux::ui::Theme theme = tinalux::ui::Theme::dark();
-    app.setTheme(theme);
-    app.setRootWidget(app.buildWidgetTree([&app, theme] {
-        return tinalux::ui::createDemoScene(theme, app.animationSink());
+    app.setTheme(tinalux::ui::Theme::dark());
+    app.setRootWidget(app.buildWidgetTree([&app] {
+        return tinalux::ui::createDemoScene(app.theme(), app.animationSink());
     }));
     return app.run();
 }
