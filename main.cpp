@@ -13,6 +13,8 @@ int main()
 
     const tinalux::ui::Theme theme = tinalux::ui::Theme::dark();
     app.setTheme(theme);
-    app.setRootWidget(tinalux::ui::createDemoScene(theme, app.animationSink()));
+    app.setRootWidget(app.buildWidgetTree([&app, theme] {
+        return tinalux::ui::createDemoScene(theme, app.animationSink());
+    }));
     return app.run();
 }

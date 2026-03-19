@@ -536,6 +536,17 @@ void UIContext::setRootWidget(std::shared_ptr<ui::Widget> root)
             : std::string("null"));
 }
 
+std::shared_ptr<ui::Widget> UIContext::buildWidgetTree(
+    const std::function<std::shared_ptr<ui::Widget>()>& builder)
+{
+    if (runtimeState_ == nullptr || !builder) {
+        return {};
+    }
+
+    ui::ScopedRuntimeState runtimeScope(*runtimeState_);
+    return builder();
+}
+
 void UIContext::setOverlayWidget(std::shared_ptr<ui::Widget> overlay)
 {
     ui::ScopedRuntimeState runtimeScope(*runtimeState_);
@@ -624,6 +635,21 @@ ui::Theme UIContext::theme() const
     return runtimeState_ != nullptr
         ? runtimeState_->theme
         : ui::ThemeManager::instance().currentTheme();
+}
+
+void UIContext::setPartialRedrawEnabled(bool enabled)
+{
+    if (partialRedrawEnabled_ == enabled) {
+        return;
+    }
+
+    partialRedrawEnabled_ = enabled;
+    needsRedraw_ = true;
+}
+
+bool UIContext::partialRedrawEnabled() const
+{
+    return partialRedrawEnabled_;
 }
 
 void UIContext::setPerfLogConfig(PerfLogConfig config)
@@ -793,7 +819,8 @@ bool UIContext::render(
     }
 
     constexpr core::Color kClearColor = core::colorRGB(18, 20, 28);
-    const bool baseFullRedraw = (rootWidget_ == nullptr && overlayWidget_ == nullptr)
+    const bool baseFullRedraw = !partialRedrawEnabled_
+        || (rootWidget_ == nullptr && overlayWidget_ == nullptr)
         || (rootWidget_ != nullptr
             && (rootWidget_->isLayoutDirty() || !rootWidget_->hasDirtyRegion()))
         || (overlayWidget_ != nullptr

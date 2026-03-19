@@ -29,6 +29,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
     private var lastTextInputActive = false
     private var lastClipboardText = ""
     private var lastRenderHealthy = true
+    private var consecutiveRenderFailures = 0
 
     init {
         holder.addCallback(this)
@@ -46,12 +47,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
     override fun surfaceCreated(holder: SurfaceHolder) {
         surfaceReady = true
         Log.i(logTag, "surfaceCreated backend=${rendererHost.preferredBackend()} surface=$holder")
-        rendererHost.attachSurface(holder.surface)
-        rendererHost.setSuspended(false)
-        if (!demoSceneInstalled) {
-            demoSceneInstalled = rendererHost.installDemoScene()
-            Log.i(logTag, "installDemoScene result=$demoSceneInstalled")
-        }
+        recoverRenderer("surfaceCreated")
         syncClipboardFromSystem()
         syncTextInputState()
         scheduleFrame()
@@ -62,8 +58,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
             return
         }
         Log.i(logTag, "surfaceChanged format=$format size=${width}x$height")
-        rendererHost.attachSurface(holder.surface)
-        rendererHost.setSuspended(false)
+        recoverRenderer("surfaceChanged")
         syncClipboardFromSystem()
         syncTextInputState()
         scheduleFrame()
@@ -75,6 +70,8 @@ class TinaluxSurfaceView @JvmOverloads constructor(
         cancelFrame()
         rendererHost.setSuspended(true)
         rendererHost.detachSurface()
+        consecutiveRenderFailures = 0
+        lastRenderHealthy = true
         syncTextInputState(force = true)
     }
 
@@ -91,15 +88,25 @@ class TinaluxSurfaceView @JvmOverloads constructor(
             if (!lastRenderHealthy) {
                 Log.i(logTag, "render loop recovered")
             }
+            consecutiveRenderFailures = 0
             lastRenderHealthy = true
             syncClipboardToSystem()
             syncTextInputState()
             scheduleFrame()
-        } else if (lastRenderHealthy) {
-            lastRenderHealthy = false
+            return
+        }
+
+        consecutiveRenderFailures += 1
+        lastRenderHealthy = false
+        if (recoverRenderer("renderOnce=false#$consecutiveRenderFailures")) {
+            scheduleFrame()
+            return
+        }
+
+        if (consecutiveRenderFailures == 1 || consecutiveRenderFailures % 30 == 0) {
             Log.w(
                 logTag,
-                "renderOnce returned false surfaceReady=$surfaceReady suspended=${rendererHost.isSuspended()} demoSceneInstalled=$demoSceneInstalled",
+                "renderOnce returned false surfaceReady=$surfaceReady suspended=${rendererHost.isSuspended()} demoSceneInstalled=$demoSceneInstalled failures=$consecutiveRenderFailures",
             )
         }
     }
@@ -169,12 +176,15 @@ class TinaluxSurfaceView @JvmOverloads constructor(
         rendererHost.setSuspended(true)
         syncClipboardToSystem()
         rendererHost.close()
+        consecutiveRenderFailures = 0
+        lastRenderHealthy = true
         syncTextInputState(force = true)
     }
 
     fun onHostPause() {
         cancelFrame()
         rendererHost.setSuspended(true)
+        consecutiveRenderFailures = 0
         syncClipboardToSystem()
         syncTextInputState(force = true)
     }
@@ -184,7 +194,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
             return
         }
 
-        rendererHost.setSuspended(false)
+        recoverRenderer("hostResume")
         syncClipboardFromSystem()
         syncTextInputState(force = true)
         scheduleFrame()
@@ -204,6 +214,32 @@ class TinaluxSurfaceView @JvmOverloads constructor(
         }
         Choreographer.getInstance().removeFrameCallback(this)
         frameCallbackPosted = false
+    }
+
+    private fun recoverRenderer(reason: String): Boolean {
+        if (!surfaceReady) {
+            return false
+        }
+
+        val surface = holder.surface
+        if (!surface.isValid) {
+            Log.w(logTag, "skip renderer recovery because surface is invalid reason=$reason")
+            return false
+        }
+
+        val needsSceneInstall = !demoSceneInstalled || !rendererHost.isSessionActive()
+        return try {
+            rendererHost.attachSurface(surface)
+            rendererHost.setSuspended(false)
+            if (needsSceneInstall) {
+                demoSceneInstalled = rendererHost.installDemoScene()
+                Log.i(logTag, "installDemoScene result=$demoSceneInstalled reason=$reason")
+            }
+            true
+        } catch (error: IllegalStateException) {
+            Log.e(logTag, "renderer recovery failed reason=$reason", error)
+            false
+        }
     }
 
     private fun clipboardManager(): ClipboardManager? {

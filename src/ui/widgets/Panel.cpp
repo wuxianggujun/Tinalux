@@ -184,7 +184,9 @@ void Panel::drawPartial(rendering::Canvas& canvas, const core::Rect& redrawRegio
         style.cornerRadius,
         style.cornerRadius,
         style.backgroundColor);
-    drawPartialChildren(canvas, redrawRegion);
+    // Panel background redraw can overwrite clean descendants inside the same region,
+    // so repaint the whole child subtree whenever the panel itself repaints.
+    drawChildren(canvas);
 
     canvas.restore();
     clearDirtyState();

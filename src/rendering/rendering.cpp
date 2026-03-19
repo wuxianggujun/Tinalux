@@ -221,10 +221,21 @@ void Canvas::drawText(
     float fontSize,
     core::Color color)
 {
+    if (text.empty()) {
+        return;
+    }
+
     if (auto* skia = RenderAccess::skiaCanvas(*this); skia != nullptr) {
         const SkFont& font = cachedFont(fontSize);
         SkPaint paint = makePaint(color, PaintStyle::Fill, 1.0f);
-        skia->drawString(text.data(), x, y, font, paint);
+        skia->drawSimpleText(
+            text.data(),
+            text.size(),
+            SkTextEncoding::kUTF8,
+            x,
+            y,
+            font,
+            paint);
     }
 }
 

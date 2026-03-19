@@ -101,6 +101,9 @@ struct Application::Impl {
 Application::Application()
     : impl_(std::make_unique<Impl>())
 {
+    // Window-backed swapchains do not guarantee preserved pixels across swaps,
+    // so live application rendering must redraw the full scene.
+    impl_->uiContext.setPartialRedrawEnabled(false);
 }
 
 Application::~Application()
@@ -493,6 +496,16 @@ void Application::handleEvent(core::Event& event)
         impl_->syncedDevicePixelRatio);
     impl_->uiContext.handleEvent(event, [this] { requestClose(); }, dpiScale);
     syncTextInputState();
+}
+
+std::shared_ptr<ui::Widget> Application::buildWidgetTree(
+    const std::function<std::shared_ptr<ui::Widget>()>& builder)
+{
+    if (!impl_) {
+        return {};
+    }
+
+    return impl_->uiContext.buildWidgetTree(builder);
 }
 
 void Application::setRootWidget(std::shared_ptr<ui::Widget> root)

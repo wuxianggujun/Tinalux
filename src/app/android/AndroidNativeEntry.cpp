@@ -145,8 +145,9 @@ bool tinaluxAndroidInstallDemoScene(void* runtimeHandle)
         static_cast<unsigned int>(theme.colors.background),
         static_cast<unsigned int>(theme.colors.primary));
     application->setTheme(theme);
-    application->setRootWidget(
-        tinalux::ui::createDemoScene(theme, application->animationSink()));
+    application->setRootWidget(application->buildWidgetTree([application, theme] {
+        return tinalux::ui::createDemoScene(theme, application->animationSink());
+    }));
     tinalux::core::logInfoCat(
         "app.android",
         "Android demo scene installation finished");
@@ -355,4 +356,10 @@ bool tinaluxAndroidIsSuspended(void* runtimeHandle)
 {
     auto* runtime = runtimeFromHandle(runtimeHandle);
     return runtime != nullptr && runtime->suspended();
+}
+
+bool tinaluxAndroidIsSessionActive(void* runtimeHandle)
+{
+    auto* runtime = runtimeFromHandle(runtimeHandle);
+    return runtime != nullptr && runtime->sessionActive();
 }

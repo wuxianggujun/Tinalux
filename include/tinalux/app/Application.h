@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Theme.h"
@@ -68,6 +69,8 @@ public:
     void shutdown();
 
     void handleEvent(core::Event& event);
+    std::shared_ptr<ui::Widget> buildWidgetTree(
+        const std::function<std::shared_ptr<ui::Widget>()>& builder);
     void setRootWidget(std::shared_ptr<ui::Widget> root);
     void setOverlayWidget(std::shared_ptr<ui::Widget> overlay);
     void clearOverlayWidget();

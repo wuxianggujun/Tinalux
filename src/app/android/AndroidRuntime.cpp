@@ -463,4 +463,9 @@ bool AndroidRuntime::suspended() const
     return impl_ != nullptr && impl_->suspended;
 }
 
+bool AndroidRuntime::sessionActive() const
+{
+    return impl_ != nullptr && impl_->sessionActive;
+}
+
 }  // namespace tinalux::app::android

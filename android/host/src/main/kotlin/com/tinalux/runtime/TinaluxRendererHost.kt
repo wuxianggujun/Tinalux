@@ -190,6 +190,13 @@ class TinaluxRendererHost(
         return TinaluxNativeBridge.nativeIsSuspended(runtimeHandle)
     }
 
+    fun isSessionActive(): Boolean {
+        if (runtimeHandle == 0L) {
+            return false
+        }
+        return TinaluxNativeBridge.nativeIsSessionActive(runtimeHandle)
+    }
+
     override fun close() {
         detachSurface()
         if (runtimeHandle == 0L) {

@@ -179,6 +179,11 @@ tinalux_add_smoke_test(TinaluxUIDemoSceneSmoke
     COPY_SKIA_DATA
 )
 
+tinalux_add_smoke_test(TinaluxUIDemoSceneHoverIsolationSmoke
+    SOURCE ui/demo_scene_hover_isolation_smoke.cpp
+    LINK_LIBS Tinalux::App
+)
+
 tinalux_add_smoke_test(TinaluxUIMobileThemeSmoke
     SOURCE ui/mobile_theme_smoke.cpp
     LINK_LIBS Tinalux::UI

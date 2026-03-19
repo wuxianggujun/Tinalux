@@ -23,12 +23,12 @@ ButtonStyle makeNavigationButtonStyle(Theme theme, bool selected)
     ButtonStyle style = selected
         ? ButtonStyle::primary(theme.colors, theme.typography, theme.spacingScale)
         : ButtonStyle::outlined(theme.colors, theme.typography, theme.spacingScale);
-    style.minWidth = 0.0f;
-    style.minHeight = 44.0f;
+    style.minWidth = -1.0f;
+    style.minHeight = theme.minimumTouchTargetSize > 0.0f ? 48.0f : 44.0f;
     style.borderRadius = theme.cornerRadius();
     style.paddingHorizontal = 14.0f;
     style.paddingVertical = 10.0f;
-    style.textStyle.fontSize = theme.bodyFontSize() - 1.0f;
+    style.textStyle.fontSize = theme.bodyFontSize();
     style.textStyle.bold = true;
     if (selected) {
         style.borderColor.normal = theme.colors.border;
@@ -36,15 +36,15 @@ ButtonStyle makeNavigationButtonStyle(Theme theme, bool selected)
         style.borderColor.pressed = theme.colors.primaryVariant;
         style.borderColor.focused = theme.colors.border;
     } else {
-        style.backgroundColor.normal = theme.colors.surfaceVariant;
-        style.backgroundColor.hovered = theme.colors.surface;
-        style.backgroundColor.pressed = theme.colors.surface;
+        style.backgroundColor.normal = theme.colors.surface;
+        style.backgroundColor.hovered = theme.colors.surfaceVariant;
+        style.backgroundColor.pressed = theme.colors.surfaceVariant;
         style.backgroundColor.focused = theme.colors.surfaceVariant;
-        style.textColor.normal = theme.secondaryTextColor();
+        style.textColor.normal = theme.textColor();
         style.textColor.hovered = theme.textColor();
         style.textColor.pressed = theme.textColor();
         style.textColor.focused = theme.textColor();
-        style.borderColor.normal = theme.colors.divider;
+        style.borderColor.normal = theme.colors.border;
         style.borderColor.hovered = theme.colors.border;
         style.borderColor.pressed = theme.colors.border;
         style.borderColor.focused = theme.colors.border;

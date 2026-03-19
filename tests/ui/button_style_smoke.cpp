@@ -6,6 +6,7 @@
 
 #include "../../src/rendering/RenderHandles.h"
 #include "../../src/ui/RuntimeState.h"
+#include "../../src/ui/TextPrimitives.h"
 #include "tinalux/core/events/Event.h"
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Button.h"
@@ -57,6 +58,25 @@ tinalux::core::Color readPixel(
         y);
     expect(read, "snapshot pixel read should succeed");
     return tinalux::core::colorARGB(pixel[3], pixel[0], pixel[1], pixel[2]);
+}
+
+int countDistinctPixels(
+    const tinalux::rendering::RenderSurface& surface,
+    int left,
+    int top,
+    int right,
+    int bottom,
+    tinalux::core::Color background)
+{
+    int count = 0;
+    for (int y = top; y <= bottom; y += 2) {
+        for (int x = left; x <= right; x += 2) {
+            if (!nearlyEqualColor(readPixel(surface, x, y), background)) {
+                ++count;
+            }
+        }
+    }
+    return count;
 }
 
 class ProbeButton final : public tinalux::ui::Button {
@@ -114,6 +134,40 @@ int main()
     expect(
         nearlyEqualColor(readPixel(defaultSurface, 48, 24), runtime.theme.buttonStyle.backgroundColor.normal),
         "default primary button should paint its normal background before hover");
+
+    ProbeButton textButton("Overview");
+    const core::Size textButtonSize = textButton.measure(ui::Constraints::loose(240.0f, 80.0f));
+    textButton.arrange(core::Rect::MakeXYWH(0.0f, 0.0f, textButtonSize.width(), textButtonSize.height()));
+
+    const rendering::RenderSurface textSurface = rendering::createRasterSurface(
+        static_cast<int>(std::ceil(textButtonSize.width())),
+        static_cast<int>(std::ceil(textButtonSize.height())));
+    expect(static_cast<bool>(textSurface), "text button test should create raster surface");
+    rendering::Canvas textCanvas = textSurface.canvas();
+    expect(static_cast<bool>(textCanvas), "text button test should expose canvas");
+
+    textButton.draw(textCanvas);
+    const ui::TextMetrics textMetrics = ui::measureTextMetrics(
+        "Overview",
+        textButton.effectiveStyle().textStyle.fontSize);
+    const float contentWidth = textMetrics.width;
+    const float textLeft = (textButtonSize.width() - contentWidth) * 0.5f + textMetrics.drawX;
+    const float textTop =
+        (textButtonSize.height() - textMetrics.height) * 0.5f;
+    const int differingTextPixels = countDistinctPixels(
+        textSurface,
+        std::max(0, static_cast<int>(std::floor(textLeft))),
+        std::max(0, static_cast<int>(std::floor(textTop))),
+        std::min(
+            static_cast<int>(std::ceil(textButtonSize.width())) - 1,
+            static_cast<int>(std::ceil(textLeft + textMetrics.width))),
+        std::min(
+            static_cast<int>(std::ceil(textButtonSize.height())) - 1,
+            static_cast<int>(std::ceil(textTop + textMetrics.height))),
+        textButton.effectiveStyle().backgroundColor.normal);
+    expect(
+        differingTextPixels > 0,
+        "button text draw should produce visible non-background pixels inside the expected text bounds");
 
     ui::ButtonStyle customStyle = runtime.theme.buttonStyle;
     customStyle.paddingHorizontal = 36.0f;

@@ -34,6 +34,8 @@ public:
         core::Event& event,
         const std::function<void()>& requestClose,
         float dpiScale = 1.0f);
+    std::shared_ptr<ui::Widget> buildWidgetTree(
+        const std::function<std::shared_ptr<ui::Widget>()>& builder);
     void setRootWidget(std::shared_ptr<ui::Widget> root);
     void setOverlayWidget(std::shared_ptr<ui::Widget> overlay);
     void clearOverlayWidget();
@@ -46,6 +48,8 @@ public:
 
     void setTheme(ui::Theme theme);
     ui::Theme theme() const;
+    void setPartialRedrawEnabled(bool enabled);
+    bool partialRedrawEnabled() const;
 
     void setPerfLogConfig(PerfLogConfig config);
     PerfLogConfig perfLogConfig() const;
@@ -126,6 +130,7 @@ private:
     std::uint64_t themeRuntimeBindingId_ = 0;
     bool loggedEmptyScene_ = false;
     bool loggedSceneReady_ = false;
+    bool partialRedrawEnabled_ = true;
     bool shutdown_ = false;
     std::unique_ptr<ui::RuntimeState> runtimeState_;
 };

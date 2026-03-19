@@ -341,6 +341,9 @@ core::Size Button::measure(const Constraints& constraints)
 {
     const ButtonStyle& style = resolvedStyle();
     const TextMetrics metrics = measureTextMetrics(label_, style.textStyle.fontSize);
+    const float minimumWidth = style.minWidth < 0.0f && std::isfinite(constraints.maxWidth)
+        ? constraints.maxWidth
+        : style.minWidth;
     const bool reserveIconSlot = static_cast<bool>(icon_)
         || iconLoading_
         || iconLoadState_ == ButtonIconLoadState::Failed;
@@ -355,7 +358,7 @@ core::Size Button::measure(const Constraints& constraints)
     const float contentHeight = std::max(metrics.height, resolvedIconSize.height());
 
     return constraints.constrain(core::Size::Make(
-        std::max(style.minWidth, contentWidth + style.paddingHorizontal * 2.0f),
+        std::max(minimumWidth, contentWidth + style.paddingHorizontal * 2.0f),
         std::max(style.minHeight, contentHeight + style.paddingVertical * 2.0f)));
 }
 
