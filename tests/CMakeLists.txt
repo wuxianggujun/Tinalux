@@ -70,6 +70,11 @@ tinalux_add_smoke_test(TinaluxCoreMetalSurfaceSmoke
     LINK_LIBS Tinalux::Rendering
 )
 
+tinalux_add_smoke_test(TinaluxPlatformGLFWDpiScaleSmoke
+    SOURCE platform/glfw_window_scale_smoke.cpp
+    LINK_LIBS Tinalux::Platform
+)
+
 tinalux_add_smoke_test(TinaluxAppBackendPlanSmoke
     SOURCE app/backend_plan_smoke.cpp
     LINK_LIBS Tinalux::App

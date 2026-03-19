@@ -9,6 +9,7 @@
 #include "tinalux/core/Log.h"
 #include "tinalux/core/events/Event.h"
 #include "../../rendering/HandleCast.h"
+#include "WindowScaleUtils.h"
 
 #define GLFW_INCLUDE_NONE
 #include <glad/vulkan.h>
@@ -772,27 +773,35 @@ void GLFWWindow::updateWindowMetrics()
 
     glfwGetWindowSize(window_, &windowWidth_, &windowHeight_);
     glfwGetFramebufferSize(window_, &framebufferWidth_, &framebufferHeight_);
-
-    if (windowWidth_ > 0) {
-        dpiScale_ =
-            static_cast<float>(framebufferWidth_) / static_cast<float>(windowWidth_);
-    } else {
-        dpiScale_ = 1.0f;
-    }
+    float contentScaleX = 1.0f;
+    float contentScaleY = 1.0f;
+    glfwGetWindowContentScale(window_, &contentScaleX, &contentScaleY);
+    dpiScale_ = detail::resolveWindowDpiScale(
+        windowWidth_,
+        windowHeight_,
+        framebufferWidth_,
+        framebufferHeight_,
+        contentScaleX,
+        contentScaleY);
 }
 
 void GLFWWindow::onFramebufferResize(GLFWwindow* w, int width, int height)
 {
     if (GLFWWindow* self = selfFromWindow(w); self != nullptr) {
         self->updateWindowMetrics();
+        float contentScaleX = 1.0f;
+        float contentScaleY = 1.0f;
+        glfwGetWindowContentScale(w, &contentScaleX, &contentScaleY);
         core::logDebugCat(
             "platform",
-            "Window framebuffer resized to {}x{} (window={}x{}, dpi_scale={:.2f})",
+            "Window framebuffer resized to {}x{} (window={}x{}, dpi_scale={:.2f}, content_scale={:.2f}x{:.2f})",
             self->framebufferWidth(),
             self->framebufferHeight(),
             self->width(),
             self->height(),
-            self->dpiScale());
+            self->dpiScale(),
+            detail::sanitizeWindowScale(contentScaleX),
+            detail::sanitizeWindowScale(contentScaleY));
         if (self->eventCallback_) {
             core::WindowResizeEvent event(width, height);
             self->eventCallback_(event);
