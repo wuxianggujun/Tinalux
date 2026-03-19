@@ -115,6 +115,25 @@ bool nearlyEqual(float lhs, float rhs)
     return std::abs(lhs - rhs) <= 0.001f;
 }
 
+std::optional<float> getEnvScaleOverride(const char* name)
+{
+    const char* raw = std::getenv(name);
+    if (raw == nullptr || *raw == '\0') {
+        return std::nullopt;
+    }
+
+    try {
+        std::size_t parsedCharacters = 0;
+        const float parsed = std::stof(raw, &parsedCharacters);
+        if (parsedCharacters != std::string(raw).size() || !std::isfinite(parsed) || parsed <= 0.0f) {
+            return std::nullopt;
+        }
+        return parsed;
+    } catch (...) {
+        return std::nullopt;
+    }
+}
+
 float sanitizeDesktopScale(float value)
 {
     if (!std::isfinite(value) || value <= 1.0f) {
@@ -190,6 +209,32 @@ Theme adaptThemeForDesktopDensity(Theme theme)
     return theme;
 }
 
+Theme applyDesktopEnvironmentOverrides(Theme theme)
+{
+    if (theme.minimumTouchTargetSize > 0.0f) {
+        return theme;
+    }
+
+    const std::optional<float> textScale = getEnvScaleOverride("TINALUX_DESKTOP_TEXT_SCALE");
+    const std::optional<float> spacingScale = getEnvScaleOverride("TINALUX_DESKTOP_SPACING_SCALE");
+    if (!textScale.has_value() && !spacingScale.has_value()) {
+        return theme;
+    }
+
+    if (textScale.has_value()) {
+        scaleTypography(theme.typography, *textScale);
+        theme.fontScale *= *textScale;
+    }
+
+    if (spacingScale.has_value()) {
+        scaleSpacing(theme.spacingScale, *spacingScale);
+        theme.platformScale *= *spacingScale;
+    }
+
+    theme.refreshComponentStyles();
+    return theme;
+}
+
 Theme interpolateTheme(const Theme& from, const Theme& to, float t)
 {
     Theme interpolated = from;
@@ -210,6 +255,7 @@ Theme interpolateTheme(const Theme& from, const Theme& to, float t)
 Theme normalizeTheme(Theme theme)
 {
     theme = adaptThemeForDesktopDensity(std::move(theme));
+    theme = applyDesktopEnvironmentOverrides(std::move(theme));
     theme.refreshComponentStyles();
     return theme;
 }
