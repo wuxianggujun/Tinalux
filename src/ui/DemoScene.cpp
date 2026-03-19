@@ -25,29 +25,29 @@ ButtonStyle makeNavigationButtonStyle(Theme theme, bool selected)
         : ButtonStyle::outlined(theme.colors, theme.typography, theme.spacingScale);
     style.minWidth = 0.0f;
     style.minHeight = 44.0f;
-    style.borderRadius = theme.cornerRadius;
+    style.borderRadius = theme.cornerRadius();
     style.paddingHorizontal = 14.0f;
     style.paddingVertical = 10.0f;
-    style.textStyle.fontSize = theme.fontSize - 1.0f;
+    style.textStyle.fontSize = theme.bodyFontSize() - 1.0f;
     style.textStyle.bold = true;
     if (selected) {
-        style.borderColor.normal = theme.border;
-        style.borderColor.hovered = theme.border;
+        style.borderColor.normal = theme.colors.border;
+        style.borderColor.hovered = theme.colors.border;
         style.borderColor.pressed = theme.colors.primaryVariant;
-        style.borderColor.focused = theme.border;
+        style.borderColor.focused = theme.colors.border;
     } else {
         style.backgroundColor.normal = theme.colors.surfaceVariant;
-        style.backgroundColor.hovered = theme.surface;
-        style.backgroundColor.pressed = theme.surface;
+        style.backgroundColor.hovered = theme.colors.surface;
+        style.backgroundColor.pressed = theme.colors.surface;
         style.backgroundColor.focused = theme.colors.surfaceVariant;
-        style.textColor.normal = theme.textSecondary;
-        style.textColor.hovered = theme.text;
-        style.textColor.pressed = theme.text;
-        style.textColor.focused = theme.text;
+        style.textColor.normal = theme.secondaryTextColor();
+        style.textColor.hovered = theme.textColor();
+        style.textColor.pressed = theme.textColor();
+        style.textColor.focused = theme.textColor();
         style.borderColor.normal = theme.colors.divider;
-        style.borderColor.hovered = theme.border;
-        style.borderColor.pressed = theme.border;
-        style.borderColor.focused = theme.border;
+        style.borderColor.hovered = theme.colors.border;
+        style.borderColor.pressed = theme.colors.border;
+        style.borderColor.focused = theme.colors.border;
         style.borderWidth.normal = 1.0f;
         style.borderWidth.hovered = 1.0f;
         style.borderWidth.pressed = 1.0f;
@@ -90,27 +90,27 @@ private:
         pageSummary_.reset();
         contentHost_.reset();
 
-        setBackgroundColor(theme_.background);
+        setBackgroundColor(theme_.colors.background);
         setCornerRadius(0.0f);
 
         auto rootLayout = std::make_unique<VBoxLayout>();
         rootLayout->padding = theme_.minimumTouchTargetSize > 0.0f ? 20.0f : 36.0f;
-        rootLayout->spacing = theme_.spacing;
+        rootLayout->spacing = theme_.contentSpacing();
         setLayout(std::move(rootLayout));
 
         auto eyebrow = std::make_shared<Label>("TIN ALUX");
         eyebrow->setFontSize(13.0f);
-        eyebrow->setColor(theme_.primary);
+        eyebrow->setColor(theme_.colors.primary);
         addChild(eyebrow);
 
         auto title = std::make_shared<Label>("Component Showcase");
-        title->setFontSize(theme_.fontSizeLarge + 6.0f);
+        title->setFontSize(theme_.titleFontSize() + 6.0f);
         addChild(title);
 
         auto subtitle = std::make_shared<ParagraphLabel>(
             "DemoScene now routes into focused showcase pages instead of stacking every capability into one surface.");
-        subtitle->setFontSize(theme_.fontSize);
-        subtitle->setColor(theme_.textSecondary);
+        subtitle->setFontSize(theme_.bodyFontSize());
+        subtitle->setColor(theme_.secondaryTextColor());
         subtitle->setMaxLines(3);
         addChild(subtitle);
 
@@ -134,18 +134,18 @@ private:
         shell->setLayout(std::move(responsiveLayout));
 
         auto navPanel = std::make_shared<Panel>();
-        navPanel->setBackgroundColor(theme_.surface);
-        navPanel->setCornerRadius(theme_.cornerRadius + 4.0f);
+        navPanel->setBackgroundColor(theme_.colors.surface);
+        navPanel->setCornerRadius(theme_.cornerRadius() + 4.0f);
         auto navLayout = std::make_unique<VBoxLayout>();
         navLayout->padding = 20.0f;
         navLayout->spacing = 10.0f;
         navPanel->setLayout(std::move(navLayout));
 
         auto navTitle = std::make_shared<Label>("Showcase Pages");
-        navTitle->setFontSize(theme_.fontSizeLarge - 6.0f);
+        navTitle->setFontSize(theme_.titleFontSize() - 6.0f);
         auto navHint = std::make_shared<ParagraphLabel>(
             "Each page isolates a capability lane so the demo can keep growing without turning back into one giant widget tree.");
-        navHint->setColor(theme_.textSecondary);
+        navHint->setColor(theme_.secondaryTextColor());
         navHint->setMaxLines(4);
 
         auto navButtonsColumn = std::make_shared<Container>();
@@ -155,7 +155,7 @@ private:
 
         auto navFootnote = std::make_shared<ParagraphLabel>(
             "Switch pages to compare layout, form, rich text, and list behaviors independently.");
-        navFootnote->setColor(theme_.textSecondary);
+        navFootnote->setColor(theme_.secondaryTextColor());
         navFootnote->setMaxLines(3);
 
         navPanel->addChild(navTitle);
@@ -164,8 +164,8 @@ private:
         navPanel->addChild(navFootnote);
 
         auto contentPanel = std::make_shared<Panel>();
-        contentPanel->setBackgroundColor(theme_.surface);
-        contentPanel->setCornerRadius(theme_.cornerRadius + 6.0f);
+        contentPanel->setBackgroundColor(theme_.colors.surface);
+        contentPanel->setCornerRadius(theme_.cornerRadius() + 6.0f);
         auto contentLayout = std::make_unique<VBoxLayout>();
         contentLayout->padding = 24.0f;
         contentLayout->spacing = 14.0f;
@@ -173,11 +173,11 @@ private:
 
         auto pageEyebrow = std::make_shared<Label>("Current Page");
         pageEyebrow->setFontSize(13.0f);
-        pageEyebrow->setColor(theme_.primary);
+        pageEyebrow->setColor(theme_.colors.primary);
         pageTitle_ = std::make_shared<Label>("Overview");
-        pageTitle_->setFontSize(theme_.fontSizeLarge);
+        pageTitle_->setFontSize(theme_.titleFontSize());
         pageSummary_ = std::make_shared<ParagraphLabel>("");
-        pageSummary_->setColor(theme_.textSecondary);
+        pageSummary_->setColor(theme_.secondaryTextColor());
         pageSummary_->setMaxLines(4);
 
         contentHost_ = std::make_shared<Container>();
@@ -202,7 +202,7 @@ private:
                 currentCategory = pages_[index].category;
                 auto categoryLabel = std::make_shared<Label>(currentCategory);
                 categoryLabel->setFontSize(12.0f);
-                categoryLabel->setColor(theme_.textSecondary);
+                categoryLabel->setColor(theme_.secondaryTextColor());
                 navButtonsColumn->addChild(categoryLabel);
             }
 

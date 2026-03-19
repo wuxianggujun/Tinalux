@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "include/core/SkColor.h"
+#include "../../src/ui/RuntimeState.h"
 #include "tinalux/app/Application.h"
 #include "tinalux/core/events/Event.h"
 #include "tinalux/ui/Button.h"
@@ -28,6 +29,8 @@ void expect(bool condition, const char* message)
 int main()
 {
     using namespace tinalux;
+    ui::RuntimeState runtime;
+    ui::ScopedRuntimeState bind(runtime);
 
     auto root = std::make_shared<ui::Panel>();
     auto rootLayout = std::make_unique<ui::VBoxLayout>();

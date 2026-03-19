@@ -20,11 +20,11 @@ using namespace support;
 
 std::shared_ptr<Widget> createAuthFormPage(Theme theme, AnimationSink& animations)
 {
-    const rendering::Image userIcon = makeUserIcon(theme.primary, 18.0f);
-    const rendering::Image lockIcon = makeLockIcon(theme.primary, 18.0f);
-    const rendering::Image clearIcon = makeClearIcon(theme.textSecondary, 16.0f);
-    const rendering::Image loginIcon = makeLockIcon(theme.onPrimary, 16.0f);
-    const rendering::Image clearButtonIcon = makeClearIcon(theme.onPrimary, 16.0f);
+    const rendering::Image userIcon = makeUserIcon(theme.colors.primary, 18.0f);
+    const rendering::Image lockIcon = makeLockIcon(theme.colors.primary, 18.0f);
+    const rendering::Image clearIcon = makeClearIcon(theme.secondaryTextColor(), 16.0f);
+    const rendering::Image loginIcon = makeLockIcon(theme.colors.onPrimary, 16.0f);
+    const rendering::Image clearButtonIcon = makeClearIcon(theme.colors.onPrimary, 16.0f);
 
     auto column = makePageColumn();
     auto loginCard = makeInfoCard(
@@ -32,25 +32,25 @@ std::shared_ptr<Widget> createAuthFormPage(Theme theme, AnimationSink& animation
         "This page isolates text input, button, and validation interactions from the other showcase content.",
         theme);
     auto emailCaption = std::make_shared<Label>("Email");
-    emailCaption->setColor(theme.textSecondary);
+    emailCaption->setColor(theme.secondaryTextColor());
     auto emailInput = std::make_shared<TextInput>("name@company.com");
     emailInput->setLeadingIcon(userIcon);
     emailInput->setTrailingIcon(clearIcon);
     auto passwordCaption = std::make_shared<Label>("Password");
-    passwordCaption->setColor(theme.textSecondary);
+    passwordCaption->setColor(theme.secondaryTextColor());
     auto passwordInput = std::make_shared<TextInput>("Enter your password");
     passwordInput->setObscured(true);
     passwordInput->setLeadingIcon(lockIcon);
     passwordInput->setTrailingIcon(clearIcon);
     auto status = std::make_shared<Label>("Live");
-    status->setColor(theme.textSecondary);
+    status->setColor(theme.secondaryTextColor());
 
     auto actionRow = std::make_shared<Panel>();
-    actionRow->setBackgroundColor(theme.background);
-    actionRow->setCornerRadius(theme.cornerRadius);
+    actionRow->setBackgroundColor(theme.colors.background);
+    actionRow->setCornerRadius(theme.cornerRadius());
     auto actionLayout = std::make_unique<HBoxLayout>();
-    actionLayout->padding = 12.0f;
-    actionLayout->spacing = 12.0f;
+    actionLayout->padding = compactPadding(theme);
+    actionLayout->spacing = compactSpacing(theme);
     actionRow->setLayout(std::move(actionLayout));
 
     auto loginButton = std::make_shared<Button>("Sign In");
@@ -63,7 +63,7 @@ std::shared_ptr<Widget> createAuthFormPage(Theme theme, AnimationSink& animation
             return;
         }
         status->setText("Signing in as " + emailInput->text());
-        status->setColor(theme.primary);
+        status->setColor(theme.colors.primary);
     });
 
     auto clearButton = std::make_shared<Button>("Clear");
@@ -73,7 +73,7 @@ std::shared_ptr<Widget> createAuthFormPage(Theme theme, AnimationSink& animation
         emailInput->setText("");
         passwordInput->setText("");
         status->setText("Form cleared");
-        status->setColor(theme.textSecondary);
+        status->setColor(theme.secondaryTextColor());
     });
     actionRow->addChild(loginButton);
     actionRow->addChild(clearButton);
@@ -95,7 +95,7 @@ std::shared_ptr<Widget> createAuthFormPage(Theme theme, AnimationSink& animation
             .easing = Easing::EaseInOut,
         },
         [status, theme](float value) {
-            status->setColor(lerpColor(theme.textSecondary, theme.primary, value));
+            status->setColor(lerpColor(theme.secondaryTextColor(), theme.colors.primary, value));
         });
 
     column->addChild(loginCard);
@@ -122,7 +122,7 @@ std::shared_ptr<Widget> createControlsPage(Theme theme)
     slider->setStep(20.0f);
     slider->setValue(240.0f);
     auto controlsStatus = std::make_shared<Label>("Password reveal is off.");
-    controlsStatus->setColor(theme.textSecondary);
+    controlsStatus->setColor(theme.secondaryTextColor());
 
     controlsCard->addChild(revealPassword);
     controlsCard->addChild(autoRefresh);
@@ -133,22 +133,22 @@ std::shared_ptr<Widget> createControlsPage(Theme theme)
 
     revealPassword->onToggle([controlsStatus, theme](bool checked) {
         controlsStatus->setText(checked ? "Reveal password is on." : "Reveal password is off.");
-        controlsStatus->setColor(checked ? theme.primary : theme.textSecondary);
+        controlsStatus->setColor(checked ? theme.colors.primary : theme.secondaryTextColor());
     });
     autoRefresh->onToggle([controlsStatus, theme](bool on) {
         controlsStatus->setText(on ? "Auto refresh is on." : "Auto refresh is off.");
-        controlsStatus->setColor(on ? theme.primary : theme.textSecondary);
+        controlsStatus->setColor(on ? theme.colors.primary : theme.secondaryTextColor());
     });
     reviewA->onChanged([controlsStatus, theme](bool selected) {
         if (selected) {
             controlsStatus->setText("Standard review keeps the interaction profile balanced.");
-            controlsStatus->setColor(theme.textSecondary);
+            controlsStatus->setColor(theme.secondaryTextColor());
         }
     });
     reviewB->onChanged([controlsStatus, theme](bool selected) {
         if (selected) {
             controlsStatus->setText("Strict review raises the interaction threshold.");
-            controlsStatus->setColor(theme.primary);
+            controlsStatus->setColor(theme.colors.primary);
         }
     });
     slider->onValueChanged([controlsStatus](float value) {

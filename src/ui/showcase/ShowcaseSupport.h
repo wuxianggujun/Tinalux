@@ -36,6 +36,11 @@ rendering::Image makeSearchIcon(core::Color color, float sizeHint);
 
 std::string lowerAscii(std::string_view text);
 bool matchesActivityEntry(const ActivityEntry& entry, std::string_view query);
+float sectionPadding(const Theme& theme);
+float sectionSpacing(const Theme& theme);
+float compactPadding(const Theme& theme);
+float compactSpacing(const Theme& theme);
+float denseSpacing(const Theme& theme);
 
 std::shared_ptr<Container> makePageColumn(float spacing = 18.0f);
 std::shared_ptr<Panel> makeInfoCard(const std::string& title, const std::string& body, Theme theme);

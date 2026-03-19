@@ -3,6 +3,7 @@
 #include <iostream>
 #include <memory>
 
+#include "../../src/ui/RuntimeState.h"
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
 #include "tinalux/ui/Checkbox.h"
@@ -28,6 +29,8 @@ void expect(bool condition, const char* message)
 int main()
 {
     using namespace tinalux;
+    ui::RuntimeState runtime;
+    ui::ScopedRuntimeState bind(runtime);
 
     auto root = std::make_shared<ui::Panel>();
     auto layout = std::make_unique<ui::VBoxLayout>();

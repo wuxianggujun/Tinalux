@@ -36,6 +36,10 @@ public:
     /// 设置进度条高度
     void setHeight(float height);
     float height() const { return height_; }
+
+    /// 设置首选宽度。负值表示在有限约束下填满父容器。
+    void setPreferredWidth(float width);
+    float preferredWidth() const { return preferredWidth_; }
     
     /// 设置进度条颜色
     void setColor(core::Color color);
@@ -54,6 +58,7 @@ private:
     float max_ = 100.0f;
     float value_ = 0.0f;
     float height_ = 8.0f;
+    float preferredWidth_ = 200.0f;
     bool indeterminate_ = false;
     core::Color color_ = core::colorRGB(33, 150, 243);  // Material Blue
     core::Color backgroundColor_ = core::colorRGB(200, 200, 200);

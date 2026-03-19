@@ -7,6 +7,7 @@
 
 #include "include/core/SkColor.h"
 #include "../../src/app/UIContext.h"
+#include "../../src/ui/RuntimeState.h"
 #include "tinalux/app/Application.h"
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
@@ -178,6 +179,9 @@ private:
 
 int main()
 {
+    tinalux::ui::RuntimeState runtime;
+    tinalux::ui::ScopedRuntimeState bind(runtime);
+
     {
         tinalux::app::Application app;
         tinalux::app::PerfLogConfig perfConfig {

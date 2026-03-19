@@ -8,6 +8,12 @@
 
 namespace tinalux::ui {
 
+namespace {
+
+constexpr float kDefaultProgressBarWidth = 200.0f;
+
+}  // namespace
+
 ProgressBar::ProgressBar(float min, float max)
     : min_(min), max_(max)
 {
@@ -18,7 +24,7 @@ void ProgressBar::setValue(float value)
     float newValue = std::clamp(value, min_, max_);
     if (value_ != newValue) {
         value_ = newValue;
-        markDirty();
+        markPaintDirty();
     }
 }
 
@@ -28,7 +34,7 @@ void ProgressBar::setRange(float min, float max)
         min_ = min;
         max_ = max;
         value_ = std::clamp(value_, min_, max_);
-        markDirty();
+        markPaintDirty();
     }
 }
 
@@ -36,7 +42,7 @@ void ProgressBar::setIndeterminate(bool indeterminate)
 {
     if (indeterminate_ != indeterminate) {
         indeterminate_ = indeterminate;
-        markDirty();
+        markPaintDirty();
     }
 }
 
@@ -48,11 +54,19 @@ void ProgressBar::setHeight(float height)
     }
 }
 
+void ProgressBar::setPreferredWidth(float width)
+{
+    if (preferredWidth_ != width) {
+        preferredWidth_ = width;
+        markLayoutDirty();
+    }
+}
+
 void ProgressBar::setColor(core::Color color)
 {
     if (color_ != color) {
         color_ = color;
-        markDirty();
+        markPaintDirty();
     }
 }
 
@@ -60,54 +74,55 @@ void ProgressBar::setBackgroundColor(core::Color bgColor)
 {
     if (backgroundColor_ != bgColor) {
         backgroundColor_ = bgColor;
-        markDirty();
+        markPaintDirty();
     }
 }
 
 core::Size ProgressBar::measure(const Constraints& constraints)
 {
-    float width = constraints.maxWidth();
-    if (std::isinf(width)) {
-        width = 200.0f;  // 默认宽度
+    float width = preferredWidth_;
+    if (width < 0.0f && std::isfinite(constraints.maxWidth)) {
+        width = constraints.maxWidth;
+    }
+    if (!std::isfinite(width) || width <= 0.0f) {
+        width = kDefaultProgressBarWidth;
     }
     return constraints.constrain(core::Size::Make(width, height_));
 }
 
 void ProgressBar::onDraw(rendering::Canvas& canvas)
 {
-    const float w = bounds().width();
-    const float h = bounds().height();
+    const float w = bounds_.width();
+    const float h = bounds_.height();
     const float radius = h / 2.0f;
-    
-    // 绘制背景
+
     canvas.drawRoundRect(
         core::Rect::MakeWH(w, h),
         radius,
+        radius,
         backgroundColor_
     );
-    
-    // 绘制进度
+
     if (!indeterminate_) {
-        // 确定进度模式
-        float range = max_ - min_;
+        const float range = max_ - min_;
         if (range > 0) {
-            float progress = (value_ - min_) / range;
-            float progressWidth = w * progress;
+            const float progress = (value_ - min_) / range;
+            const float progressWidth = w * progress;
             if (progressWidth > 0) {
                 canvas.drawRoundRect(
                     core::Rect::MakeWH(progressWidth, h),
+                    radius,
                     radius,
                     color_
                 );
             }
         }
     } else {
-        // 不确定进度模式：绘制简单的部分填充
-        // TODO: 未来可以添加动画效果
-        float barWidth = w * 0.3f;
+        const float barWidth = w * 0.3f;
         if (barWidth > 0) {
             canvas.drawRoundRect(
-                core::Rect::MakeXYWH(0, 0, barWidth, h),
+                core::Rect::MakeXYWH(0.0f, 0.0f, barWidth, h),
+                radius,
                 radius,
                 color_
             );

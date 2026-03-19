@@ -43,6 +43,7 @@ add_library(TinaluxUI STATIC
     widgets/Dropdown.cpp
     widgets/ImageWidget.cpp
     widgets/Panel.cpp
+    widgets/ProgressBar.cpp
     widgets/Radio.cpp
     widgets/ScrollView.cpp
     widgets/Slider.cpp

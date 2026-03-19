@@ -55,6 +55,8 @@ public:
 int main()
 {
     using namespace tinalux;
+    ui::RuntimeState runtime;
+    ui::ScopedRuntimeState bind(runtime);
 
     ProbeScrollView scrollView;
     scrollView.setContent(std::make_shared<TallContent>(600.0f));
@@ -98,12 +100,10 @@ int main()
         nearlyEqual(scrollView.effectiveStyle().scrollbarWidth, ui::Theme::dark().scrollViewStyle.scrollbarWidth),
         "clearing style should restore runtime default scroll view style");
 
-    ui::RuntimeState runtime;
     runtime.theme = ui::Theme::dark();
     runtime.theme.scrollViewStyle.scrollbarWidth = 12.0f;
     runtime.theme.scrollViewStyle.scrollbarMargin = 10.0f;
     runtime.theme.scrollViewStyle.scrollStep = 72.0f;
-    ui::ScopedRuntimeState bind(runtime);
 
     ProbeScrollView themedScrollView;
     themedScrollView.setContent(std::make_shared<TallContent>(480.0f));

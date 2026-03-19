@@ -176,12 +176,12 @@ void ParagraphLabel::invalidateParagraphCache()
 
 float ParagraphLabel::resolvedFontSize() const
 {
-    return std::max(fontSize_.value_or(resolvedTheme().fontSize), 1.0f);
+    return std::max(fontSize_.value_or(resolvedTheme().bodyFontSize()), 1.0f);
 }
 
 core::Color ParagraphLabel::resolvedColor() const
 {
-    return color_.value_or(resolvedTheme().text);
+    return color_.value_or(resolvedTheme().textColor());
 }
 
 }  // namespace tinalux::ui

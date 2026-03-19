@@ -38,33 +38,33 @@ std::shared_ptr<Widget> createLayoutPage(Theme theme)
     auto column = makePageColumn();
 
     auto flexShowcase = std::make_shared<Panel>();
-    flexShowcase->setBackgroundColor(theme.surface);
-    flexShowcase->setCornerRadius(theme.cornerRadius + 6.0f);
+    flexShowcase->setBackgroundColor(theme.colors.surface);
+    flexShowcase->setCornerRadius(theme.cornerRadius() + 6.0f);
     auto layout = std::make_unique<FlexLayout>();
     auto* flex = layout.get();
     layout->direction = FlexDirection::Row;
     layout->justifyContent = JustifyContent::SpaceBetween;
     layout->alignItems = AlignItems::Center;
     layout->wrap = FlexWrap::Wrap;
-    layout->spacing = 14.0f;
-    layout->padding = 18.0f;
+    layout->spacing = sectionSpacing(theme);
+    layout->padding = sectionPadding(theme);
     flexShowcase->setLayout(std::move(layout));
 
     auto summary = std::make_shared<Container>();
     auto summaryLayout = std::make_unique<VBoxLayout>();
-    summaryLayout->spacing = 6.0f;
+    summaryLayout->spacing = denseSpacing(theme);
     summary->setLayout(std::move(summaryLayout));
     auto title = std::make_shared<Label>("Flex Workspace");
-    title->setFontSize(theme.fontSizeLarge - 2.0f);
+    title->setFontSize(theme.titleFontSize() - 2.0f);
     auto body = std::make_shared<RichTextWidget>(
         RichTextBuilder()
             .addText("Wide screens keep the ")
             .addBold("summary")
             .addText(" and ")
-            .addColored("metric cards", theme.primary)
+            .addColored("metric cards", theme.colors.primary)
             .addText(" on one row. Narrow layouts let cards wrap naturally without changing page structure.")
             .build());
-    body->setDefaultColor(theme.textSecondary);
+    body->setDefaultColor(theme.secondaryTextColor());
     body->setMaxLines(4);
     summary->addChild(title);
     summary->addChild(body);

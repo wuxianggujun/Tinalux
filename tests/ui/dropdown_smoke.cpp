@@ -9,6 +9,7 @@
 #include <thread>
 
 #include "../../src/rendering/RenderHandles.h"
+#include "../../src/ui/RuntimeState.h"
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Constraints.h"
 #include "tinalux/ui/Dropdown.h"
@@ -62,6 +63,8 @@ tinalux::core::Color readPixel(
 int main()
 {
     using namespace tinalux;
+    ui::RuntimeState runtime;
+    ui::ScopedRuntimeState bind(runtime);
 
     const auto pngBytes = std::to_array<std::uint8_t>({
         137, 80, 78, 71, 13, 10, 26, 10,

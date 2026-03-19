@@ -32,20 +32,20 @@ int main()
 
     ui::RuntimeState runtime;
     runtime.theme = ui::Theme::light();
-    runtime.theme.fontSize = 16.0f;
+    runtime.theme.typography.body1.fontSize = 16.0f;
     ui::ScopedRuntimeState bind(runtime);
 
     auto themedParagraph = std::make_shared<ui::ParagraphLabel>("Theme-driven paragraph");
     const core::Size themedBase = themedParagraph->measure(ui::Constraints::loose(220.0f, 120.0f));
-    runtime.theme.fontSize = 28.0f;
-    runtime.theme.text = core::colorRGB(28, 48, 92);
+    runtime.theme.typography.body1.fontSize = 28.0f;
+    runtime.theme.colors.onBackground = core::colorRGB(28, 48, 92);
     const core::Size themedExpanded = themedParagraph->measure(ui::Constraints::loose(220.0f, 120.0f));
     expect(
         themedExpanded.height() > themedBase.height(),
         "paragraph label should re-resolve theme font size after runtime theme changes");
     themedParagraph->setFontSize(12.0f);
     const core::Size overriddenParagraphSize = themedParagraph->measure(ui::Constraints::loose(220.0f, 120.0f));
-    runtime.theme.fontSize = 30.0f;
+    runtime.theme.typography.body1.fontSize = 30.0f;
     themedParagraph->clearFontSize();
     themedParagraph->setColor(core::colorRGB(12, 24, 48));
     themedParagraph->clearColor();
@@ -54,7 +54,7 @@ int main()
         restoredThemeParagraphSize.height() > overriddenParagraphSize.height(),
         "paragraph label clearFontSize should restore theme-driven sizing");
     runtime.theme = ui::Theme::light();
-    runtime.theme.fontSize = 16.0f;
+    runtime.theme.typography.body1.fontSize = 16.0f;
 
     auto paragraph = std::make_shared<ui::ParagraphLabel>(
         "This is a long paragraph used to validate SkParagraph based wrapping.");

@@ -10,6 +10,7 @@
 #include "tinalux/ui/Label.h"
 #include "tinalux/ui/Layout.h"
 #include "tinalux/ui/Panel.h"
+#include "../../src/ui/RuntimeState.h"
 #include "tinalux/ui/TextInput.h"
 
 namespace {
@@ -27,6 +28,9 @@ void expect(bool condition, const char* message)
 int main()
 {
     using namespace tinalux;
+    ui::RuntimeState runtime;
+    ui::ScopedRuntimeState bind(runtime);
+
     const std::string imeHello = reinterpret_cast<const char*>(u8"你好");
     const std::string imeWorld = reinterpret_cast<const char*>(u8"世界");
 

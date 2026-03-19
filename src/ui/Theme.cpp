@@ -45,22 +45,6 @@ void scaleTextStyle(TextStyle& style, float scale)
     style.letterSpacing *= scale;
 }
 
-Typography scaledTypography(Typography typography, float scale)
-{
-    scale = sanitizeScale(scale);
-    scaleTextStyle(typography.h1, scale);
-    scaleTextStyle(typography.h2, scale);
-    scaleTextStyle(typography.h3, scale);
-    scaleTextStyle(typography.h4, scale);
-    scaleTextStyle(typography.h5, scale);
-    scaleTextStyle(typography.h6, scale);
-    scaleTextStyle(typography.body1, scale);
-    scaleTextStyle(typography.body2, scale);
-    scaleTextStyle(typography.caption, scale);
-    scaleTextStyle(typography.button, scale);
-    return typography;
-}
-
 Spacing mobileSpacing()
 {
     return {
@@ -91,7 +75,22 @@ Typography mobileTypography(float fontScale)
     typography.body2.fontSize = 14.0f;
     typography.caption.fontSize = 12.0f;
     typography.button.fontSize = 15.0f;
-    return scaledTypography(std::move(typography), sanitizeScale(fontScale));
+
+    const float bodyScale = sanitizeScale(fontScale);
+    const float headingScale = std::min(bodyScale, 1.4f);
+
+    // 正文保持系统无障碍缩放，标题在移动窄屏下做保护，避免极端字号直接压垮布局。
+    scaleTextStyle(typography.h1, headingScale);
+    scaleTextStyle(typography.h2, headingScale);
+    scaleTextStyle(typography.h3, headingScale);
+    scaleTextStyle(typography.h4, headingScale);
+    scaleTextStyle(typography.h5, headingScale);
+    scaleTextStyle(typography.h6, headingScale);
+    scaleTextStyle(typography.body1, bodyScale);
+    scaleTextStyle(typography.body2, bodyScale);
+    scaleTextStyle(typography.caption, bodyScale);
+    scaleTextStyle(typography.button, bodyScale);
+    return typography;
 }
 
 Theme& applyComponentStyles(Theme& theme)
@@ -161,6 +160,7 @@ ColorScheme ColorScheme::light()
         .onSecondary = core::colorRGB(255, 255, 255),
         .onBackground = core::colorRGB(25, 32, 44),
         .onSurface = core::colorRGB(25, 32, 44),
+        .onSurfaceVariant = core::colorRGB(98, 104, 114),
         .error = core::colorRGB(214, 77, 77),
         .warning = core::colorRGB(214, 146, 33),
         .success = core::colorRGB(40, 167, 110),
@@ -179,6 +179,7 @@ ColorScheme ColorScheme::custom(core::Color primaryColor)
     scheme.info = primaryColor;
     scheme.border = mixColor(primaryColor, scheme.surfaceVariant, 0.4f);
     scheme.divider = mixColor(scheme.border, scheme.surfaceVariant, 0.35f);
+    scheme.onSurfaceVariant = mixColor(scheme.onSurface, scheme.surfaceVariant, 0.35f);
     return scheme;
 }
 
@@ -192,61 +193,62 @@ Spacing Spacing::defaultSpacing()
     return {};
 }
 
-Theme& Theme::syncDerivedTokens()
+Theme& Theme::refreshComponentStyles()
 {
-    background = colors.background;
-    surface = colors.surface;
-    primary = colors.primary;
-    onPrimary = colors.onPrimary;
-    text = colors.onBackground;
-    textSecondary = mixColor(colors.onSurface, colors.surfaceVariant, 0.35f);
-    border = colors.border;
-    cornerRadius = spacingScale.radiusXl;
-    fontSize = typography.body1.fontSize;
-    fontSizeLarge = typography.h3.fontSize;
-    padding = spacingScale.md;
-    spacing = (spacingScale.sm + spacingScale.md) * 0.5f;
     return applyComponentStyles(*this);
 }
 
-Theme& Theme::syncStructuredTokens()
+core::Color Theme::textColor() const
 {
-    colors.background = background;
-    colors.surface = surface;
-    colors.primary = primary;
-    colors.onPrimary = onPrimary;
-    colors.onBackground = text;
-    colors.onSurface = text;
-    colors.border = border;
-    colors.divider = mixColor(border, surface, 0.5f);
+    return colors.onBackground;
+}
 
-    typography.body1.fontSize = fontSize;
-    typography.button.fontSize = fontSize;
-    typography.h3.fontSize = fontSizeLarge;
+core::Color Theme::secondaryTextColor() const
+{
+    return colors.onSurfaceVariant;
+}
 
-    spacingScale.md = padding;
-    spacingScale.radiusXl = cornerRadius;
-    spacingScale.sm = std::max(0.0f, spacing * 2.0f - spacingScale.md);
+float Theme::cornerRadius() const
+{
+    return spacingScale.radiusXl;
+}
 
-    return applyComponentStyles(*this);
+float Theme::bodyFontSize() const
+{
+    return typography.body1.fontSize;
+}
+
+float Theme::titleFontSize() const
+{
+    return typography.h3.fontSize;
+}
+
+float Theme::contentPadding() const
+{
+    return spacingScale.md;
+}
+
+float Theme::contentSpacing() const
+{
+    return (spacingScale.sm + spacingScale.md) * 0.5f;
 }
 
 void Theme::setColors(const ColorScheme& value)
 {
     colors = value;
-    syncDerivedTokens();
+    refreshComponentStyles();
 }
 
 void Theme::setTypography(const Typography& value)
 {
     typography = value;
-    syncDerivedTokens();
+    refreshComponentStyles();
 }
 
 void Theme::setSpacingScale(const Spacing& value)
 {
     spacingScale = value;
-    syncDerivedTokens();
+    refreshComponentStyles();
 }
 
 Theme Theme::dark()

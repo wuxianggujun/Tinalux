@@ -9,6 +9,7 @@
 #include <thread>
 
 #include "../../src/rendering/RenderHandles.h"
+#include "../../src/ui/RuntimeState.h"
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
 #include "tinalux/rendering/rendering.h"
@@ -89,6 +90,8 @@ tinalux::ui::TextInputStyle iconStyle()
 int main()
 {
     using namespace tinalux;
+    ui::RuntimeState runtime;
+    ui::ScopedRuntimeState bind(runtime);
 
     const auto pngBytes = std::to_array<std::uint8_t>({
         137, 80, 78, 71, 13, 10, 26, 10,

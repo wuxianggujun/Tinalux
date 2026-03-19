@@ -123,16 +123,16 @@ int main()
         UIContext context;
         context.initializeFromEnvironment();
         expect(
-            sameColor(context.theme().background, manager.currentTheme().background),
+            sameColor(context.theme().colors.background, manager.currentTheme().colors.background),
             "UIContext should mirror ThemeManager current theme");
 
         Theme light = Theme::light();
         context.setTheme(light);
         expect(
-            sameColor(manager.currentTheme().background, light.background),
+            sameColor(manager.currentTheme().colors.background, light.colors.background),
             "UIContext::setTheme should update ThemeManager immediately");
         expect(
-            sameColor(context.theme().primary, light.primary),
+            sameColor(context.theme().colors.primary, light.colors.primary),
             "UIContext should receive ThemeManager theme updates");
 
         auto& scheduler = static_cast<AnimationScheduler&>(context.animationSink());
@@ -146,18 +146,18 @@ int main()
         scheduler.tick(10.15);
         const Theme midTheme = context.theme();
         expect(
-            !sameColor(midTheme.background, light.background),
+            !sameColor(midTheme.colors.background, light.colors.background),
             "mid animation theme should differ from start theme");
         expect(
-            !sameColor(midTheme.background, dark.background),
+            !sameColor(midTheme.colors.background, dark.colors.background),
             "mid animation theme should differ from target theme");
         expect(
-            colorBetween(midTheme.background, light.background, dark.background),
+            colorBetween(midTheme.colors.background, light.colors.background, dark.colors.background),
             "mid animation background should stay within interpolation range");
 
         scheduler.tick(10.31);
         expect(
-            sameColor(context.theme().background, dark.background),
+            sameColor(context.theme().colors.background, dark.colors.background),
             "animation completion should land on exact target theme");
         expect(!scheduler.hasActiveAnimations(), "theme tween should complete");
         expect(
@@ -168,28 +168,29 @@ int main()
         manager.registerTheme("ocean", ocean);
         expect(manager.switchTheme("ocean", false), "registered theme should be switchable");
         expect(
-            sameColor(manager.currentTheme().primary, ocean.primary),
+            sameColor(manager.currentTheme().colors.primary, ocean.colors.primary),
             "switchTheme should apply registered theme");
 
         Theme custom = Theme::dark();
-        custom.background = tinalux::core::colorRGB(10, 20, 30);
-        custom.surface = tinalux::core::colorRGB(18, 36, 44);
-        custom.primary = tinalux::core::colorRGB(90, 200, 160);
-        custom.text = tinalux::core::colorRGB(236, 245, 240);
-        custom.textSecondary = tinalux::core::colorRGB(160, 188, 178);
-        custom.border = tinalux::core::colorRGB(64, 132, 112);
+        custom.colors.background = tinalux::core::colorRGB(10, 20, 30);
+        custom.colors.surface = tinalux::core::colorRGB(18, 36, 44);
+        custom.colors.primary = tinalux::core::colorRGB(90, 200, 160);
+        custom.colors.onBackground = tinalux::core::colorRGB(236, 245, 240);
+        custom.colors.onSurface = tinalux::core::colorRGB(236, 245, 240);
+        custom.colors.onSurfaceVariant = tinalux::core::colorRGB(160, 188, 178);
+        custom.colors.border = tinalux::core::colorRGB(64, 132, 112);
         manager.setTheme(custom, false);
         expect(
-            sameColor(manager.currentTheme().colors.background, custom.background),
-            "theme normalization should push flat background overrides back into ColorScheme");
+            sameColor(manager.currentTheme().colors.background, custom.colors.background),
+            "theme normalization should preserve background overrides in ColorScheme");
         expect(
-            sameColor(manager.currentTheme().colors.surface, custom.surface),
-            "theme normalization should push flat surface overrides back into ColorScheme");
+            sameColor(manager.currentTheme().colors.surface, custom.colors.surface),
+            "theme normalization should preserve surface overrides in ColorScheme");
         expect(
-            sameColor(manager.currentTheme().buttonStyle.backgroundColor.normal, custom.primary),
-            "theme normalization should refresh component styles after flat token overrides");
+            sameColor(manager.currentTheme().buttonStyle.backgroundColor.normal, custom.colors.primary),
+            "theme normalization should refresh component styles after color token overrides");
         expect(
-            sameColor(manager.currentTheme().textSecondary, custom.textSecondary),
+            sameColor(manager.currentTheme().secondaryTextColor(), custom.colors.onSurfaceVariant),
             "theme normalization should preserve explicit secondary text overrides");
     }
 
@@ -252,7 +253,7 @@ int main()
         secondScheduler.tick(20.0);
         secondScheduler.tick(20.31);
         expect(
-            sameColor(second.theme().background, Theme::dark().background),
+            sameColor(second.theme().colors.background, Theme::dark().colors.background),
             "remaining UIContext should still receive animated theme completion");
         expect(
             manager.version() > versionBeforeAnimation,
@@ -277,7 +278,7 @@ int main()
         secondScheduler.tick(40.0);
         secondScheduler.tick(40.15);
         expect(
-            !sameColor(manager.currentTheme().background, Theme::dark().background),
+            !sameColor(manager.currentTheme().colors.background, Theme::dark().colors.background),
             "in-flight theme animation should remain mid-transition before the active runtime shuts down");
 
         second.shutdown();
@@ -288,10 +289,10 @@ int main()
         firstScheduler.tick(40.3);
         firstScheduler.tick(40.61);
         expect(
-            sameColor(first.theme().background, Theme::dark().background),
+            sameColor(first.theme().colors.background, Theme::dark().colors.background),
             "remaining UIContext should complete a migrated in-flight theme animation");
         expect(
-            sameColor(manager.currentTheme().background, Theme::dark().background),
+            sameColor(manager.currentTheme().colors.background, Theme::dark().colors.background),
             "ThemeManager should settle on the target theme after runtime migration");
     }
 
@@ -311,7 +312,7 @@ int main()
         restartedScheduler.tick(30.0);
         restartedScheduler.tick(30.31);
         expect(
-            sameColor(restarted.theme().background, Theme::dark().background),
+            sameColor(restarted.theme().colors.background, Theme::dark().colors.background),
             "reinitialized UIContext should receive animated theme updates");
     }
 

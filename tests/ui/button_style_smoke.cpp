@@ -120,7 +120,7 @@ int main()
     customStyle.paddingVertical = 20.0f;
     customStyle.textStyle.fontSize = 24.0f;
     customStyle.iconSpacing = 20.0f;
-    customStyle.borderColor.normal = runtime.theme.primary;
+    customStyle.borderColor.normal = runtime.theme.colors.primary;
     customStyle.borderWidth.normal = 2.0f;
 
     button.setStyle(customStyle);

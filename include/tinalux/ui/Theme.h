@@ -36,19 +36,6 @@ struct Theme {
     ListViewStyle listViewStyle = ListViewStyle::standard(colors, typography, spacingScale);
     RichTextStyle richTextStyle = RichTextStyle::standard(colors, typography, spacingScale);
 
-    core::Color background = core::colorRGB(18, 20, 28);
-    core::Color surface = core::colorRGB(32, 35, 47);
-    core::Color primary = core::colorRGB(137, 180, 250);
-    core::Color onPrimary = core::colorRGB(15, 18, 28);
-    core::Color text = core::colorRGB(235, 239, 248);
-    core::Color textSecondary = core::colorRGB(166, 173, 200);
-    core::Color border = core::colorRGB(88, 126, 196);
-    float cornerRadius = 16.0f;
-    float fontSize = 16.0f;
-    float fontSizeLarge = 28.0f;
-    float padding = 16.0f;
-    float spacing = 12.0f;
-
     static Theme dark();
     static Theme light();
     static Theme mobile(float systemFontScale = 1.0f);
@@ -57,8 +44,15 @@ struct Theme {
     void setColors(const ColorScheme& value);
     void setTypography(const Typography& value);
     void setSpacingScale(const Spacing& value);
-    Theme& syncDerivedTokens();
-    Theme& syncStructuredTokens();
+    Theme& refreshComponentStyles();
+
+    core::Color textColor() const;
+    core::Color secondaryTextColor() const;
+    float cornerRadius() const;
+    float bodyFontSize() const;
+    float titleFontSize() const;
+    float contentPadding() const;
+    float contentSpacing() const;
 
     const std::string& name() const
     {

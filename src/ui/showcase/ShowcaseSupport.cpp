@@ -51,6 +51,7 @@ public:
         setCornerRadius(16.0f);
 
         auto layout = std::make_unique<VBoxLayout>();
+        layout_ = layout.get();
         layout->padding = 14.0f;
         layout->spacing = 6.0f;
         setLayout(std::move(layout));
@@ -67,16 +68,19 @@ public:
 
     void bind(const ActivityEntry& entry, Theme theme, std::size_t index)
     {
-        setBackgroundColor(index % 2 == 0 ? theme.surface : theme.background);
-        setCornerRadius(theme.cornerRadius);
+        setBackgroundColor(index % 2 == 0 ? theme.colors.surface : theme.colors.background);
+        setCornerRadius(theme.cornerRadius());
+        layout_->padding = sectionPadding(theme);
+        layout_->spacing = denseSpacing(theme);
         title_->setText(entry.title);
         meta_->setText(entry.meta);
-        meta_->setColor(theme.textSecondary);
+        meta_->setColor(theme.secondaryTextColor());
         hint_->setText(entry.hint);
-        hint_->setColor(theme.textSecondary);
+        hint_->setColor(theme.secondaryTextColor());
     }
 
 private:
+    VBoxLayout* layout_ = nullptr;
     std::shared_ptr<Label> title_;
     std::shared_ptr<Label> meta_;
     std::shared_ptr<ParagraphLabel> hint_;
@@ -197,6 +201,31 @@ bool matchesActivityEntry(const ActivityEntry& entry, std::string_view query)
     return haystack.find(loweredQuery) != std::string::npos;
 }
 
+float sectionPadding(const Theme& theme)
+{
+    return theme.contentPadding();
+}
+
+float sectionSpacing(const Theme& theme)
+{
+    return theme.contentSpacing();
+}
+
+float compactPadding(const Theme& theme)
+{
+    return std::max(theme.spacingScale.sm, theme.contentPadding() - theme.spacingScale.xs);
+}
+
+float compactSpacing(const Theme& theme)
+{
+    return std::max(theme.spacingScale.xs, theme.contentSpacing() - theme.spacingScale.xs);
+}
+
+float denseSpacing(const Theme& theme)
+{
+    return std::max(theme.spacingScale.xs, theme.contentSpacing() * 0.5f);
+}
+
 std::shared_ptr<Container> makePageColumn(float spacing)
 {
     auto column = std::make_shared<Container>();
@@ -209,18 +238,18 @@ std::shared_ptr<Container> makePageColumn(float spacing)
 std::shared_ptr<Panel> makeInfoCard(const std::string& title, const std::string& body, Theme theme)
 {
     auto card = std::make_shared<Panel>();
-    card->setBackgroundColor(theme.surface);
-    card->setCornerRadius(theme.cornerRadius + 4.0f);
+    card->setBackgroundColor(theme.colors.surface);
+    card->setCornerRadius(theme.cornerRadius() + 4.0f);
 
     auto layout = std::make_unique<VBoxLayout>();
-    layout->padding = 20.0f;
-    layout->spacing = 10.0f;
+    layout->padding = sectionPadding(theme);
+    layout->spacing = sectionSpacing(theme);
     card->setLayout(std::move(layout));
 
     auto titleLabel = std::make_shared<Label>(title);
-    titleLabel->setFontSize(theme.fontSizeLarge - 6.0f);
+    titleLabel->setFontSize(theme.titleFontSize() - 6.0f);
     auto bodyLabel = std::make_shared<ParagraphLabel>(body);
-    bodyLabel->setColor(theme.textSecondary);
+    bodyLabel->setColor(theme.secondaryTextColor());
     bodyLabel->setMaxLines(4);
 
     card->addChild(titleLabel);
@@ -231,19 +260,19 @@ std::shared_ptr<Panel> makeInfoCard(const std::string& title, const std::string&
 std::shared_ptr<Panel> makeFlexMetricCard(const std::string& title, const std::string& value, Theme theme)
 {
     auto metricCard = std::make_shared<Panel>();
-    metricCard->setBackgroundColor(theme.background);
-    metricCard->setCornerRadius(theme.cornerRadius);
+    metricCard->setBackgroundColor(theme.colors.background);
+    metricCard->setCornerRadius(theme.cornerRadius());
 
     auto metricLayout = std::make_unique<VBoxLayout>();
-    metricLayout->padding = 12.0f;
-    metricLayout->spacing = 4.0f;
+    metricLayout->padding = compactPadding(theme);
+    metricLayout->spacing = denseSpacing(theme);
     metricCard->setLayout(std::move(metricLayout));
 
     auto metricTitle = std::make_shared<Label>(title);
-    metricTitle->setColor(theme.textSecondary);
+    metricTitle->setColor(theme.secondaryTextColor());
     auto metricValue = std::make_shared<Label>(value);
-    metricValue->setColor(theme.primary);
-    metricValue->setFontSize(theme.fontSizeLarge - 6.0f);
+    metricValue->setColor(theme.colors.primary);
+    metricValue->setFontSize(theme.titleFontSize() - 6.0f);
 
     metricCard->addChild(metricTitle);
     metricCard->addChild(metricValue);

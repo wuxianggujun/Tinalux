@@ -2,6 +2,7 @@
 #include <iostream>
 #include <memory>
 
+#include "../../src/ui/RuntimeState.h"
 #include "tinalux/app/Application.h"
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
@@ -26,6 +27,8 @@ void expect(bool condition, const char* message)
 int main()
 {
     using namespace tinalux;
+    ui::RuntimeState runtime;
+    ui::ScopedRuntimeState bind(runtime);
 
     int rootClicks = 0;
     int dialogClicks = 0;

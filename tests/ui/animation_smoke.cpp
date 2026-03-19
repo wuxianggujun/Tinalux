@@ -111,14 +111,18 @@ int main()
         ScopedRuntimeState bindA(runtimeA);
         runtimeA.animationScheduler.requestAnimationFrame([&frameCalledA](double) { frameCalledA = true; });
         expect(runtimeA.animationScheduler.hasActiveAnimations(), "runtime A should keep its own frame queue");
-        expect(probe.theme().background == Theme::light().background, "runtime A should expose bound theme");
+        expect(
+            probe.theme().colors.background == Theme::light().colors.background,
+            "runtime A should expose bound theme");
     }
 
     {
         ScopedRuntimeState bindB(runtimeB);
         expect(!runtimeB.animationScheduler.hasActiveAnimations(), "runtime B should not observe runtime A queue");
         runtimeB.animationScheduler.requestAnimationFrame([&frameCalledB](double) { frameCalledB = true; });
-        expect(probe.theme().background == Theme::dark().background, "runtime B should expose its own theme");
+        expect(
+            probe.theme().colors.background == Theme::dark().colors.background,
+            "runtime B should expose its own theme");
     }
 
     {

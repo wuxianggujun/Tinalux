@@ -22,15 +22,15 @@ std::shared_ptr<Widget> createRichTextPage(Theme theme)
     auto column = makePageColumn();
 
     auto richTextShowcase = std::make_shared<Panel>();
-    richTextShowcase->setBackgroundColor(theme.surface);
-    richTextShowcase->setCornerRadius(theme.cornerRadius + 4.0f);
+    richTextShowcase->setBackgroundColor(theme.colors.surface);
+    richTextShowcase->setCornerRadius(theme.cornerRadius() + 4.0f);
     auto layout = std::make_unique<VBoxLayout>();
-    layout->padding = 20.0f;
-    layout->spacing = 12.0f;
+    layout->padding = sectionPadding(theme);
+    layout->spacing = sectionSpacing(theme);
     richTextShowcase->setLayout(std::move(layout));
 
     auto title = std::make_shared<Label>("Structured RichText");
-    title->setFontSize(theme.fontSizeLarge - 4.0f);
+    title->setFontSize(theme.titleFontSize() - 4.0f);
     auto guide = std::make_shared<RichTextWidget>(
         RichTextBuilder()
             .addHeading("Release Guide")
@@ -50,8 +50,8 @@ std::shared_ptr<Widget> createRichTextPage(Theme theme)
             .build());
     RichTextStyle style = theme.richTextStyle;
     style.listLevelIndent += 12.0f;
-    style.quoteAccentColor = theme.primary;
-    style.codeBlock.backgroundColor = lerpColor(theme.surface, theme.primary, 0.18f);
+    style.quoteAccentColor = theme.colors.primary;
+    style.codeBlock.backgroundColor = lerpColor(theme.colors.surface, theme.colors.primary, 0.18f);
     guide->setStyle(style);
     richTextShowcase->addChild(title);
     richTextShowcase->addChild(guide);
@@ -66,8 +66,8 @@ std::shared_ptr<Widget> createRichTextPage(Theme theme)
 
 std::shared_ptr<Widget> createActivityPage(Theme theme)
 {
-    const rendering::Image searchIcon = makeSearchIcon(theme.textSecondary, 18.0f);
-    const rendering::Image clearIcon = makeClearIcon(theme.textSecondary, 16.0f);
+    const rendering::Image searchIcon = makeSearchIcon(theme.secondaryTextColor(), 18.0f);
+    const rendering::Image clearIcon = makeClearIcon(theme.secondaryTextColor(), 16.0f);
 
     auto column = makePageColumn();
     auto card = makeInfoCard(
@@ -76,15 +76,15 @@ std::shared_ptr<Widget> createActivityPage(Theme theme)
         theme);
 
     auto summary = std::make_shared<ParagraphLabel>("Browse recent sessions by device, city, and review state.");
-    summary->setColor(theme.textSecondary);
+    summary->setColor(theme.secondaryTextColor());
     summary->setMaxLines(2);
     auto search = std::make_shared<TextInput>("Filter by device, city, or review state");
     search->setLeadingIcon(searchIcon);
     search->setTrailingIcon(clearIcon);
     auto list = std::make_shared<ListView>();
     list->setPreferredHeight(320.0f);
-    list->setSpacing(10.0f);
-    list->setPadding(10.0f);
+    list->setSpacing(compactSpacing(theme));
+    list->setPadding(compactPadding(theme));
 
     const auto entries = std::make_shared<std::vector<ActivityEntry>>(std::initializer_list<ActivityEntry> {
         { "Session #1  |  Windows 11", "Shanghai Office  |  Review score 92", "Multi-factor challenge completed successfully." },

@@ -228,10 +228,10 @@ core::Size Dropdown::measure(const Constraints& constraints)
     const float padding = dropdownPadding(theme);
     const float iconSize = dropdownIconSize(theme);
     float maxTextWidth = kBaseDropdownMinWidth;
-    const TextMetrics placeholderMetrics = measureTextMetrics(placeholder_, theme.fontSize);
+    const TextMetrics placeholderMetrics = measureTextMetrics(placeholder_, theme.bodyFontSize());
     maxTextWidth = std::max(maxTextWidth, placeholderMetrics.width);
     for (const std::string& item : items_) {
-        const TextMetrics metrics = measureTextMetrics(item, theme.fontSize);
+        const TextMetrics metrics = measureTextMetrics(item, theme.bodyFontSize());
         maxTextWidth = std::max(maxTextWidth, metrics.width);
     }
 
@@ -253,22 +253,22 @@ void Dropdown::onDraw(rendering::Canvas& canvas)
     const float iconSize = dropdownIconSize(theme);
     const core::Rect buttonBounds = core::Rect::MakeXYWH(0.0f, 0.0f, bounds_.width(), itemHeight);
     const core::Color backgroundColor = focused()
-        ? theme.primary
-        : (hovered_ ? brighten(theme.surface, 20) : theme.surface);
+        ? theme.colors.primary
+        : (hovered_ ? brighten(theme.colors.surface, 20) : theme.colors.surface);
     const core::Color textColor = focused()
-        ? theme.onPrimary
-        : (selectedItem().empty() ? theme.textSecondary : theme.text);
+        ? theme.colors.onPrimary
+        : (selectedItem().empty() ? theme.secondaryTextColor() : theme.textColor());
 
     canvas.drawRoundRect(
         buttonBounds,
-        theme.cornerRadius,
-        theme.cornerRadius,
+        theme.cornerRadius(),
+        theme.cornerRadius(),
         backgroundColor);
     canvas.drawRoundRect(
         buttonBounds,
-        theme.cornerRadius,
-        theme.cornerRadius,
-        theme.border,
+        theme.cornerRadius(),
+        theme.cornerRadius(),
+        theme.colors.border,
         rendering::PaintStyle::Stroke,
         1.0f);
 
@@ -277,13 +277,13 @@ void Dropdown::onDraw(rendering::Canvas& canvas)
         displayText = placeholder_;
     }
 
-    const TextMetrics textMetrics = measureTextMetrics(displayText, theme.fontSize);
+    const TextMetrics textMetrics = measureTextMetrics(displayText, theme.bodyFontSize());
     const float textY = (itemHeight - textMetrics.height) * 0.5f + textMetrics.baseline;
     canvas.drawText(
         displayText,
         padding + textMetrics.drawX,
         textY,
-        theme.fontSize,
+        theme.bodyFontSize(),
         textColor);
 
     if (!expanded_ && indicatorIcon_) {
@@ -303,14 +303,14 @@ void Dropdown::onDraw(rendering::Canvas& canvas)
     const core::Rect dropdownBounds = getDropdownBounds();
     canvas.drawRoundRect(
         dropdownBounds,
-        theme.cornerRadius,
-        theme.cornerRadius,
-        theme.surface);
+        theme.cornerRadius(),
+        theme.cornerRadius(),
+        theme.colors.surface);
     canvas.drawRoundRect(
         dropdownBounds,
-        theme.cornerRadius,
-        theme.cornerRadius,
-        theme.border,
+        theme.cornerRadius(),
+        theme.cornerRadius(),
+        theme.colors.border,
         rendering::PaintStyle::Stroke,
         1.0f);
 
@@ -330,19 +330,21 @@ void Dropdown::onDraw(rendering::Canvas& canvas)
                 itemRect,
                 core::colorARGB(
                     36,
-                    theme.primary.red(),
-                    theme.primary.green(),
-                    theme.primary.blue()));
+                    theme.colors.primary.red(),
+                    theme.colors.primary.green(),
+                    theme.colors.primary.blue()));
         }
 
-        const TextMetrics itemMetrics = measureTextMetrics(items_[static_cast<std::size_t>(i)], theme.fontSize);
+        const TextMetrics itemMetrics = measureTextMetrics(
+            items_[static_cast<std::size_t>(i)],
+            theme.bodyFontSize());
         const float itemTextY = itemRect.y() + (itemHeight - itemMetrics.height) * 0.5f + itemMetrics.baseline;
         canvas.drawText(
             items_[static_cast<std::size_t>(i)],
             itemRect.x() + padding + itemMetrics.drawX,
             itemTextY,
-            theme.fontSize,
-            theme.text);
+            theme.bodyFontSize(),
+            theme.textColor());
     }
 }
 

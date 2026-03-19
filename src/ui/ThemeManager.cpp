@@ -51,6 +51,7 @@ ColorScheme lerpColors(const ColorScheme& from, const ColorScheme& to, float t)
         .onSecondary = lerpColor(from.onSecondary, to.onSecondary, t),
         .onBackground = lerpColor(from.onBackground, to.onBackground, t),
         .onSurface = lerpColor(from.onSurface, to.onSurface, t),
+        .onSurfaceVariant = lerpColor(from.onSurfaceVariant, to.onSurfaceVariant, t),
         .error = lerpColor(from.error, to.error, t),
         .warning = lerpColor(from.warning, to.warning, t),
         .success = lerpColor(from.success, to.success, t),
@@ -118,28 +119,14 @@ Theme interpolateTheme(const Theme& from, const Theme& to, float t)
     interpolated.colors = lerpColors(from.colors, to.colors, t);
     interpolated.typography = lerpTypography(from.typography, to.typography, t);
     interpolated.spacingScale = lerpSpacing(from.spacingScale, to.spacingScale, t);
-    interpolated.syncDerivedTokens();
-
-    interpolated.background = lerpColor(from.background, to.background, t);
-    interpolated.surface = lerpColor(from.surface, to.surface, t);
-    interpolated.primary = lerpColor(from.primary, to.primary, t);
-    interpolated.onPrimary = lerpColor(from.onPrimary, to.onPrimary, t);
-    interpolated.text = lerpColor(from.text, to.text, t);
-    interpolated.textSecondary = lerpColor(from.textSecondary, to.textSecondary, t);
-    interpolated.border = lerpColor(from.border, to.border, t);
-    interpolated.cornerRadius = lerpFloat(from.cornerRadius, to.cornerRadius, t);
-    interpolated.fontSize = lerpFloat(from.fontSize, to.fontSize, t);
-    interpolated.fontSizeLarge = lerpFloat(from.fontSizeLarge, to.fontSizeLarge, t);
-    interpolated.padding = lerpFloat(from.padding, to.padding, t);
-    interpolated.spacing = lerpFloat(from.spacing, to.spacing, t);
     interpolated.setName(to.name());
-    interpolated.syncStructuredTokens();
+    interpolated.refreshComponentStyles();
     return interpolated;
 }
 
 Theme normalizeTheme(Theme theme)
 {
-    theme.syncStructuredTokens();
+    theme.refreshComponentStyles();
     return theme;
 }
 

@@ -38,7 +38,7 @@ int main()
         ui::RichTextBuilder()
             .addText("Status: ")
             .addBold("Ready ")
-            .addColored("Primary ", runtime.theme.primary)
+            .addColored("Primary ", runtime.theme.colors.primary)
             .addText("content with wrapping support. ")
             .addLink("Portal", [&linkClickCount] { ++linkClickCount; })
             .addText(" trailing notes for hit testing.")
@@ -133,7 +133,7 @@ int main()
     resettableText.setDefaultColor(core::colorRGB(24, 38, 62));
     resettableText.setLinkColor(core::colorRGB(196, 82, 84));
     const core::Size overrideTextSize = resettableText.measure(ui::Constraints::loose(240.0f, 120.0f));
-    runtime.theme.fontSize = 26.0f;
+    runtime.theme.typography.body1.fontSize = 26.0f;
     resettableText.clearDefaultFontSize();
     resettableText.clearDefaultColor();
     resettableText.clearLinkColor();
@@ -147,7 +147,7 @@ int main()
         ui::RichTextBuilder()
             .addText("Release notes")
             .addParagraphBreak()
-            .addColored("Primary paragraph", runtime.theme.primary)
+            .addColored("Primary paragraph", runtime.theme.colors.primary)
             .addLineBreak()
             .addItalic("Follow-up line")
             .build());
@@ -215,7 +215,7 @@ int main()
     ui::RichTextWidget styledText(
         ui::RichTextBuilder()
             .addText("Base ")
-            .addHighlighted("Highlight ", core::colorRGB(255, 240, 160), runtime.theme.text)
+            .addHighlighted("Highlight ", core::colorRGB(255, 240, 160), runtime.theme.textColor())
             .addStrikethrough("Done ")
             .addSpan(ui::TextSpan {
                 .text = "Spaced",

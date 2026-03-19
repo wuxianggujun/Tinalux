@@ -36,7 +36,7 @@ RichTextStyle RichTextStyle::standard(
     const Spacing& spacing)
 {
     RichTextStyle style;
-    const core::Color secondaryText = mixColor(colors.onSurface, colors.surfaceVariant, 0.35f);
+    const core::Color secondaryText = colors.onSurfaceVariant;
     const core::Color codeBackground = mixColor(colors.surface, colors.primary, 0.12f);
 
     style.body.textStyle = typography.body1;

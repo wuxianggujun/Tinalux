@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <iterator>
 #include <utility>
 
@@ -39,15 +41,17 @@ float interpolate(const AnimationScheduler::Tween& tween, float progress)
 
 }  // namespace
 
-RuntimeState& fallbackRuntimeState()
-{
-    static RuntimeState state;
-    return state;
-}
-
 RuntimeState& activeRuntimeState()
 {
-    return gBoundRuntimeState != nullptr ? *gBoundRuntimeState : fallbackRuntimeState();
+    if (gBoundRuntimeState != nullptr) {
+        return *gBoundRuntimeState;
+    }
+
+    std::fputs(
+        "tinalux::ui::RuntimeState is not bound. "
+        "Wrap UI work in ui::ScopedRuntimeState before accessing theme or animation runtime.\n",
+        stderr);
+    std::abort();
 }
 
 const Theme& runtimeTheme()

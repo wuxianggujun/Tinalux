@@ -70,7 +70,7 @@ void Label::onDraw(rendering::Canvas& canvas)
 
 core::Color Label::resolvedColor() const
 {
-    return color_.value_or(resolvedTheme().text);
+    return color_.value_or(resolvedTheme().textColor());
 }
 
 }  // namespace tinalux::ui

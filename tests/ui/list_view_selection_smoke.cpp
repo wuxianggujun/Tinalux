@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 
+#include "../../src/ui/RuntimeState.h"
 #include "tinalux/app/Application.h"
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
@@ -53,6 +54,8 @@ void pressKey(tinalux::app::Application& app, int key)
 int main()
 {
     using namespace tinalux;
+    ui::RuntimeState runtime;
+    ui::ScopedRuntimeState bind(runtime);
 
     auto root = std::make_shared<ui::Panel>();
     auto listView = std::make_shared<ui::ListView>();

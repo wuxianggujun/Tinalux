@@ -18,6 +18,7 @@ struct ColorScheme {
     core::Color onSecondary = core::colorRGB(18, 20, 28);
     core::Color onBackground = core::colorRGB(235, 239, 248);
     core::Color onSurface = core::colorRGB(235, 239, 248);
+    core::Color onSurfaceVariant = core::colorRGB(166, 173, 200);
 
     core::Color error = core::colorRGB(255, 107, 107);
     core::Color warning = core::colorRGB(255, 184, 108);

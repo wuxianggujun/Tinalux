@@ -7,6 +7,7 @@
 #include "tinalux/ui/Button.h"
 #include "tinalux/ui/Constraints.h"
 #include "tinalux/ui/Dropdown.h"
+#include "tinalux/ui/ProgressBar.h"
 #include "tinalux/ui/Slider.h"
 #include "tinalux/ui/TextInput.h"
 #include "tinalux/ui/Theme.h"
@@ -46,6 +47,14 @@ int main()
     expect(mobile.radioStyle.minHeight >= 48.0f, "mobile radio should honor the touch target minimum");
     expect(mobile.toggleStyle.minHeight >= 48.0f, "mobile toggle should honor the touch target minimum");
 
+    ui::Theme accessibleMobile = ui::Theme::mobile(2.0f);
+    expect(
+        nearlyEqual(accessibleMobile.typography.body1.fontSize, 32.0f),
+        "mobile body typography should preserve accessibility scaling");
+    expect(
+        nearlyEqual(accessibleMobile.typography.h1.fontSize, 47.6f),
+        "mobile headings should clamp extreme scaling to protect narrow layouts");
+
     ui::RuntimeState runtime;
     runtime.theme = mobile;
     ui::ScopedRuntimeState bind(runtime);
@@ -72,6 +81,11 @@ int main()
     ui::Dropdown dropdown({ "One", "Two" });
     const core::Size dropdownSize = dropdown.measure(ui::Constraints::loose(220.0f, 200.0f));
     expect(dropdownSize.height() >= 48.0f, "mobile dropdown should keep a touch-friendly row height");
+
+    ui::ProgressBar progressBar;
+    progressBar.setPreferredWidth(-1.0f);
+    const core::Size progressBarSize = progressBar.measure(ui::Constraints::loose(280.0f, 100.0f));
+    expect(nearlyEqual(progressBarSize.width(), 280.0f), "progress bar should fill the available width when requested");
 
     runtime.theme = ui::Theme::dark();
     button.arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 30.0f, 30.0f));

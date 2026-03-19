@@ -578,6 +578,11 @@ ui::AnimationSink& UIContext::animationSink()
 
 bool UIContext::textInputActive()
 {
+    if (runtimeState_ == nullptr) {
+        return false;
+    }
+
+    ui::ScopedRuntimeState runtimeScope(*runtimeState_);
     if (const auto focused = lockWidget(focusedWidget_)) {
         return focused->wantsTextInput();
     }
@@ -610,8 +615,8 @@ void UIContext::setTheme(ui::Theme theme)
     core::logInfoCat(
         "app",
         "Theme updated background=#{:08x} primary=#{:08x}",
-        static_cast<unsigned int>(theme.background),
-        static_cast<unsigned int>(theme.primary));
+        static_cast<unsigned int>(theme.colors.background),
+        static_cast<unsigned int>(theme.colors.primary));
 }
 
 ui::Theme UIContext::theme() const
@@ -1203,14 +1208,14 @@ void UIContext::resetForStartup()
     bindThemeRuntime();
 
     if (runtimeState_ != nullptr) {
+        ui::ScopedRuntimeState runtimeScope(*runtimeState_);
         runtimeState_->animationScheduler.clear();
         runtimeState_->theme = ui::ThemeManager::instance().currentTheme();
         runtimeState_->devicePixelRatio = 1.0f;
         ++runtimeState_->themeGeneration;
-    }
-
-    if (const auto focused = lockWidget(focusedWidget_)) {
-        focused->setFocused(false);
+        if (const auto focused = lockWidget(focusedWidget_)) {
+            focused->setFocused(false);
+        }
     }
 
     rootWidget_.reset();

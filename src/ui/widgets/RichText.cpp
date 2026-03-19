@@ -1287,22 +1287,22 @@ int RichTextWidget::clickableSpanIndexAt(core::Point localPoint)
 
 float RichTextWidget::resolvedDefaultFontSize() const
 {
-    return std::max(defaultFontSize_.value_or(resolvedTheme().fontSize), 1.0f);
+    return std::max(defaultFontSize_.value_or(resolvedTheme().bodyFontSize()), 1.0f);
 }
 
 core::Color RichTextWidget::resolvedDefaultColor() const
 {
-    return defaultColor_.value_or(resolvedTheme().text);
+    return defaultColor_.value_or(resolvedTheme().textColor());
 }
 
 core::Color RichTextWidget::resolvedSecondaryColor() const
 {
-    return resolvedTheme().textSecondary;
+    return resolvedTheme().secondaryTextColor();
 }
 
 core::Color RichTextWidget::resolvedLinkColor() const
 {
-    return linkColor_.value_or(resolvedTheme().primary);
+    return linkColor_.value_or(resolvedTheme().colors.primary);
 }
 
 core::Color RichTextWidget::resolvedLinkHoverColor() const
@@ -1317,7 +1317,7 @@ core::Color RichTextWidget::resolvedLinkPressedColor() const
 
 core::Color RichTextWidget::resolvedCodeBackgroundColor() const
 {
-    return blendColor(resolvedTheme().surface, resolvedTheme().primary, 0.12f);
+    return blendColor(resolvedTheme().colors.surface, resolvedTheme().colors.primary, 0.12f);
 }
 
 }  // namespace tinalux::ui
