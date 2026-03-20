@@ -35,7 +35,10 @@ std::size_t gFlushFrameCalls = 0;
 bool gFailFirstVulkanContext = false;
 bool gFailSecondVulkanSurface = false;
 bool gForceReadyPrepareFrame = false;
+bool gForceSurfaceLostOnPrepare = false;
 bool gInvalidateSurfaceOnFlush = false;
+tinalux::rendering::SurfaceFailureReason gForcedPrepareSurfaceLossReason =
+    tinalux::rendering::SurfaceFailureReason::None;
 int gFramebufferWidthOverride = 0;
 int gFramebufferHeightOverride = 0;
 int gPendingFramebufferWidth = 0;
@@ -159,6 +162,20 @@ tinalux::rendering::FramePrepareStatus fakePrepareFrame(
             tinalux::rendering::SurfaceFailureReason::None);
         return tinalux::rendering::FramePrepareStatus::Ready;
     }
+    if (gForceSurfaceLostOnPrepare && context.backend() == Backend::Vulkan) {
+        tinalux::rendering::RenderAccess::setSurfaceFailureReason(
+            surface,
+            gForcedPrepareSurfaceLossReason);
+        tinalux::rendering::RenderAccess::invalidateSurface(surface);
+        return tinalux::rendering::FramePrepareStatus::SurfaceLost;
+    }
+    if (context.backend() == Backend::Vulkan) {
+        tinalux::rendering::RenderAccess::setSurfaceFailureReason(
+            surface,
+            tinalux::rendering::SurfaceFailureReason::None);
+        return surface ? tinalux::rendering::FramePrepareStatus::Ready
+                       : tinalux::rendering::FramePrepareStatus::SurfaceLost;
+    }
     return tinalux::rendering::prepareFrame(context, surface);
 }
 
@@ -191,7 +208,9 @@ void resetScenario()
     gFailFirstVulkanContext = false;
     gFailSecondVulkanSurface = false;
     gForceReadyPrepareFrame = false;
+    gForceSurfaceLostOnPrepare = false;
     gInvalidateSurfaceOnFlush = false;
+    gForcedPrepareSurfaceLossReason = tinalux::rendering::SurfaceFailureReason::None;
     gFramebufferWidthOverride = 0;
     gFramebufferHeightOverride = 0;
     gPendingFramebufferWidth = 0;
@@ -339,6 +358,8 @@ int main()
 
     {
         resetScenario();
+        gForceSurfaceLostOnPrepare = true;
+        gForcedPrepareSurfaceLossReason = tinalux::rendering::SurfaceFailureReason::VulkanAcquireOutOfDate;
 
         app::Application app;
         expect(
@@ -360,16 +381,16 @@ int main()
 
         gNow += std::chrono::milliseconds(4);
         expect(
-            app.pumpOnce(),
-            "Pump loop should keep coalescing repeated backend-reported surface loss inside the interval");
+            app::detail::ApplicationTestAccess::renderFrame(app),
+            "Render frame should keep coalescing repeated backend-reported surface loss inside the interval");
         expect(
             gSurfaceCreateCalls == 2,
             "Repeated backend-reported surface loss inside the coalescing interval should still reuse the current recreate budget");
 
         gNow += std::chrono::milliseconds(20);
         expect(
-            app.pumpOnce(),
-            "Pump loop should recreate the surface once the backend-reported surface loss coalescing interval elapses");
+            app::detail::ApplicationTestAccess::renderFrame(app),
+            "Render frame should recreate the surface once the backend-reported surface loss coalescing interval elapses");
         expect(
             gSurfaceCreateCalls == 3,
             "Coalesced backend-reported surface loss should trigger exactly one deferred retry after the resize-triggered recreation");
@@ -404,6 +425,50 @@ int main()
         expect(
             statsAfterFallback.skippedFrames == statsBeforeFallback.skippedFrames + 1,
             "Backend recovery without a presented frame should be recorded as a skipped frame");
+    }
+
+    {
+        resetScenario();
+        gForceSurfaceLostOnPrepare = true;
+        gForcedPrepareSurfaceLossReason = tinalux::rendering::SurfaceFailureReason::BackendStateMissing;
+
+        app::Application app;
+        expect(
+            app.init(app::ApplicationConfig { .backend = Backend::Auto }),
+            "Auto backend init should succeed for persistent runtime surface failure fallback smoke");
+        expect(gSurfaceCreateCalls == 1, "Init should create one surface before persistent runtime surface failure fallback smoke");
+
+        expect(
+            app::detail::ApplicationTestAccess::renderFrame(app),
+            "First persistent runtime surface failure should keep the application alive");
+        expect(
+            gWindowApis.size() == 1,
+            "First persistent runtime surface failure should not promote fallback immediately");
+        expect(
+            gContextRequests.size() == 1,
+            "First persistent runtime surface failure should not create a fallback context immediately");
+        expect(
+            gSurfaceCreateCalls == 1,
+            "First persistent runtime surface failure should fail on the existing surface before any recreate");
+
+        expect(
+            app::detail::ApplicationTestAccess::renderFrame(app),
+            "Second persistent runtime surface failure should trigger runtime fallback");
+        expect(
+            gWindowApis.size() == 2,
+            "Persistent runtime surface failures should create a second window for the fallback backend");
+        expect(
+            gWindowApis[1] == GraphicsAPI::OpenGL,
+            "Persistent runtime surface failures should promote to the OpenGL fallback backend");
+        expect(
+            gContextRequests.size() == 2,
+            "Persistent runtime surface failures should create a fallback context");
+        expect(
+            gContextRequests[1] == Backend::OpenGL,
+            "Persistent runtime surface failures should request the OpenGL fallback context");
+        expect(
+            gSurfaceCreateCalls == 3,
+            "Persistent runtime surface failures should recreate once before promoting the fallback surface");
     }
 
     {
@@ -447,6 +512,15 @@ int main()
         expect(
             gSurfaceCreateCalls == 2,
             "Retry after flush-stage surface invalidation should recreate the surface exactly once");
+        expect(
+            gWindowApis.size() == 1,
+            "Transient flush-stage out-of-date should not promote a fallback window");
+        expect(
+            gContextRequests.size() == 1,
+            "Transient flush-stage out-of-date should not create a fallback context");
+        expect(
+            app.renderBackend() == Backend::Vulkan,
+            "Transient flush-stage out-of-date should keep the Vulkan backend active");
     }
 
     return 0;

@@ -24,6 +24,7 @@ constexpr double kIdleWaitSeconds = 0.05;
 constexpr auto kInteractiveSurfaceRecreateMinInterval = std::chrono::milliseconds(16);
 constexpr auto kInteractiveSurfaceLossRetryWindow = std::chrono::milliseconds(32);
 constexpr auto kRepeatedSurfaceFailureLogInterval = std::chrono::milliseconds(250);
+constexpr std::size_t kPersistentRuntimeSurfaceFailureFallbackThreshold = 2;
 
 enum class RenderFrameOutcome {
     Deferred,
@@ -42,6 +43,11 @@ struct SurfaceFailureLogState {
     SurfaceFailureLogStage stage = SurfaceFailureLogStage::RetryLater;
     std::chrono::steady_clock::time_point lastLoggedAt {};
     std::size_t suppressedCount = 0;
+};
+
+struct RuntimeSurfaceFailureRecoveryState {
+    rendering::Backend backend = rendering::Backend::Auto;
+    std::size_t consecutiveFallbackEligibleFailures = 0;
 };
 
 float sanitizeDpiScale(float dpiScale)
@@ -97,6 +103,45 @@ bool hasRecentInteractiveMetricsChange(
 {
     return lastMetricsChangeAt != std::chrono::steady_clock::time_point {}
         && now - lastMetricsChangeAt < kInteractiveSurfaceLossRetryWindow;
+}
+
+bool isFallbackEligibleRuntimeSurfaceFailureReason(rendering::SurfaceFailureReason reason)
+{
+    switch (reason) {
+    case rendering::SurfaceFailureReason::None:
+    case rendering::SurfaceFailureReason::ZeroFramebufferSize:
+    case rendering::SurfaceFailureReason::VulkanAcquireOutOfDate:
+    case rendering::SurfaceFailureReason::VulkanPresentOutOfDate:
+    case rendering::SurfaceFailureReason::MetalDrawableUnavailable:
+        return false;
+    default:
+        return true;
+    }
+}
+
+bool shouldPromoteFallbackAfterRuntimeSurfaceFailure(
+    RuntimeSurfaceFailureRecoveryState& state,
+    bool hasFallback,
+    rendering::Backend backend,
+    rendering::SurfaceFailureReason reason,
+    bool recentInteractiveMetricsChange)
+{
+    if (!hasFallback
+        || recentInteractiveMetricsChange
+        || !isFallbackEligibleRuntimeSurfaceFailureReason(reason)) {
+        state = {};
+        return false;
+    }
+
+    if (state.backend != backend) {
+        state.backend = backend;
+        state.consecutiveFallbackEligibleFailures = 1;
+        return false;
+    }
+
+    ++state.consecutiveFallbackEligibleFailures;
+    return state.consecutiveFallbackEligibleFailures
+        >= kPersistentRuntimeSurfaceFailureFallbackThreshold;
 }
 
 bool shouldSuppressRepeatedSurfaceFailureLog(
@@ -248,6 +293,7 @@ struct Application::Impl {
     bool pendingSurfaceRecreate = false;
     std::chrono::steady_clock::time_point lastSurfaceRecreateAt {};
     SurfaceFailureLogState surfaceFailureLogState {};
+    RuntimeSurfaceFailureRecoveryState runtimeSurfaceFailureRecoveryState {};
     float syncedDevicePixelRatio = 0.0f;
     RenderFrameOutcome lastRenderFrameOutcome = RenderFrameOutcome::Deferred;
 };
@@ -477,6 +523,7 @@ bool Application::tryInitializeBackend(
     impl_->lastSurfaceRecreateAt =
         impl_->surface ? nowSteadyTime() : std::chrono::steady_clock::time_point {};
     impl_->surfaceFailureLogState = {};
+    impl_->runtimeSurfaceFailureRecoveryState = {};
     impl_->backendPlan.activate(backendIndex);
     syncResourceManagerDevicePixelRatio(
         impl_->window.get(),
@@ -555,6 +602,7 @@ void Application::resetRenderState()
     impl_->pendingSurfaceRecreate = false;
     impl_->lastSurfaceRecreateAt = {};
     impl_->surfaceFailureLogState = {};
+    impl_->runtimeSurfaceFailureRecoveryState = {};
     impl_->backendPlan.reset(impl_->config.backend);
     syncResourceManagerDevicePixelRatio(
         nullptr,
@@ -823,8 +871,43 @@ bool Application::renderFrame()
     const int framebufferHeight = metrics.framebufferHeight;
     const float dpiScale = sanitizeDpiScale(metrics.dpiScale);
     if (framebufferWidth <= 0 || framebufferHeight <= 0) {
+        impl_->runtimeSurfaceFailureRecoveryState = {};
         return true;
     }
+
+    const auto handleRuntimeSurfaceFailure = [this](rendering::SurfaceFailureReason failureReason) {
+        impl_->surface = {};
+        impl_->surfaceWidth = 0;
+        impl_->surfaceHeight = 0;
+
+        const auto now = nowSteadyTime();
+        const bool recentInteractiveMetricsChange =
+            shouldCoalesceInteractiveSurfaceRecreate(impl_->context.backend())
+            && hasRecentInteractiveMetricsChange(
+                impl_->lastWindowMetricsChangeAt,
+                now);
+        impl_->pendingSurfaceRecreate = recentInteractiveMetricsChange;
+
+        if (shouldPromoteFallbackAfterRuntimeSurfaceFailure(
+                impl_->runtimeSurfaceFailureRecoveryState,
+                impl_->backendPlan.hasFallback(),
+                impl_->context.backend(),
+                failureReason,
+                recentInteractiveMetricsChange)) {
+            core::logWarnCat(
+                "app",
+                "Promoting fallback after {} consecutive runtime surface failures on backend '{}' (reason='{}')",
+                impl_->runtimeSurfaceFailureRecoveryState.consecutiveFallbackEligibleFailures,
+                rendering::backendName(impl_->context.backend()),
+                rendering::surfaceFailureReasonName(failureReason));
+            if (tryPromoteNextBackend()) {
+                return true;
+            }
+        }
+
+        syncTextInputState();
+        return true;
+    };
 
     const bool surfaceSizeChanged =
         impl_->surfaceWidth != framebufferWidth || impl_->surfaceHeight != framebufferHeight;
@@ -855,6 +938,7 @@ bool Application::renderFrame()
             impl_->surfaceWidth = 0;
             impl_->surfaceHeight = 0;
             impl_->pendingSurfaceRecreate = false;
+            impl_->runtimeSurfaceFailureRecoveryState = {};
             if (tryPromoteNextBackend()) {
                 return true;
             }
@@ -876,6 +960,7 @@ bool Application::renderFrame()
             impl_->context.backend(),
             failureReason,
             SurfaceFailureLogStage::RetryLater);
+        impl_->runtimeSurfaceFailureRecoveryState = {};
         syncTextInputState();
         return true;
     }
@@ -887,16 +972,7 @@ bool Application::renderFrame()
             impl_->context.backend(),
             failureReason,
             SurfaceFailureLogStage::SurfaceLost);
-        impl_->surface = {};
-        impl_->surfaceWidth = 0;
-        impl_->surfaceHeight = 0;
-        impl_->pendingSurfaceRecreate =
-            shouldCoalesceInteractiveSurfaceRecreate(impl_->context.backend())
-            && hasRecentInteractiveMetricsChange(
-                impl_->lastWindowMetricsChangeAt,
-                nowSteadyTime());
-        syncTextInputState();
-        return true;
+        return handleRuntimeSurfaceFailure(failureReason);
     }
 
     rendering::Canvas canvas = impl_->surface.canvas();
@@ -908,16 +984,7 @@ bool Application::renderFrame()
             impl_->context.backend(),
             failureReason,
             SurfaceFailureLogStage::CanvasUnavailable);
-        impl_->surface = {};
-        impl_->surfaceWidth = 0;
-        impl_->surfaceHeight = 0;
-        impl_->pendingSurfaceRecreate =
-            shouldCoalesceInteractiveSurfaceRecreate(impl_->context.backend())
-            && hasRecentInteractiveMetricsChange(
-                impl_->lastWindowMetricsChangeAt,
-                nowSteadyTime());
-        syncTextInputState();
-        return true;
+        return handleRuntimeSurfaceFailure(failureReason);
     }
     impl_->surfaceFailureLogState = {};
     syncResourceManagerDevicePixelRatio(
@@ -931,17 +998,12 @@ bool Application::renderFrame()
     syncTextInputState();
     detail::runtimeHooks().flushFrame(impl_->context, impl_->surface);
     if (!impl_->surface) {
-        impl_->surface = {};
-        impl_->surfaceWidth = 0;
-        impl_->surfaceHeight = 0;
-        impl_->pendingSurfaceRecreate =
-            shouldCoalesceInteractiveSurfaceRecreate(impl_->context.backend())
-            && hasRecentInteractiveMetricsChange(
-                impl_->lastWindowMetricsChangeAt,
-                nowSteadyTime());
-        return true;
+        const rendering::SurfaceFailureReason failureReason =
+            rendering::lastSurfaceFailureReason(impl_->surface);
+        return handleRuntimeSurfaceFailure(failureReason);
     }
     impl_->window->swapBuffers();
+    impl_->runtimeSurfaceFailureRecoveryState = {};
     impl_->lastRenderFrameOutcome = RenderFrameOutcome::Presented;
     return fullRedraw;
 }
