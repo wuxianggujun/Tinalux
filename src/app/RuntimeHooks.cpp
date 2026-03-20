@@ -21,6 +21,11 @@ rendering::RenderSurface defaultCreateWindowSurface(
     return rendering::createWindowSurface(context, window);
 }
 
+std::chrono::steady_clock::time_point defaultNowSteadyTime()
+{
+    return std::chrono::steady_clock::now();
+}
+
 }  // namespace
 
 RuntimeHooks defaultRuntimeHooks()
@@ -29,6 +34,7 @@ RuntimeHooks defaultRuntimeHooks()
         .createWindow = &defaultCreateWindow,
         .createContext = &defaultCreateContext,
         .createWindowSurface = &defaultCreateWindowSurface,
+        .nowSteadyTime = &defaultNowSteadyTime,
     };
 }
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <memory>
 
 #include "tinalux/platform/Window.h"
@@ -11,11 +12,13 @@ using CreateWindowFn = std::unique_ptr<platform::Window> (*)(const platform::Win
 using CreateContextFn = rendering::RenderContext (*)(const rendering::ContextConfig& config);
 using CreateWindowSurfaceFn =
     rendering::RenderSurface (*)(rendering::RenderContext& context, platform::Window& window);
+using NowSteadyTimeFn = std::chrono::steady_clock::time_point (*)();
 
 struct RuntimeHooks {
     CreateWindowFn createWindow = nullptr;
     CreateContextFn createContext = nullptr;
     CreateWindowSurfaceFn createWindowSurface = nullptr;
+    NowSteadyTimeFn nowSteadyTime = nullptr;
 };
 
 RuntimeHooks defaultRuntimeHooks();

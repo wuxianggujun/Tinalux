@@ -1,3 +1,4 @@
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
@@ -35,6 +36,8 @@ int gFramebufferWidthOverride = 0;
 int gFramebufferHeightOverride = 0;
 int gPendingFramebufferWidth = 0;
 int gPendingFramebufferHeight = 0;
+std::chrono::steady_clock::time_point gNow =
+    std::chrono::steady_clock::time_point {} + std::chrono::seconds(1);
 
 void destroyFakeHandle(void*, void*) {}
 
@@ -141,6 +144,11 @@ tinalux::rendering::RenderSurface createFakeWindowSurface(
     return tinalux::rendering::createRasterSurface(64, 64);
 }
 
+std::chrono::steady_clock::time_point fakeNowSteadyTime()
+{
+    return gNow;
+}
+
 void resetScenario()
 {
     gWindowApis.clear();
@@ -152,6 +160,7 @@ void resetScenario()
     gFramebufferHeightOverride = 0;
     gPendingFramebufferWidth = 0;
     gPendingFramebufferHeight = 0;
+    gNow = std::chrono::steady_clock::time_point {} + std::chrono::seconds(1);
 }
 
 }  // namespace
@@ -164,6 +173,7 @@ int main()
         .createWindow = &createFakeWindow,
         .createContext = &createFakeContext,
         .createWindowSurface = &createFakeWindowSurface,
+        .nowSteadyTime = &fakeNowSteadyTime,
     };
     app::detail::ScopedRuntimeHooksOverride scopedHooks(hooks);
 
@@ -254,14 +264,33 @@ int main()
             gSurfaceCreateCalls == 1,
             "Init should create exactly one initial surface before metrics-driven redraw smoke");
 
+        gNow += std::chrono::milliseconds(1);
         gPendingFramebufferWidth = 1600;
         gPendingFramebufferHeight = 900;
         expect(
             app.pumpOnce(),
             "Pump loop should keep the application alive when framebuffer metrics change during event polling");
         expect(
+            gSurfaceCreateCalls == 1,
+            "Interactive framebuffer metric changes should coalesce surface recreation inside the resize interval");
+
+        gNow += std::chrono::milliseconds(4);
+        gPendingFramebufferWidth = 1700;
+        gPendingFramebufferHeight = 960;
+        expect(
+            app.pumpOnce(),
+            "Pump loop should stay alive while coalescing another framebuffer metric change");
+        expect(
+            gSurfaceCreateCalls == 1,
+            "Multiple framebuffer metric changes inside the coalescing interval should still reuse the current surface");
+
+        gNow += std::chrono::milliseconds(20);
+        expect(
+            app.pumpOnce(),
+            "Pump loop should recreate the surface once the resize coalescing interval elapses");
+        expect(
             gSurfaceCreateCalls == 2,
-            "Framebuffer metric changes observed during event polling should trigger a redraw and one surface recreation");
+            "Coalesced framebuffer metric changes should trigger exactly one deferred surface recreation");
         expect(
             gWindowApis.size() == 1,
             "Metrics-driven redraw should not create a second window");
