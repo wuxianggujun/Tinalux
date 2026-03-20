@@ -69,6 +69,7 @@ public:
 
     bool shouldRender() const;
     bool hasImmediateRenderWork() const;
+    void requestRedraw();
     void notifyWindowMetricsChanged();
     bool render(
         rendering::Canvas& canvas,

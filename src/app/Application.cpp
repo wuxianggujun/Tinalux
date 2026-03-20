@@ -876,6 +876,7 @@ bool Application::renderFrame()
     }
 
     const auto handleRuntimeSurfaceFailure = [this](rendering::SurfaceFailureReason failureReason) {
+        impl_->uiContext.requestRedraw();
         impl_->surface = {};
         impl_->surfaceWidth = 0;
         impl_->surfaceHeight = 0;
@@ -921,6 +922,7 @@ bool Application::renderFrame()
             && impl_->lastSurfaceRecreateAt != std::chrono::steady_clock::time_point {}) {
             const auto now = nowSteadyTime();
             if (now - impl_->lastSurfaceRecreateAt < kInteractiveSurfaceRecreateMinInterval) {
+                impl_->uiContext.requestRedraw();
                 syncTextInputState();
                 return true;
             }
@@ -939,6 +941,7 @@ bool Application::renderFrame()
             impl_->surfaceHeight = 0;
             impl_->pendingSurfaceRecreate = false;
             impl_->runtimeSurfaceFailureRecoveryState = {};
+            impl_->uiContext.requestRedraw();
             if (tryPromoteNextBackend()) {
                 return true;
             }
@@ -961,6 +964,7 @@ bool Application::renderFrame()
             failureReason,
             SurfaceFailureLogStage::RetryLater);
         impl_->runtimeSurfaceFailureRecoveryState = {};
+        impl_->uiContext.requestRedraw();
         syncTextInputState();
         return true;
     }

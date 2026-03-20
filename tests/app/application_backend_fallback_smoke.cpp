@@ -381,16 +381,16 @@ int main()
 
         gNow += std::chrono::milliseconds(4);
         expect(
-            app::detail::ApplicationTestAccess::renderFrame(app),
-            "Render frame should keep coalescing repeated backend-reported surface loss inside the interval");
+            app.pumpOnce(),
+            "Pump loop should keep coalescing repeated backend-reported surface loss inside the interval");
         expect(
             gSurfaceCreateCalls == 2,
             "Repeated backend-reported surface loss inside the coalescing interval should still reuse the current recreate budget");
 
         gNow += std::chrono::milliseconds(20);
         expect(
-            app::detail::ApplicationTestAccess::renderFrame(app),
-            "Render frame should recreate the surface once the backend-reported surface loss coalescing interval elapses");
+            app.pumpOnce(),
+            "Pump loop should recreate the surface once the backend-reported surface loss coalescing interval elapses");
         expect(
             gSurfaceCreateCalls == 3,
             "Coalesced backend-reported surface loss should trigger exactly one deferred retry after the resize-triggered recreation");
@@ -439,7 +439,7 @@ int main()
         expect(gSurfaceCreateCalls == 1, "Init should create one surface before persistent runtime surface failure fallback smoke");
 
         expect(
-            app::detail::ApplicationTestAccess::renderFrame(app),
+            app.pumpOnce(),
             "First persistent runtime surface failure should keep the application alive");
         expect(
             gWindowApis.size() == 1,
@@ -452,7 +452,7 @@ int main()
             "First persistent runtime surface failure should fail on the existing surface before any recreate");
 
         expect(
-            app::detail::ApplicationTestAccess::renderFrame(app),
+            app.pumpOnce(),
             "Second persistent runtime surface failure should trigger runtime fallback");
         expect(
             gWindowApis.size() == 2,
