@@ -30,8 +30,12 @@ using tinalux::rendering::Backend;
 std::vector<GraphicsAPI> gWindowApis;
 std::vector<Backend> gContextRequests;
 std::size_t gSurfaceCreateCalls = 0;
+std::size_t gPrepareFrameCalls = 0;
+std::size_t gFlushFrameCalls = 0;
 bool gFailFirstVulkanContext = false;
 bool gFailSecondVulkanSurface = false;
+bool gForceReadyPrepareFrame = false;
+bool gInvalidateSurfaceOnFlush = false;
 int gFramebufferWidthOverride = 0;
 int gFramebufferHeightOverride = 0;
 int gPendingFramebufferWidth = 0;
@@ -144,6 +148,34 @@ tinalux::rendering::RenderSurface createFakeWindowSurface(
     return tinalux::rendering::createRasterSurface(64, 64);
 }
 
+tinalux::rendering::FramePrepareStatus fakePrepareFrame(
+    tinalux::rendering::RenderContext& context,
+    tinalux::rendering::RenderSurface& surface)
+{
+    ++gPrepareFrameCalls;
+    if (gForceReadyPrepareFrame) {
+        tinalux::rendering::RenderAccess::setSurfaceFailureReason(
+            surface,
+            tinalux::rendering::SurfaceFailureReason::None);
+        return tinalux::rendering::FramePrepareStatus::Ready;
+    }
+    return tinalux::rendering::prepareFrame(context, surface);
+}
+
+void fakeFlushFrame(tinalux::rendering::RenderContext& context, tinalux::rendering::RenderSurface& surface)
+{
+    ++gFlushFrameCalls;
+    if (gInvalidateSurfaceOnFlush) {
+        gInvalidateSurfaceOnFlush = false;
+        tinalux::rendering::RenderAccess::setSurfaceFailureReason(
+            surface,
+            tinalux::rendering::SurfaceFailureReason::VulkanPresentOutOfDate);
+        tinalux::rendering::RenderAccess::invalidateSurface(surface);
+        return;
+    }
+    tinalux::rendering::flushFrame(context, surface);
+}
+
 std::chrono::steady_clock::time_point fakeNowSteadyTime()
 {
     return gNow;
@@ -154,8 +186,12 @@ void resetScenario()
     gWindowApis.clear();
     gContextRequests.clear();
     gSurfaceCreateCalls = 0;
+    gPrepareFrameCalls = 0;
+    gFlushFrameCalls = 0;
     gFailFirstVulkanContext = false;
     gFailSecondVulkanSurface = false;
+    gForceReadyPrepareFrame = false;
+    gInvalidateSurfaceOnFlush = false;
     gFramebufferWidthOverride = 0;
     gFramebufferHeightOverride = 0;
     gPendingFramebufferWidth = 0;
@@ -174,6 +210,8 @@ int main()
         .createContext = &createFakeContext,
         .createWindowSurface = &createFakeWindowSurface,
         .nowSteadyTime = &fakeNowSteadyTime,
+        .prepareFrame = &fakePrepareFrame,
+        .flushFrame = &fakeFlushFrame,
     };
     app::detail::ScopedRuntimeHooksOverride scopedHooks(hooks);
 
@@ -366,6 +404,49 @@ int main()
         expect(
             statsAfterFallback.skippedFrames == statsBeforeFallback.skippedFrames + 1,
             "Backend recovery without a presented frame should be recorded as a skipped frame");
+    }
+
+    {
+        resetScenario();
+        gForceReadyPrepareFrame = true;
+        gInvalidateSurfaceOnFlush = true;
+
+        app::Application app;
+        expect(
+            app.init(app::ApplicationConfig { .backend = Backend::Auto }),
+            "Auto backend init should succeed for present-loss redraw retention smoke");
+        expect(gSurfaceCreateCalls == 1, "Init should create one surface before present-loss redraw retention smoke");
+
+        expect(
+            app.pumpOnce(),
+            "Pump loop should stay alive when flush invalidates the surface after a prepared frame");
+        const app::FrameStats statsAfterPresentLoss = app.frameStats();
+        expect(
+            statsAfterPresentLoss.totalFrames == 0,
+            "A frame invalidated during flush should not be counted as presented");
+        expect(
+            statsAfterPresentLoss.skippedFrames == 1,
+            "A frame invalidated during flush should be recorded as skipped");
+        expect(
+            gSurfaceCreateCalls == 1,
+            "Flush-stage surface invalidation should not recreate the surface until the next frame");
+        expect(
+            gFlushFrameCalls == 1,
+            "Flush-stage surface invalidation smoke should exercise the flush hook exactly once on the first frame");
+
+        expect(
+            app.pumpOnce(),
+            "Pump loop should retry rendering on the next frame after flush invalidates the surface");
+        const app::FrameStats statsAfterRetry = app.frameStats();
+        expect(
+            statsAfterRetry.totalFrames == 1,
+            "The next frame should present successfully after recreating the invalidated surface");
+        expect(
+            statsAfterRetry.skippedFrames == 1,
+            "Successful retry after flush invalidation should preserve the earlier skipped-frame accounting");
+        expect(
+            gSurfaceCreateCalls == 2,
+            "Retry after flush-stage surface invalidation should recreate the surface exactly once");
     }
 
     return 0;

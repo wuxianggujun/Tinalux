@@ -703,7 +703,7 @@ bool acquireVulkanSwapchainImage(tinalux::rendering::RenderSurface& surface)
         if (state->destroySemaphoreProc() != nullptr) {
             state->destroySemaphoreProc()(state->contextState()->device, acquireSemaphore, nullptr);
         }
-        tinalux::core::logWarnCat(
+        tinalux::core::logDebugCat(
             "render",
             "Vulkan swapchain acquire reported {}, surface will be recreated",
             static_cast<int>(acquireResult));
@@ -1338,7 +1338,7 @@ void flushVulkanFrame(RenderContext& context, RenderSurface& surface)
     RenderAccess::setSkiaSurface(surface, {});
 
     if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_ERROR_SURFACE_LOST_KHR) {
-        core::logWarnCat(
+        core::logDebugCat(
             "render",
             "Vulkan present reported {}, surface will be recreated",
             static_cast<int>(presentResult));

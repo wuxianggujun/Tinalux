@@ -26,6 +26,41 @@ std::chrono::steady_clock::time_point defaultNowSteadyTime()
     return std::chrono::steady_clock::now();
 }
 
+rendering::FramePrepareStatus defaultPrepareFrame(
+    rendering::RenderContext& context,
+    rendering::RenderSurface& surface)
+{
+    return rendering::prepareFrame(context, surface);
+}
+
+void defaultFlushFrame(rendering::RenderContext& context, rendering::RenderSurface& surface)
+{
+    rendering::flushFrame(context, surface);
+}
+
+RuntimeHooks withFallbackHooks(RuntimeHooks hooks, const RuntimeHooks& fallback)
+{
+    if (hooks.createWindow == nullptr) {
+        hooks.createWindow = fallback.createWindow;
+    }
+    if (hooks.createContext == nullptr) {
+        hooks.createContext = fallback.createContext;
+    }
+    if (hooks.createWindowSurface == nullptr) {
+        hooks.createWindowSurface = fallback.createWindowSurface;
+    }
+    if (hooks.nowSteadyTime == nullptr) {
+        hooks.nowSteadyTime = fallback.nowSteadyTime;
+    }
+    if (hooks.prepareFrame == nullptr) {
+        hooks.prepareFrame = fallback.prepareFrame;
+    }
+    if (hooks.flushFrame == nullptr) {
+        hooks.flushFrame = fallback.flushFrame;
+    }
+    return hooks;
+}
+
 }  // namespace
 
 RuntimeHooks defaultRuntimeHooks()
@@ -35,6 +70,8 @@ RuntimeHooks defaultRuntimeHooks()
         .createContext = &defaultCreateContext,
         .createWindowSurface = &defaultCreateWindowSurface,
         .nowSteadyTime = &defaultNowSteadyTime,
+        .prepareFrame = &defaultPrepareFrame,
+        .flushFrame = &defaultFlushFrame,
     };
 }
 
@@ -47,7 +84,7 @@ RuntimeHooks& runtimeHooks()
 ScopedRuntimeHooksOverride::ScopedRuntimeHooksOverride(RuntimeHooks hooks)
     : previous_(runtimeHooks())
 {
-    runtimeHooks() = hooks;
+    runtimeHooks() = withFallbackHooks(hooks, previous_);
 }
 
 ScopedRuntimeHooksOverride::~ScopedRuntimeHooksOverride()
