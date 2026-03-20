@@ -301,6 +301,44 @@ int main()
 
     {
         resetScenario();
+
+        app::Application app;
+        expect(
+            app.init(app::ApplicationConfig { .backend = Backend::Auto }),
+            "Auto backend init should succeed for resize-followed surface loss coalescing smoke");
+        expect(
+            gSurfaceCreateCalls == 1,
+            "Init should create exactly one initial surface before resize-followed surface loss coalescing smoke");
+
+        gNow += std::chrono::milliseconds(20);
+        gPendingFramebufferWidth = 1600;
+        gPendingFramebufferHeight = 900;
+        expect(
+            app.pumpOnce(),
+            "Pump loop should stay alive when resize-triggered recreation is immediately followed by backend-reported surface loss");
+        expect(
+            gSurfaceCreateCalls == 2,
+            "Resize-triggered recreation should still recreate the surface once before exercising backend-reported surface loss coalescing");
+
+        gNow += std::chrono::milliseconds(4);
+        expect(
+            app.pumpOnce(),
+            "Pump loop should keep coalescing repeated backend-reported surface loss inside the interval");
+        expect(
+            gSurfaceCreateCalls == 2,
+            "Repeated backend-reported surface loss inside the coalescing interval should still reuse the current recreate budget");
+
+        gNow += std::chrono::milliseconds(20);
+        expect(
+            app.pumpOnce(),
+            "Pump loop should recreate the surface once the backend-reported surface loss coalescing interval elapses");
+        expect(
+            gSurfaceCreateCalls == 3,
+            "Coalesced backend-reported surface loss should trigger exactly one deferred retry after the resize-triggered recreation");
+    }
+
+    {
+        resetScenario();
         gFailSecondVulkanSurface = true;
 
         app::Application app;

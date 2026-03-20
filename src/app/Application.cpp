@@ -21,7 +21,8 @@ namespace tinalux::app {
 namespace {
 
 constexpr double kIdleWaitSeconds = 0.05;
-constexpr auto kInteractiveResizeSurfaceRecreateMinInterval = std::chrono::milliseconds(16);
+constexpr auto kInteractiveSurfaceRecreateMinInterval = std::chrono::milliseconds(16);
+constexpr auto kInteractiveSurfaceLossRetryWindow = std::chrono::milliseconds(32);
 
 enum class RenderFrameOutcome {
     Deferred,
@@ -70,9 +71,17 @@ bool framebufferSizeChanged(
         || previous.framebufferHeight != current.framebufferHeight;
 }
 
-bool shouldCoalesceInteractiveSurfaceResize(rendering::Backend backend)
+bool shouldCoalesceInteractiveSurfaceRecreate(rendering::Backend backend)
 {
     return backend == rendering::Backend::Vulkan || backend == rendering::Backend::Metal;
+}
+
+bool hasRecentInteractiveMetricsChange(
+    const std::chrono::steady_clock::time_point& lastMetricsChangeAt,
+    const std::chrono::steady_clock::time_point& now)
+{
+    return lastMetricsChangeAt != std::chrono::steady_clock::time_point {}
+        && now - lastMetricsChangeAt < kInteractiveSurfaceLossRetryWindow;
 }
 
 core::Rect scaleRect(const core::Rect& rect, float scale)
@@ -134,7 +143,8 @@ struct Application::Impl {
     int surfaceWidth = 0;
     int surfaceHeight = 0;
     platform::WindowMetrics lastObservedWindowMetrics {};
-    bool pendingResizeSurfaceRecreate = false;
+    std::chrono::steady_clock::time_point lastWindowMetricsChangeAt {};
+    bool pendingSurfaceRecreate = false;
     std::chrono::steady_clock::time_point lastSurfaceRecreateAt {};
     float syncedDevicePixelRatio = 0.0f;
     RenderFrameOutcome lastRenderFrameOutcome = RenderFrameOutcome::Deferred;
@@ -360,7 +370,8 @@ bool Application::tryInitializeBackend(
     impl_->surfaceWidth = candidateSurfaceWidth;
     impl_->surfaceHeight = candidateSurfaceHeight;
     impl_->lastObservedWindowMetrics = candidateMetrics;
-    impl_->pendingResizeSurfaceRecreate = false;
+    impl_->lastWindowMetricsChangeAt = {};
+    impl_->pendingSurfaceRecreate = false;
     impl_->lastSurfaceRecreateAt =
         impl_->surface ? nowSteadyTime() : std::chrono::steady_clock::time_point {};
     impl_->backendPlan.activate(backendIndex);
@@ -437,7 +448,8 @@ void Application::resetRenderState()
     impl_->surfaceWidth = 0;
     impl_->surfaceHeight = 0;
     impl_->lastObservedWindowMetrics = {};
-    impl_->pendingResizeSurfaceRecreate = false;
+    impl_->lastWindowMetricsChangeAt = {};
+    impl_->pendingSurfaceRecreate = false;
     impl_->lastSurfaceRecreateAt = {};
     impl_->backendPlan.reset(impl_->config.backend);
     syncResourceManagerDevicePixelRatio(
@@ -474,9 +486,11 @@ bool Application::pumpOnce()
     const platform::WindowMetrics previousMetrics = impl_->lastObservedWindowMetrics;
     const platform::WindowMetrics currentMetrics = currentWindowMetrics(impl_->window.get());
     if (windowMetricsChanged(previousMetrics, currentMetrics)) {
+        const auto metricsChangedAt = nowSteadyTime();
         if (framebufferSizeChanged(previousMetrics, currentMetrics) && impl_->surface) {
-            impl_->pendingResizeSurfaceRecreate = true;
+            impl_->pendingSurfaceRecreate = true;
         }
+        impl_->lastWindowMetricsChangeAt = metricsChangedAt;
         impl_->uiContext.notifyWindowMetricsChanged();
         impl_->lastObservedWindowMetrics = currentMetrics;
     }
@@ -711,17 +725,15 @@ bool Application::renderFrame()
     const bool surfaceSizeChanged =
         impl_->surfaceWidth != framebufferWidth || impl_->surfaceHeight != framebufferHeight;
     if (!surfaceSizeChanged) {
-        impl_->pendingResizeSurfaceRecreate = false;
+        impl_->pendingSurfaceRecreate = false;
     }
 
     if (!impl_->surface || surfaceSizeChanged) {
-        if (impl_->surface
-            && surfaceSizeChanged
-            && impl_->pendingResizeSurfaceRecreate
-            && shouldCoalesceInteractiveSurfaceResize(impl_->context.backend())
+        if (impl_->pendingSurfaceRecreate
+            && shouldCoalesceInteractiveSurfaceRecreate(impl_->context.backend())
             && impl_->lastSurfaceRecreateAt != std::chrono::steady_clock::time_point {}) {
             const auto now = nowSteadyTime();
-            if (now - impl_->lastSurfaceRecreateAt < kInteractiveResizeSurfaceRecreateMinInterval) {
+            if (now - impl_->lastSurfaceRecreateAt < kInteractiveSurfaceRecreateMinInterval) {
                 syncTextInputState();
                 return true;
             }
@@ -738,7 +750,7 @@ bool Application::renderFrame()
         if (!impl_->surface) {
             impl_->surfaceWidth = 0;
             impl_->surfaceHeight = 0;
-            impl_->pendingResizeSurfaceRecreate = false;
+            impl_->pendingSurfaceRecreate = false;
             if (tryPromoteNextBackend()) {
                 return true;
             }
@@ -746,7 +758,7 @@ bool Application::renderFrame()
         }
         impl_->surfaceWidth = framebufferWidth;
         impl_->surfaceHeight = framebufferHeight;
-        impl_->pendingResizeSurfaceRecreate = false;
+        impl_->pendingSurfaceRecreate = false;
         impl_->lastSurfaceRecreateAt = nowSteadyTime();
     }
 
@@ -774,7 +786,11 @@ bool Application::renderFrame()
         impl_->surface = {};
         impl_->surfaceWidth = 0;
         impl_->surfaceHeight = 0;
-        impl_->pendingResizeSurfaceRecreate = false;
+        impl_->pendingSurfaceRecreate =
+            shouldCoalesceInteractiveSurfaceRecreate(impl_->context.backend())
+            && hasRecentInteractiveMetricsChange(
+                impl_->lastWindowMetricsChangeAt,
+                nowSteadyTime());
         syncTextInputState();
         return true;
     }
@@ -791,7 +807,11 @@ bool Application::renderFrame()
         impl_->surface = {};
         impl_->surfaceWidth = 0;
         impl_->surfaceHeight = 0;
-        impl_->pendingResizeSurfaceRecreate = false;
+        impl_->pendingSurfaceRecreate =
+            shouldCoalesceInteractiveSurfaceRecreate(impl_->context.backend())
+            && hasRecentInteractiveMetricsChange(
+                impl_->lastWindowMetricsChangeAt,
+                nowSteadyTime());
         syncTextInputState();
         return true;
     }
