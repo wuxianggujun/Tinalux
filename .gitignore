@@ -60,3 +60,8 @@ artifacts/
 *.temp
 *.bak
 *.old
+close_stdout.txt
+close_stderr.txt
+debug_crt_report.txt
+debug_heap_trace.txt
+runtime_abort_trace.txt
