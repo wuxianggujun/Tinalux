@@ -138,6 +138,29 @@ int main()
         nearlyEqualColor(readPixel(surface, 90, 70), kClearColor),
         "pixels outside the scaled logical draw region should stay clear");
 
+    const rendering::RenderSurface snappedSurface = rendering::createRasterSurface(48, 32);
+    expect(static_cast<bool>(snappedSurface), "dpi smoke should create a raster surface for pixel snapping");
+    rendering::Canvas snappedCanvas = snappedSurface.canvas();
+    expect(static_cast<bool>(snappedCanvas), "pixel snapping surface should expose canvas");
+    snappedCanvas.clear(kClearColor);
+    snappedCanvas.save();
+    snappedCanvas.scale(1.5f, 1.5f);
+    snappedCanvas.translate(0.25f, 0.0f);
+    snappedCanvas.drawRect(core::Rect::MakeXYWH(10.0f, 4.0f, 4.0f, 8.0f), kProbeColor);
+    snappedCanvas.restore();
+    expect(
+        nearlyEqualColor(readPixel(snappedSurface, 14, 10), kClearColor),
+        "pixel snapping should keep the pixel just outside the snapped left edge clear");
+    expect(
+        nearlyEqualColor(readPixel(snappedSurface, 15, 10), kProbeColor),
+        "pixel snapping should align the filled rect left edge to a full physical pixel");
+    expect(
+        nearlyEqualColor(readPixel(snappedSurface, 20, 10), kProbeColor),
+        "pixel snapping should preserve the snapped rect interior after non-integer scale and translation");
+    expect(
+        nearlyEqualColor(readPixel(snappedSurface, 21, 10), kClearColor),
+        "pixel snapping should keep the pixel just outside the snapped right edge clear");
+
     core::MouseButtonEvent press(
         core::mouse::kLeft,
         0,

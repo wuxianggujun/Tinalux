@@ -37,6 +37,24 @@ bool nearlyEqual(float lhs, float rhs)
     return std::abs(lhs - rhs) <= 0.001f;
 }
 
+platform::WindowMetrics currentWindowMetrics(const platform::Window* window)
+{
+    return window != nullptr ? window->metrics() : platform::WindowMetrics {};
+}
+
+bool windowMetricsChanged(
+    const platform::WindowMetrics& previous,
+    const platform::WindowMetrics& current)
+{
+    return previous.windowWidth != current.windowWidth
+        || previous.windowHeight != current.windowHeight
+        || previous.framebufferWidth != current.framebufferWidth
+        || previous.framebufferHeight != current.framebufferHeight
+        || !nearlyEqual(
+            sanitizeDpiScale(previous.dpiScale),
+            sanitizeDpiScale(current.dpiScale));
+}
+
 core::Rect scaleRect(const core::Rect& rect, float scale)
 {
     return core::Rect::MakeLTRB(
@@ -58,11 +76,12 @@ std::optional<core::Rect> logicalToPhysicalRect(
 
 void syncResourceManagerDevicePixelRatio(
     platform::Window* window,
+    const platform::WindowMetrics& metrics,
     ui::DevicePixelRatioBindingId& bindingId,
     float& syncedDevicePixelRatio)
 {
     const float targetRatio =
-        window != nullptr ? sanitizeDpiScale(window->dpiScale()) : 1.0f;
+        window != nullptr ? sanitizeDpiScale(metrics.dpiScale) : 1.0f;
     const bool bindingStateMatches = window != nullptr ? bindingId != 0 : bindingId == 0;
     if (bindingStateMatches && nearlyEqual(syncedDevicePixelRatio, targetRatio)) {
         return;
@@ -94,6 +113,7 @@ struct Application::Impl {
     bool skiaInitialized = false;
     int surfaceWidth = 0;
     int surfaceHeight = 0;
+    platform::WindowMetrics lastObservedWindowMetrics {};
     float syncedDevicePixelRatio = 0.0f;
     RenderFrameOutcome lastRenderFrameOutcome = RenderFrameOutcome::Deferred;
 };
@@ -295,9 +315,9 @@ bool Application::tryInitializeBackend(
     rendering::RenderSurface candidateSurface;
     int candidateSurfaceWidth = 0;
     int candidateSurfaceHeight = 0;
-    const int framebufferWidth = candidateWindow->framebufferWidth();
-    const int framebufferHeight = candidateWindow->framebufferHeight();
-    if (framebufferWidth > 0 && framebufferHeight > 0) {
+    const platform::WindowMetrics candidateMetrics = candidateWindow->metrics();
+    if (candidateMetrics.framebufferWidth > 0
+        && candidateMetrics.framebufferHeight > 0) {
         candidateSurface = detail::runtimeHooks().createWindowSurface(
             candidateContext,
             *candidateWindow);
@@ -308,8 +328,8 @@ bool Application::tryInitializeBackend(
                 rendering::backendName(backend));
             return false;
         }
-        candidateSurfaceWidth = framebufferWidth;
-        candidateSurfaceHeight = framebufferHeight;
+        candidateSurfaceWidth = candidateMetrics.framebufferWidth;
+        candidateSurfaceHeight = candidateMetrics.framebufferHeight;
     }
 
     impl_->surface = std::move(candidateSurface);
@@ -317,9 +337,11 @@ bool Application::tryInitializeBackend(
     impl_->window = std::move(candidateWindow);
     impl_->surfaceWidth = candidateSurfaceWidth;
     impl_->surfaceHeight = candidateSurfaceHeight;
+    impl_->lastObservedWindowMetrics = candidateMetrics;
     impl_->backendPlan.activate(backendIndex);
     syncResourceManagerDevicePixelRatio(
         impl_->window.get(),
+        candidateMetrics,
         impl_->resourceManagerBindingId,
         impl_->syncedDevicePixelRatio);
     return true;
@@ -368,13 +390,12 @@ platform::WindowConfig Application::currentWindowConfigForRecovery() const
         return windowConfig;
     }
 
-    const int currentWidth = impl_->window->width();
-    const int currentHeight = impl_->window->height();
-    if (currentWidth > 0) {
-        windowConfig.width = currentWidth;
+    const platform::WindowMetrics metrics = currentWindowMetrics(impl_->window.get());
+    if (metrics.windowWidth > 0) {
+        windowConfig.width = metrics.windowWidth;
     }
-    if (currentHeight > 0) {
-        windowConfig.height = currentHeight;
+    if (metrics.windowHeight > 0) {
+        windowConfig.height = metrics.windowHeight;
     }
     return windowConfig;
 }
@@ -390,9 +411,11 @@ void Application::resetRenderState()
     impl_->window.reset();
     impl_->surfaceWidth = 0;
     impl_->surfaceHeight = 0;
+    impl_->lastObservedWindowMetrics = {};
     impl_->backendPlan.reset(impl_->config.backend);
     syncResourceManagerDevicePixelRatio(
         nullptr,
+        {},
         impl_->resourceManagerBindingId,
         impl_->syncedDevicePixelRatio);
     impl_->lastRenderFrameOutcome = RenderFrameOutcome::Deferred;
@@ -420,6 +443,11 @@ bool Application::pumpOnce()
     } else {
         impl_->uiContext.noteWaitLoop();
         impl_->window->waitEventsTimeout(loopDecision.waitSeconds);
+    }
+    const platform::WindowMetrics currentMetrics = currentWindowMetrics(impl_->window.get());
+    if (windowMetricsChanged(impl_->lastObservedWindowMetrics, currentMetrics)) {
+        impl_->uiContext.notifyWindowMetricsChanged();
+        impl_->lastObservedWindowMetrics = currentMetrics;
     }
 
     if (impl_->uiContext.tickAnimations(ui::animationNowSeconds())) {
@@ -488,10 +516,11 @@ void Application::handleEvent(core::Event& event)
     }
 
     const float dpiScale = impl_->window != nullptr
-        ? sanitizeDpiScale(impl_->window->dpiScale())
+        ? sanitizeDpiScale(impl_->window->metrics().dpiScale)
         : 1.0f;
     syncResourceManagerDevicePixelRatio(
         impl_->window.get(),
+        currentWindowMetrics(impl_->window.get()),
         impl_->resourceManagerBindingId,
         impl_->syncedDevicePixelRatio);
     impl_->uiContext.handleEvent(event, [this] { requestClose(); }, dpiScale);
@@ -640,9 +669,10 @@ bool Application::renderFrame()
 
     impl_->lastRenderFrameOutcome = RenderFrameOutcome::Deferred;
 
-    const int framebufferWidth = impl_->window->framebufferWidth();
-    const int framebufferHeight = impl_->window->framebufferHeight();
-    const float dpiScale = sanitizeDpiScale(impl_->window->dpiScale());
+    const platform::WindowMetrics metrics = currentWindowMetrics(impl_->window.get());
+    const int framebufferWidth = metrics.framebufferWidth;
+    const int framebufferHeight = metrics.framebufferHeight;
+    const float dpiScale = sanitizeDpiScale(metrics.dpiScale);
     if (framebufferWidth <= 0 || framebufferHeight <= 0) {
         return true;
     }
@@ -715,6 +745,7 @@ bool Application::renderFrame()
     }
     syncResourceManagerDevicePixelRatio(
         impl_->window.get(),
+        metrics,
         impl_->resourceManagerBindingId,
         impl_->syncedDevicePixelRatio);
     const bool fullRedraw =
@@ -740,7 +771,7 @@ void Application::syncTextInputState()
 
     const std::optional<core::Rect> targetCursorRect = logicalToPhysicalRect(
         impl_->uiContext.imeCursorRect(),
-        impl_->window->dpiScale());
+        impl_->window->metrics().dpiScale);
     if (impl_->window->textInputCursorRect() != targetCursorRect) {
         impl_->window->setTextInputCursorRect(targetCursorRect);
     }

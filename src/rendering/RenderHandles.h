@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
 #include "include/core/SkImage.h"
 #include "include/core/SkRefCnt.h"
@@ -19,7 +20,16 @@ struct MetalContextState;
 struct MetalSurfaceState;
 
 struct Canvas::Impl {
+    struct TransformState {
+        float scaleX = 1.0f;
+        float scaleY = 1.0f;
+        float translateX = 0.0f;
+        float translateY = 0.0f;
+    };
+
     SkCanvas* skiaCanvas = nullptr;
+    TransformState transform {};
+    std::vector<TransformState> stack;
 };
 
 struct Image::Impl {

@@ -1,6 +1,7 @@
 #include "tinalux/rendering/rendering.h"
 
 #include <algorithm>
+#include <cmath>
 #include <mutex>
 #include <utility>
 
@@ -44,6 +45,82 @@ SkPaint makePaint(core::Color color, PaintStyle style, float strokeWidth)
         paint.setStrokeWidth(strokeWidth);
     }
     return paint;
+}
+
+float sanitizeCanvasScale(float value)
+{
+    return std::isfinite(value) && std::abs(value) > 0.0001f ? value : 1.0f;
+}
+
+float snapDeviceEdge(float value, float scale, float translation)
+{
+    const float sanitizedScale = sanitizeCanvasScale(scale);
+    const float physical = value * sanitizedScale + translation;
+    return (std::round(physical) - translation) / sanitizedScale;
+}
+
+float snapDeviceCenter(float value, float strokeWidth, float scale, float translation)
+{
+    const float sanitizedScale = sanitizeCanvasScale(scale);
+    const float physical = value * sanitizedScale + translation;
+    const float physicalStroke = std::max(std::abs(strokeWidth * sanitizedScale), 0.0001f);
+    return (std::round(physical - physicalStroke * 0.5f) + physicalStroke * 0.5f - translation)
+        / sanitizedScale;
+}
+
+float snapDeviceExtent(float value, float scale)
+{
+    const float sanitizedScale = sanitizeCanvasScale(scale);
+    return std::round(std::max(0.0f, value) * sanitizedScale) / sanitizedScale;
+}
+
+core::Rect snapFillRect(
+    core::Rect rect,
+    float scaleX,
+    float scaleY,
+    float translateX,
+    float translateY)
+{
+    const float left = snapDeviceEdge(rect.left(), scaleX, translateX);
+    const float top = snapDeviceEdge(rect.top(), scaleY, translateY);
+    const float right = snapDeviceEdge(rect.right(), scaleX, translateX);
+    const float bottom = snapDeviceEdge(rect.bottom(), scaleY, translateY);
+    if (right <= left || bottom <= top) {
+        return rect;
+    }
+    return core::Rect::MakeLTRB(left, top, right, bottom);
+}
+
+core::Rect snapStrokeRect(
+    core::Rect rect,
+    float strokeWidth,
+    float scaleX,
+    float scaleY,
+    float translateX,
+    float translateY)
+{
+    const float left = snapDeviceCenter(rect.left(), strokeWidth, scaleX, translateX);
+    const float top = snapDeviceCenter(rect.top(), strokeWidth, scaleY, translateY);
+    const float right = snapDeviceCenter(rect.right(), strokeWidth, scaleX, translateX);
+    const float bottom = snapDeviceCenter(rect.bottom(), strokeWidth, scaleY, translateY);
+    if (right <= left || bottom <= top) {
+        return rect;
+    }
+    return core::Rect::MakeLTRB(left, top, right, bottom);
+}
+
+core::Rect snapRectForPaint(
+    core::Rect rect,
+    PaintStyle style,
+    float strokeWidth,
+    float scaleX,
+    float scaleY,
+    float translateX,
+    float translateY)
+{
+    return style == PaintStyle::Stroke
+        ? snapStrokeRect(rect, strokeWidth, scaleX, scaleY, translateX, translateY)
+        : snapFillRect(rect, scaleX, scaleY, translateX, translateY);
 }
 
 }  // namespace
@@ -108,6 +185,9 @@ bool Canvas::quickReject(core::Rect rect) const
 
 void Canvas::save()
 {
+    if (impl_ != nullptr) {
+        impl_->stack.push_back(impl_->transform);
+    }
     if (auto* skia = RenderAccess::skiaCanvas(*this); skia != nullptr) {
         skia->save();
     }
@@ -118,10 +198,18 @@ void Canvas::restore()
     if (auto* skia = RenderAccess::skiaCanvas(*this); skia != nullptr) {
         skia->restore();
     }
+    if (impl_ != nullptr && !impl_->stack.empty()) {
+        impl_->transform = impl_->stack.back();
+        impl_->stack.pop_back();
+    }
 }
 
 void Canvas::translate(float dx, float dy)
 {
+    if (impl_ != nullptr) {
+        impl_->transform.translateX += dx * impl_->transform.scaleX;
+        impl_->transform.translateY += dy * impl_->transform.scaleY;
+    }
     if (auto* skia = RenderAccess::skiaCanvas(*this); skia != nullptr) {
         skia->translate(dx, dy);
     }
@@ -129,6 +217,10 @@ void Canvas::translate(float dx, float dy)
 
 void Canvas::scale(float sx, float sy)
 {
+    if (impl_ != nullptr) {
+        impl_->transform.scaleX *= sx;
+        impl_->transform.scaleY *= sy;
+    }
     if (auto* skia = RenderAccess::skiaCanvas(*this); skia != nullptr) {
         skia->scale(sx, sy);
     }
@@ -164,7 +256,18 @@ void Canvas::clearRect(core::Rect rect, core::Color color)
 void Canvas::drawRect(core::Rect rect, core::Color color, PaintStyle style, float strokeWidth)
 {
     if (auto* skia = RenderAccess::skiaCanvas(*this); skia != nullptr) {
-        skia->drawRect(core::toSkRect(rect), makePaint(color, style, strokeWidth));
+        const core::Rect snappedRect =
+            impl_ != nullptr
+            ? snapRectForPaint(
+                rect,
+                style,
+                strokeWidth,
+                impl_->transform.scaleX,
+                impl_->transform.scaleY,
+                impl_->transform.translateX,
+                impl_->transform.translateY)
+            : rect;
+        skia->drawRect(core::toSkRect(snappedRect), makePaint(color, style, strokeWidth));
     }
 }
 
@@ -177,8 +280,31 @@ void Canvas::drawRoundRect(
     float strokeWidth)
 {
     if (auto* skia = RenderAccess::skiaCanvas(*this); skia != nullptr) {
+        const core::Rect snappedRect =
+            impl_ != nullptr
+            ? snapRectForPaint(
+                rect,
+                style,
+                strokeWidth,
+                impl_->transform.scaleX,
+                impl_->transform.scaleY,
+                impl_->transform.translateX,
+                impl_->transform.translateY)
+            : rect;
+        const float snappedRadiusX = impl_ != nullptr
+            ? std::clamp(
+                snapDeviceExtent(radiusX, impl_->transform.scaleX),
+                0.0f,
+                snappedRect.width() * 0.5f)
+            : radiusX;
+        const float snappedRadiusY = impl_ != nullptr
+            ? std::clamp(
+                snapDeviceExtent(radiusY, impl_->transform.scaleY),
+                0.0f,
+                snappedRect.height() * 0.5f)
+            : radiusY;
         skia->drawRRect(
-            SkRRect::MakeRectXY(core::toSkRect(rect), radiusX, radiusY),
+            SkRRect::MakeRectXY(core::toSkRect(snappedRect), snappedRadiusX, snappedRadiusY),
             makePaint(color, style, strokeWidth));
     }
 }
@@ -206,11 +332,40 @@ void Canvas::drawLine(
     bool roundCap)
 {
     if (auto* skia = RenderAccess::skiaCanvas(*this); skia != nullptr) {
+        float snappedX0 = x0;
+        float snappedY0 = y0;
+        float snappedX1 = x1;
+        float snappedY1 = y1;
+        if (impl_ != nullptr) {
+            const bool vertical = std::abs(x0 - x1) <= 0.001f;
+            const bool horizontal = std::abs(y0 - y1) <= 0.001f;
+            if (vertical) {
+                const float snappedX = snapDeviceCenter(
+                    x0,
+                    strokeWidth,
+                    impl_->transform.scaleX,
+                    impl_->transform.translateX);
+                snappedX0 = snappedX;
+                snappedX1 = snappedX;
+                snappedY0 = snapDeviceEdge(y0, impl_->transform.scaleY, impl_->transform.translateY);
+                snappedY1 = snapDeviceEdge(y1, impl_->transform.scaleY, impl_->transform.translateY);
+            } else if (horizontal) {
+                const float snappedY = snapDeviceCenter(
+                    y0,
+                    strokeWidth,
+                    impl_->transform.scaleY,
+                    impl_->transform.translateY);
+                snappedY0 = snappedY;
+                snappedY1 = snappedY;
+                snappedX0 = snapDeviceEdge(x0, impl_->transform.scaleX, impl_->transform.translateX);
+                snappedX1 = snapDeviceEdge(x1, impl_->transform.scaleX, impl_->transform.translateX);
+            }
+        }
         SkPaint paint = makePaint(color, PaintStyle::Stroke, strokeWidth);
         if (roundCap) {
             paint.setStrokeCap(SkPaint::kRound_Cap);
         }
-        skia->drawLine(x0, y0, x1, y1, paint);
+        skia->drawLine(snappedX0, snappedY0, snappedX1, snappedY1, paint);
     }
 }
 

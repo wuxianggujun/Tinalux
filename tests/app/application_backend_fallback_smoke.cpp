@@ -33,6 +33,8 @@ bool gFailFirstVulkanContext = false;
 bool gFailSecondVulkanSurface = false;
 int gFramebufferWidthOverride = 0;
 int gFramebufferHeightOverride = 0;
+int gPendingFramebufferWidth = 0;
+int gPendingFramebufferHeight = 0;
 
 void destroyFakeHandle(void*, void*) {}
 
@@ -56,8 +58,14 @@ public:
     }
 
     bool shouldClose() const override { return false; }
-    void pollEvents() override {}
-    void waitEventsTimeout(double) override {}
+    void pollEvents() override
+    {
+        applyPendingFramebufferMetrics();
+    }
+    void waitEventsTimeout(double) override
+    {
+        applyPendingFramebufferMetrics();
+    }
     void swapBuffers() override {}
     void requestClose() override {}
 
@@ -87,6 +95,18 @@ public:
     GraphicsAPI graphicsApi() const { return graphicsApi_; }
 
 private:
+    static void applyPendingFramebufferMetrics()
+    {
+        if (gPendingFramebufferWidth <= 0 || gPendingFramebufferHeight <= 0) {
+            return;
+        }
+
+        gFramebufferWidthOverride = gPendingFramebufferWidth;
+        gFramebufferHeightOverride = gPendingFramebufferHeight;
+        gPendingFramebufferWidth = 0;
+        gPendingFramebufferHeight = 0;
+    }
+
     GraphicsAPI graphicsApi_ = GraphicsAPI::OpenGL;
     int width_ = 0;
     int height_ = 0;
@@ -130,6 +150,8 @@ void resetScenario()
     gFailSecondVulkanSurface = false;
     gFramebufferWidthOverride = 0;
     gFramebufferHeightOverride = 0;
+    gPendingFramebufferWidth = 0;
+    gPendingFramebufferHeight = 0;
 }
 
 }  // namespace
@@ -219,6 +241,33 @@ int main()
         expect(
             gContextRequests.size() == 1,
             "Surface recreation without backend failure should not create a second context");
+    }
+
+    {
+        resetScenario();
+
+        app::Application app;
+        expect(
+            app.init(app::ApplicationConfig { .backend = Backend::Auto }),
+            "Auto backend init should succeed for metrics-driven redraw smoke");
+        expect(
+            gSurfaceCreateCalls == 1,
+            "Init should create exactly one initial surface before metrics-driven redraw smoke");
+
+        gPendingFramebufferWidth = 1600;
+        gPendingFramebufferHeight = 900;
+        expect(
+            app.pumpOnce(),
+            "Pump loop should keep the application alive when framebuffer metrics change during event polling");
+        expect(
+            gSurfaceCreateCalls == 2,
+            "Framebuffer metric changes observed during event polling should trigger a redraw and one surface recreation");
+        expect(
+            gWindowApis.size() == 1,
+            "Metrics-driven redraw should not create a second window");
+        expect(
+            gContextRequests.size() == 1,
+            "Metrics-driven redraw should not create a second context");
     }
 
     {

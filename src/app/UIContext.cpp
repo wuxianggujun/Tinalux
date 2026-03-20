@@ -778,6 +778,11 @@ bool UIContext::hasImmediateRenderWork() const
         || (overlayWidget_ != nullptr && overlayWidget_->isDirty());
 }
 
+void UIContext::notifyWindowMetricsChanged()
+{
+    needsRedraw_ = true;
+}
+
 bool UIContext::render(
     rendering::Canvas& canvas,
     int framebufferWidth,

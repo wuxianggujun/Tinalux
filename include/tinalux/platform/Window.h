@@ -23,6 +23,14 @@ enum class GraphicsAPI {
     None,
 };
 
+struct WindowMetrics {
+    int windowWidth = 0;
+    int windowHeight = 0;
+    int framebufferWidth = 0;
+    int framebufferHeight = 0;
+    float dpiScale = 1.0f;
+};
+
 struct WindowConfig {
     struct AndroidNativeWindowConfig {
         void* nativeWindow = nullptr;
@@ -53,6 +61,16 @@ public:
     virtual int framebufferWidth() const = 0;
     virtual int framebufferHeight() const = 0;
     virtual float dpiScale() const = 0;
+    WindowMetrics metrics() const
+    {
+        WindowMetrics result;
+        result.windowWidth = width();
+        result.windowHeight = height();
+        result.framebufferWidth = framebufferWidth();
+        result.framebufferHeight = framebufferHeight();
+        result.dpiScale = dpiScale();
+        return result;
+    }
 
     virtual void setClipboardText(const std::string& text) = 0;
     virtual std::string clipboardText() const = 0;
