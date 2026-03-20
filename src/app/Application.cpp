@@ -733,10 +733,17 @@ void Application::syncTextInputState()
         return;
     }
 
-    impl_->window->setTextInputActive(impl_->uiContext.textInputActive());
-    impl_->window->setTextInputCursorRect(logicalToPhysicalRect(
+    const bool targetTextInputActive = impl_->uiContext.textInputActive();
+    if (impl_->window->textInputActive() != targetTextInputActive) {
+        impl_->window->setTextInputActive(targetTextInputActive);
+    }
+
+    const std::optional<core::Rect> targetCursorRect = logicalToPhysicalRect(
         impl_->uiContext.imeCursorRect(),
-        impl_->window->dpiScale()));
+        impl_->window->dpiScale());
+    if (impl_->window->textInputCursorRect() != targetCursorRect) {
+        impl_->window->setTextInputCursorRect(targetCursorRect);
+    }
 }
 
 }  // namespace tinalux::app

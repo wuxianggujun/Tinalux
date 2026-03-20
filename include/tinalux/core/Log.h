@@ -28,12 +28,19 @@ struct LogConfig {
 #if defined(__ANDROID__)
     bool enableConsole = false;
     bool enableAndroidLog = true;
+#elif defined(_WIN32)
+    bool enableConsole = false;
+    bool enableAndroidLog = false;
 #else
     bool enableConsole = true;
     bool enableAndroidLog = false;
 #endif
     bool enableFile = true;
+#if defined(_WIN32)
+    bool enableDebugOutput = false;
+#else
     bool enableDebugOutput = true;
+#endif
     bool rotateFile = true;
     std::size_t maxFileSize = 5 * 1024 * 1024;
     std::size_t maxFiles = 3;
@@ -47,12 +54,16 @@ bool isLogInitialized();
 void setLogLevel(LogLevel level);
 LogLevel logLevel();
 void flushLog();
+bool shouldLog(LogLevel level);
 void logMessage(LogLevel level, std::string_view message);
 void logMessage(LogLevel level, std::string_view category, std::string_view message);
 
 template <typename... Args>
 void log(LogLevel level, fmt::format_string<Args...> format, Args&&... args)
 {
+    if (!shouldLog(level)) {
+        return;
+    }
     logMessage(level, fmt::format(format, std::forward<Args>(args)...));
 }
 
@@ -63,6 +74,9 @@ void logCat(
     fmt::format_string<Args...> format,
     Args&&... args)
 {
+    if (!shouldLog(level)) {
+        return;
+    }
     logMessage(level, category, fmt::format(format, std::forward<Args>(args)...));
 }
 

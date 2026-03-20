@@ -382,6 +382,13 @@ void flushLog()
     ensureLoggerLocked(state).flush();
 }
 
+bool shouldLog(LogLevel level)
+{
+    LoggerState& state = loggerState();
+    std::lock_guard<std::mutex> lock(state.mutex);
+    return ensureLoggerLocked(state).should_log(toSpdlogLevel(level));
+}
+
 void logMessage(LogLevel level, std::string_view message)
 {
     logMessage(level, std::string_view {}, message);

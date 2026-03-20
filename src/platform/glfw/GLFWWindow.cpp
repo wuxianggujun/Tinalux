@@ -469,6 +469,9 @@ std::string GLFWWindow::clipboardText() const
 
 void GLFWWindow::setTextInputActive(bool active)
 {
+    if (textInputActive_ == active) {
+        return;
+    }
     textInputActive_ = active;
 #if defined(_WIN32)
     if (nativeWindow_ == nullptr) {
@@ -519,6 +522,9 @@ void GLFWWindow::setTextInputActive(bool active)
 
 void GLFWWindow::setTextInputCursorRect(const std::optional<core::Rect>& rect)
 {
+    if (imeCursorRect_ == rect) {
+        return;
+    }
     imeCursorRect_ = rect;
 #if defined(_WIN32)
     if (nativeWindow_ == nullptr) {
