@@ -27,11 +27,6 @@ std::vector<rendering::Backend> backendCandidates(rendering::Backend requestedBa
             rendering::Backend::Vulkan,
             rendering::Backend::OpenGL,
         };
-#elif defined(_WIN32)
-        return {
-            rendering::Backend::OpenGL,
-            rendering::Backend::Vulkan,
-        };
 #else
         return {
             rendering::Backend::Vulkan,

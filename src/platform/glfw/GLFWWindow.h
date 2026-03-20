@@ -71,6 +71,7 @@ public:
     void dispatchPlatformCompositionEnd();
 
 private:
+    void dispatchWindowResizeEvent(int width, int height);
     void updateWindowMetrics();
 
     GLFWwindow* window_ = nullptr;
@@ -80,6 +81,8 @@ private:
     int framebufferWidth_ = 0;
     int framebufferHeight_ = 0;
     float dpiScale_ = 1.0f;
+    float windowToFramebufferScaleX_ = 1.0f;
+    float windowToFramebufferScaleY_ = 1.0f;
     GraphicsAPI graphicsApi_ = GraphicsAPI::OpenGL;
     bool vsync_ = true;
     bool textInputActive_ = false;
@@ -110,6 +113,8 @@ private:
     HWND nativeWindow_ = nullptr;
     WNDPROC originalWindowProc_ = nullptr;
     int suppressedImeCharCount_ = 0;
+    bool interactiveResizeActive_ = false;
+    bool deferredResizeEvent_ = false;
 #endif
 #if defined(__APPLE__)
     std::unique_ptr<CocoaTextInputBridge> cocoaTextInputBridge_;

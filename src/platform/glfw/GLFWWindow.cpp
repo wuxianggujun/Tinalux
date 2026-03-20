@@ -43,6 +43,12 @@ double toFramebufferCoordinate(double value, float scale)
     return value * static_cast<double>(scale);
 }
 
+double toWindowCoordinate(float value, float scale)
+{
+    const double inverseScale = scale > 0.0f ? (1.0 / static_cast<double>(scale)) : 1.0;
+    return static_cast<double>(value) * inverseScale;
+}
+
 std::size_t utf8CodepointCount(const std::string& text)
 {
     std::size_t count = 0;
@@ -171,11 +177,15 @@ void closeImmCandidateWindow(HWND hwnd, HIMC context)
     ImmReleaseContext(hwnd, context);
 }
 
-void applyImmCursorRect(HIMC context, const tinalux::core::Rect& rect, float dpiScale)
+void applyImmCursorRect(
+    HIMC context,
+    const tinalux::core::Rect& rect,
+    float windowToFramebufferScaleX,
+    float windowToFramebufferScaleY)
 {
-    const float inverseScale = dpiScale > 0.0f ? (1.0f / dpiScale) : 1.0f;
-    const LONG x = static_cast<LONG>(std::lround(rect.left() * inverseScale));
-    const LONG y = static_cast<LONG>(std::lround(rect.bottom() * inverseScale));
+    const LONG x = static_cast<LONG>(std::lround(toWindowCoordinate(rect.left(), windowToFramebufferScaleX)));
+    const LONG y =
+        static_cast<LONG>(std::lround(toWindowCoordinate(rect.bottom(), windowToFramebufferScaleY)));
 
     COMPOSITIONFORM compositionForm {};
     compositionForm.dwStyle = CFS_FORCE_POSITION;
@@ -477,7 +487,11 @@ void GLFWWindow::setTextInputActive(bool active)
     }
 
     if (imeCursorRect_.has_value()) {
-        applyImmCursorRect(context, *imeCursorRect_, dpiScale_);
+        applyImmCursorRect(
+            context,
+            *imeCursorRect_,
+            windowToFramebufferScaleX_,
+            windowToFramebufferScaleY_);
     }
     ImmReleaseContext(nativeWindow_, context);
 #elif defined(__APPLE__)
@@ -491,11 +505,12 @@ void GLFWWindow::setTextInputActive(bool active)
 
     glfwSetX11TextInputActive(window_, active ? GLFW_TRUE : GLFW_FALSE);
     if (active && imeCursorRect_.has_value()) {
-        const float inverseScale = dpiScale_ > 0.0f ? (1.0f / dpiScale_) : 1.0f;
         glfwSetX11PreeditSpot(
             window_,
-            static_cast<int>(std::lround(imeCursorRect_->left() * inverseScale)),
-            static_cast<int>(std::lround(imeCursorRect_->bottom() * inverseScale)));
+            static_cast<int>(std::lround(toWindowCoordinate(imeCursorRect_->left(), windowToFramebufferScaleX_))),
+            static_cast<int>(std::lround(toWindowCoordinate(
+                imeCursorRect_->bottom(),
+                windowToFramebufferScaleY_))));
     }
 #else
     (void)active;
@@ -520,7 +535,11 @@ void GLFWWindow::setTextInputCursorRect(const std::optional<core::Rect>& rect)
         return;
     }
 
-    applyImmCursorRect(context, *imeCursorRect_, dpiScale_);
+    applyImmCursorRect(
+        context,
+        *imeCursorRect_,
+        windowToFramebufferScaleX_,
+        windowToFramebufferScaleY_);
     ImmReleaseContext(nativeWindow_, context);
 #elif defined(__APPLE__)
     if (cocoaTextInputBridge_) {
@@ -531,11 +550,10 @@ void GLFWWindow::setTextInputCursorRect(const std::optional<core::Rect>& rect)
         return;
     }
 
-    const float inverseScale = dpiScale_ > 0.0f ? (1.0f / dpiScale_) : 1.0f;
     glfwSetX11PreeditSpot(
         window_,
-        static_cast<int>(std::lround(imeCursorRect_->left() * inverseScale)),
-        static_cast<int>(std::lround(imeCursorRect_->bottom() * inverseScale)));
+        static_cast<int>(std::lround(toWindowCoordinate(imeCursorRect_->left(), windowToFramebufferScaleX_))),
+        static_cast<int>(std::lround(toWindowCoordinate(imeCursorRect_->bottom(), windowToFramebufferScaleY_))));
 #else
     (void)rect;
 #endif
@@ -768,11 +786,17 @@ void GLFWWindow::updateWindowMetrics()
         framebufferWidth_ = 0;
         framebufferHeight_ = 0;
         dpiScale_ = 1.0f;
+        windowToFramebufferScaleX_ = 1.0f;
+        windowToFramebufferScaleY_ = 1.0f;
         return;
     }
 
     glfwGetWindowSize(window_, &windowWidth_, &windowHeight_);
     glfwGetFramebufferSize(window_, &framebufferWidth_, &framebufferHeight_);
+    windowToFramebufferScaleX_ =
+        detail::resolveWindowToFramebufferScale(windowWidth_, framebufferWidth_);
+    windowToFramebufferScaleY_ =
+        detail::resolveWindowToFramebufferScale(windowHeight_, framebufferHeight_);
     float contentScaleX = 1.0f;
     float contentScaleY = 1.0f;
     glfwGetWindowContentScale(window_, &contentScaleX, &contentScaleY);
@@ -783,6 +807,14 @@ void GLFWWindow::updateWindowMetrics()
         framebufferHeight_,
         contentScaleX,
         contentScaleY);
+}
+
+void GLFWWindow::dispatchWindowResizeEvent(int width, int height)
+{
+    if (eventCallback_) {
+        core::WindowResizeEvent event(width, height);
+        eventCallback_(event);
+    }
 }
 
 void GLFWWindow::onFramebufferResize(GLFWwindow* w, int width, int height)
@@ -802,10 +834,11 @@ void GLFWWindow::onFramebufferResize(GLFWwindow* w, int width, int height)
             self->dpiScale(),
             detail::sanitizeWindowScale(contentScaleX),
             detail::sanitizeWindowScale(contentScaleY));
-        if (self->eventCallback_) {
-            core::WindowResizeEvent event(width, height);
-            self->eventCallback_(event);
+        if (self->interactiveResizeActive_) {
+            self->deferredResizeEvent_ = true;
+            return;
         }
+        self->dispatchWindowResizeEvent(width, height);
     }
 }
 
@@ -886,8 +919,8 @@ void GLFWWindow::onMouseButton(GLFWwindow* w, int button, int action, int mods)
             core::MouseButtonEvent event(
                 button,
                 mods,
-                toFramebufferCoordinate(cursorX, self->dpiScale()),
-                toFramebufferCoordinate(cursorY, self->dpiScale()),
+                toFramebufferCoordinate(cursorX, self->windowToFramebufferScaleX_),
+                toFramebufferCoordinate(cursorY, self->windowToFramebufferScaleY_),
                 type);
             self->eventCallback_(event);
         }
@@ -899,8 +932,8 @@ void GLFWWindow::onCursorPos(GLFWwindow* w, double x, double y)
     if (GLFWWindow* self = selfFromWindow(w); self != nullptr) {
         if (self->eventCallback_) {
             core::MouseMoveEvent event(
-                toFramebufferCoordinate(x, self->dpiScale()),
-                toFramebufferCoordinate(y, self->dpiScale()));
+                toFramebufferCoordinate(x, self->windowToFramebufferScaleX_),
+                toFramebufferCoordinate(y, self->windowToFramebufferScaleY_));
             self->eventCallback_(event);
         }
     }
@@ -917,8 +950,8 @@ void GLFWWindow::onCursorEnter(GLFWwindow* w, int entered)
         double cursorY = 0.0;
         glfwGetCursorPos(w, &cursorX, &cursorY);
         core::MouseCrossEvent event(
-            toFramebufferCoordinate(cursorX, self->dpiScale()),
-            toFramebufferCoordinate(cursorY, self->dpiScale()),
+            toFramebufferCoordinate(cursorX, self->windowToFramebufferScaleX_),
+            toFramebufferCoordinate(cursorY, self->windowToFramebufferScaleY_),
             entered == GLFW_TRUE ? core::EventType::MouseEnter : core::EventType::MouseLeave);
         self->eventCallback_(event);
     }
@@ -959,6 +992,20 @@ LRESULT CALLBACK GLFWWindow::onNativeWindowProc(HWND hwnd, UINT msg, WPARAM wPar
     }
 
     switch (msg) {
+    case WM_ENTERSIZEMOVE:
+        self->interactiveResizeActive_ = true;
+        self->deferredResizeEvent_ = false;
+        break;
+    case WM_EXITSIZEMOVE:
+        self->interactiveResizeActive_ = false;
+        if (self->deferredResizeEvent_) {
+            self->updateWindowMetrics();
+            self->deferredResizeEvent_ = false;
+            self->dispatchWindowResizeEvent(
+                self->framebufferWidth(),
+                self->framebufferHeight());
+        }
+        break;
     case WM_IME_STARTCOMPOSITION:
         if (self->textInputActive_ && self->eventCallback_) {
             self->dispatchPlatformCompositionStart();

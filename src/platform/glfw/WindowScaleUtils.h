@@ -30,4 +30,11 @@ inline float resolveWindowDpiScale(
     return (std::max)({ framebufferScaleX, framebufferScaleY, reportedContentScale });
 }
 
+inline float resolveWindowToFramebufferScale(int windowExtent, int framebufferExtent)
+{
+    return windowExtent > 0 && framebufferExtent > 0
+        ? sanitizeWindowScale(static_cast<float>(framebufferExtent) / static_cast<float>(windowExtent))
+        : 1.0f;
+}
+
 }  // namespace tinalux::platform::detail

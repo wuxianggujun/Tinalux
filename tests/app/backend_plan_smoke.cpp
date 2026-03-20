@@ -43,10 +43,6 @@ int main()
     expect(autoCandidates[0] == Backend::Metal, "Apple Auto backend should prioritize Metal");
     expect(autoCandidates[1] == Backend::Vulkan, "Apple Auto backend should fall back to Vulkan second");
     expect(autoCandidates[2] == Backend::OpenGL, "Apple Auto backend should keep OpenGL as the final fallback");
-#elif defined(_WIN32)
-    expect(autoCandidates.size() == 2, "Auto backend should expose two candidates on Windows");
-    expect(autoCandidates[0] == Backend::OpenGL, "Windows Auto backend should prioritize OpenGL");
-    expect(autoCandidates[1] == Backend::Vulkan, "Windows Auto backend should keep Vulkan as fallback");
 #else
     expect(autoCandidates.size() == 2, "Auto backend should expose two candidates on non-Apple platforms");
     expect(autoCandidates[0] == Backend::Vulkan, "Non-Apple Auto backend should prioritize Vulkan");
