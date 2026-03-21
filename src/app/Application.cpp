@@ -441,11 +441,6 @@ bool Application::resumeRendering(const platform::WindowConfig& windowConfig)
     return false;
 }
 
-bool Application::renderingReady() const
-{
-    return impl_ != nullptr && impl_->window != nullptr && impl_->context;
-}
-
 bool Application::tryInitializeBackend(
     const platform::WindowConfig& windowConfig,
     rendering::Backend backend,

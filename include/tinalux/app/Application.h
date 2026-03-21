@@ -64,7 +64,6 @@ public:
     bool pumpOnce();
     void suspendRendering();
     bool resumeRendering(const platform::WindowConfig& windowConfig);
-    bool renderingReady() const;
     void shutdown();
 
     void handleEvent(core::Event& event);
