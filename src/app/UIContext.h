@@ -22,6 +22,7 @@ class Widget;
 }
 
 namespace tinalux::app::detail {
+struct UIContextApplicationAccess;
 struct UIContextTestAccess;
 }
 
@@ -62,7 +63,7 @@ public:
         float dpiScale = 1.0f);
 
 private:
-    friend class Application;
+    friend struct detail::UIContextApplicationAccess;
     friend struct detail::UIContextTestAccess;
 
     struct PerfLogIntervalStats {

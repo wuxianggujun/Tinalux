@@ -8,6 +8,7 @@
 #include "LoopTiming.h"
 #include "RuntimeHooks.h"
 #include "UIContext.h"
+#include "UIContextApplicationAccess.h"
 #include "tinalux/core/Log.h"
 #include "tinalux/core/events/Event.h"
 #include "../rendering/FrameLifecycle.h"
@@ -309,7 +310,7 @@ Application::Application()
 {
     // Window-backed swapchains do not guarantee preserved pixels across swaps,
     // so live application rendering must redraw the full scene.
-    impl_->uiContext.configurePartialRedraw(false);
+    detail::UIContextApplicationAccess::configurePartialRedraw(impl_->uiContext, false);
 }
 
 Application::~Application()
@@ -338,7 +339,8 @@ bool Application::init(const ApplicationConfig& config)
         config.window.vsync,
         rendering::backendName(config.backend));
 
-    const PerfLogConfig perfConfig = impl_->uiContext.perfLogConfig();
+    const PerfLogConfig perfConfig =
+        detail::UIContextApplicationAccess::perfLogConfig(impl_->uiContext);
     if (perfConfig.enabled) {
         core::logInfoCat(
             "perf",
@@ -346,7 +348,8 @@ bool Application::init(const ApplicationConfig& config)
             perfConfig.frameInterval);
     }
 
-    const DebugHudConfig hudConfig = impl_->uiContext.debugHudConfig();
+    const DebugHudConfig hudConfig =
+        detail::UIContextApplicationAccess::debugHudConfig(impl_->uiContext);
     if (hudConfig.enabled) {
         core::logInfoCat(
             "app",
@@ -619,12 +622,12 @@ bool Application::pumpOnce()
     }
 
     const double nowSeconds = ui::animationNowSeconds();
-    auto& animationSink = impl_->uiContext.animationSink();
+    auto& animationSink = detail::UIContextApplicationAccess::animationSink(impl_->uiContext);
     const detail::EventLoopDecision loopDecision = detail::chooseEventLoopDecision(
-        impl_->uiContext.hasImmediateRenderWork(),
+        detail::UIContextApplicationAccess::hasImmediateRenderWork(impl_->uiContext),
         animationSink.nextWakeDelaySeconds(nowSeconds),
         kIdleWaitSeconds);
-    impl_->uiContext.noteEventLoop(loopDecision.mode);
+    detail::UIContextApplicationAccess::noteEventLoop(impl_->uiContext, loopDecision.mode);
 
     if (loopDecision.mode == detail::EventLoopMode::Poll) {
         impl_->window->pollEvents();
@@ -639,18 +642,21 @@ bool Application::pumpOnce()
             impl_->surfaceRecoveryState.pendingRecreate = true;
         }
         impl_->surfaceRecoveryState.lastMetricsChangeAt = metricsChangedAt;
-        impl_->uiContext.requestRedraw();
+        detail::UIContextApplicationAccess::requestRedraw(impl_->uiContext);
         impl_->lastObservedWindowMetrics = currentMetrics;
     }
 
-    if (impl_->uiContext.tickAnimations(ui::animationNowSeconds())) {
-        impl_->uiContext.requestRedraw();
+    if (detail::UIContextApplicationAccess::tickAnimations(
+            impl_->uiContext,
+            ui::animationNowSeconds())) {
+        detail::UIContextApplicationAccess::requestRedraw(impl_->uiContext);
     }
-    if (impl_->uiContext.tickAsyncResources()) {
-        impl_->uiContext.requestRedraw();
+    if (detail::UIContextApplicationAccess::tickAsyncResources(impl_->uiContext)) {
+        detail::UIContextApplicationAccess::requestRedraw(impl_->uiContext);
     }
 
-    if (impl_->uiContext.hasImmediateRenderWork() || animationSink.hasActiveAnimations()) {
+    if (detail::UIContextApplicationAccess::hasImmediateRenderWork(impl_->uiContext)
+        || animationSink.hasActiveAnimations()) {
         using clock = std::chrono::steady_clock;
         const auto frameStart = clock::now();
         const bool fullRedraw = renderFrame();
@@ -659,9 +665,12 @@ bool Application::pumpOnce()
             std::chrono::duration<double, std::milli>(frameEnd - frameStart).count();
 
         if (impl_->lastRenderFrameOutcome == RenderFrameOutcome::Presented) {
-            impl_->uiContext.noteFrameRendered(fullRedraw, frameMs);
+            detail::UIContextApplicationAccess::noteFrameRendered(
+                impl_->uiContext,
+                fullRedraw,
+                frameMs);
         } else {
-            impl_->uiContext.noteFrameDeferred();
+            detail::UIContextApplicationAccess::noteFrameDeferred(impl_->uiContext);
         }
     }
 
@@ -804,7 +813,9 @@ PlatformTextInputState Application::platformTextInputState() const
 
 FrameStats Application::currentFrameStats() const
 {
-    return impl_ ? impl_->uiContext.frameStats() : FrameStats {};
+    return impl_
+        ? detail::UIContextApplicationAccess::frameStats(impl_->uiContext)
+        : FrameStats {};
 }
 
 void Application::setTheme(ui::Theme theme)
@@ -827,7 +838,9 @@ void Application::setPerfLogConfig(PerfLogConfig config)
 
 PerfLogConfig Application::currentPerfLogConfig() const
 {
-    return impl_ ? impl_->uiContext.perfLogConfig() : PerfLogConfig {};
+    return impl_
+        ? detail::UIContextApplicationAccess::perfLogConfig(impl_->uiContext)
+        : PerfLogConfig {};
 }
 
 void Application::setDebugHudConfig(DebugHudConfig config)
@@ -841,7 +854,9 @@ void Application::setDebugHudConfig(DebugHudConfig config)
 
 DebugHudConfig Application::currentDebugHudConfig() const
 {
-    return impl_ ? impl_->uiContext.debugHudConfig() : DebugHudConfig {};
+    return impl_
+        ? detail::UIContextApplicationAccess::debugHudConfig(impl_->uiContext)
+        : DebugHudConfig {};
 }
 
 rendering::Backend Application::renderBackend() const
@@ -876,14 +891,14 @@ bool Application::renderFrame()
     const auto handleSurfaceRecreateFailure = [this, &resetTrackedSurfaceState]() {
         resetTrackedSurfaceState(false);
         resetRuntimeSurfaceFailureRecovery(impl_->surfaceRecoveryState);
-        impl_->uiContext.requestRedraw();
+        detail::UIContextApplicationAccess::requestRedraw(impl_->uiContext);
         tryPromoteNextBackend();
         return true;
     };
 
     const auto handleRuntimeSurfaceFailure =
         [this, &resetTrackedSurfaceState](rendering::SurfaceFailureReason failureReason) {
-        impl_->uiContext.requestRedraw();
+        detail::UIContextApplicationAccess::requestRedraw(impl_->uiContext);
 
         const auto now = nowSteadyTime();
         const bool recentInteractiveMetricsChange =
@@ -937,7 +952,7 @@ bool Application::renderFrame()
             const auto now = nowSteadyTime();
             if (now - impl_->surfaceRecoveryState.lastRecreateAt
                 < kInteractiveSurfaceRecreateMinInterval) {
-                impl_->uiContext.requestRedraw();
+                detail::UIContextApplicationAccess::requestRedraw(impl_->uiContext);
                 syncTextInputState();
                 return true;
             }
@@ -971,7 +986,7 @@ bool Application::renderFrame()
             failureReason,
             SurfaceFailureLogStage::RetryLater);
         resetRuntimeSurfaceFailureRecovery(impl_->surfaceRecoveryState);
-        impl_->uiContext.requestRedraw();
+        detail::UIContextApplicationAccess::requestRedraw(impl_->uiContext);
         syncTextInputState();
         return true;
     }
@@ -989,8 +1004,12 @@ bool Application::renderFrame()
         metrics,
         impl_->resourceManagerBindingId,
         impl_->syncedDevicePixelRatio);
-    const bool fullRedraw =
-        impl_->uiContext.render(canvas, framebufferWidth, framebufferHeight, dpiScale);
+    const bool fullRedraw = detail::UIContextApplicationAccess::render(
+        impl_->uiContext,
+        canvas,
+        framebufferWidth,
+        framebufferHeight,
+        dpiScale);
 
     syncTextInputState();
     detail::runtimeHooks().flushFrame(impl_->context, impl_->surface);
@@ -1011,13 +1030,14 @@ void Application::syncTextInputState()
         return;
     }
 
-    const bool targetTextInputActive = impl_->uiContext.textInputActive();
+    const bool targetTextInputActive =
+        detail::UIContextApplicationAccess::textInputActive(impl_->uiContext);
     if (impl_->window->textInputActive() != targetTextInputActive) {
         impl_->window->setTextInputActive(targetTextInputActive);
     }
 
     const std::optional<core::Rect> targetCursorRect = logicalToPhysicalRect(
-        impl_->uiContext.imeCursorRect(),
+        detail::UIContextApplicationAccess::imeCursorRect(impl_->uiContext),
         impl_->window->metrics().dpiScale);
     if (impl_->window->textInputCursorRect() != targetCursorRect) {
         impl_->window->setTextInputCursorRect(targetCursorRect);
