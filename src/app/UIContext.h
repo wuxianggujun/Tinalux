@@ -59,7 +59,6 @@ public:
 
     void noteWaitLoop();
     void notePollLoop();
-    void noteAnimationTickUpdated();
     void noteFrameRendered(bool fullRedraw, double frameMs);
     void noteFrameDeferred();
     bool tickAnimations(double nowSeconds);

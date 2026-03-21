@@ -649,10 +649,10 @@ bool Application::pumpOnce()
     }
 
     if (impl_->uiContext.tickAnimations(ui::animationNowSeconds())) {
-        impl_->uiContext.noteAnimationTickUpdated();
+        impl_->uiContext.requestRedraw();
     }
     if (impl_->uiContext.tickAsyncResources()) {
-        impl_->uiContext.noteAnimationTickUpdated();
+        impl_->uiContext.requestRedraw();
     }
 
     if (impl_->uiContext.hasImmediateRenderWork() || impl_->uiContext.hasActiveAnimations()) {

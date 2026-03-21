@@ -699,11 +699,6 @@ void UIContext::notePollLoop()
     ++perfLogIntervalStats_.pollEventLoops;
 }
 
-void UIContext::noteAnimationTickUpdated()
-{
-    needsRedraw_ = true;
-}
-
 void UIContext::noteFrameRendered(bool fullRedraw, double frameMs)
 {
     ++frameStats_.totalFrames;
