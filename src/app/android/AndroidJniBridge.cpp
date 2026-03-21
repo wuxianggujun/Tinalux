@@ -324,12 +324,13 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchKeyDown(
         return nullptr;
     }
 
-    if (!runtime->dispatchKeyDown(mappedKey, mapAndroidModifiers(metaState), repeatCount > 0)) {
+    const auto clipboardText =
+        runtime->dispatchKeyDown(mappedKey, mapAndroidModifiers(metaState), repeatCount > 0);
+    if (!clipboardText.has_value()) {
         return nullptr;
     }
 
-    const std::string utf8Text = runtime->clipboardText();
-    return env->NewStringUTF(utf8Text.c_str());
+    return env->NewStringUTF(clipboardText->c_str());
 }
 
 JNIEXPORT jstring JNICALL
@@ -354,12 +355,12 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchKeyUp(
         return nullptr;
     }
 
-    if (!runtime->dispatchKeyUp(mappedKey, mapAndroidModifiers(metaState))) {
+    const auto clipboardText = runtime->dispatchKeyUp(mappedKey, mapAndroidModifiers(metaState));
+    if (!clipboardText.has_value()) {
         return nullptr;
     }
 
-    const std::string utf8Text = runtime->clipboardText();
-    return env->NewStringUTF(utf8Text.c_str());
+    return env->NewStringUTF(clipboardText->c_str());
 }
 
 JNIEXPORT jboolean JNICALL

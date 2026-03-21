@@ -43,8 +43,8 @@ public:
     bool dispatchPointerDown(double x, double y);
     bool dispatchPointerUp(double x, double y);
     AndroidTextInputState textInputState() const;
-    bool dispatchKeyDown(int key, int modifiers = 0, bool repeat = false);
-    bool dispatchKeyUp(int key, int modifiers = 0);
+    std::optional<std::string> dispatchKeyDown(int key, int modifiers = 0, bool repeat = false);
+    std::optional<std::string> dispatchKeyUp(int key, int modifiers = 0);
     bool dispatchTextInput(std::string text);
     bool dispatchCompositionUpdate(std::string text, std::optional<std::size_t> caretUtf8Offset);
     bool dispatchCompositionEnd();
@@ -56,6 +56,7 @@ public:
     bool ready() const;
 
 private:
+    std::string currentClipboardText() const;
     void shutdown();
     struct Impl;
     std::unique_ptr<Impl> impl_;

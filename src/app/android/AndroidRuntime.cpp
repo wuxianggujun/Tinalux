@@ -98,7 +98,7 @@ void AndroidRuntime::setPreferredBackend(rendering::Backend backend)
         return;
     }
 
-    impl_->clipboardText = clipboardText();
+    impl_->clipboardText = currentClipboardText();
     if (ready()) {
         impl_->application.suspendRendering();
     }
@@ -179,7 +179,7 @@ void AndroidRuntime::detachWindow()
     }
 
     impl_->attachedNativeWindow = nullptr;
-    impl_->clipboardText = clipboardText();
+    impl_->clipboardText = currentClipboardText();
 
     if (ready()) {
         core::logInfoCat("app.android", "Android runtime detaching native window");
@@ -315,10 +315,10 @@ AndroidTextInputState AndroidRuntime::textInputState() const
     };
 }
 
-bool AndroidRuntime::dispatchKeyDown(int key, int modifiers, bool repeat)
+std::optional<std::string> AndroidRuntime::dispatchKeyDown(int key, int modifiers, bool repeat)
 {
     if (!impl_ || !ready()) {
-        return false;
+        return std::nullopt;
     }
 
     core::KeyEvent event(
@@ -327,18 +327,18 @@ bool AndroidRuntime::dispatchKeyDown(int key, int modifiers, bool repeat)
         modifiers,
         repeat ? core::EventType::KeyRepeat : core::EventType::KeyPress);
     impl_->application.handleEvent(event);
-    return true;
+    return currentClipboardText();
 }
 
-bool AndroidRuntime::dispatchKeyUp(int key, int modifiers)
+std::optional<std::string> AndroidRuntime::dispatchKeyUp(int key, int modifiers)
 {
     if (!impl_ || !ready()) {
-        return false;
+        return std::nullopt;
     }
 
     core::KeyEvent event(key, 0, modifiers, core::EventType::KeyRelease);
     impl_->application.handleEvent(event);
-    return true;
+    return currentClipboardText();
 }
 
 bool AndroidRuntime::dispatchTextInput(std::string text)
@@ -402,6 +402,11 @@ void AndroidRuntime::setClipboardText(std::string text)
 
 std::string AndroidRuntime::clipboardText() const
 {
+    return currentClipboardText();
+}
+
+std::string AndroidRuntime::currentClipboardText() const
+{
     if (!impl_) {
         return {};
     }
@@ -422,7 +427,7 @@ void AndroidRuntime::setSuspended(bool suspended)
     }
 
     if (suspended) {
-        impl_->clipboardText = clipboardText();
+        impl_->clipboardText = currentClipboardText();
         if (ready()) {
             impl_->application.suspendRendering();
         }
