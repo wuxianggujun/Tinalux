@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "tinalux/core/Geometry.h"
@@ -70,6 +71,9 @@ public:
     std::shared_ptr<Widget> sharedHandle();
     std::weak_ptr<Widget> weakHandle();
 
+    void setId(const std::string& id);
+    const std::string& id() const;
+
 protected:
     friend class Container;
     friend class ScrollView;
@@ -98,6 +102,7 @@ protected:
     bool layoutDirty_ = true;
     std::uint64_t layoutVersion_ = 1;
     Widget* parent_ = nullptr;
+    std::string id_;
 };
 
 }  // namespace tinalux::ui

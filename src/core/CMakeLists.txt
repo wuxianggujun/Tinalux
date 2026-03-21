@@ -1,6 +1,7 @@
 add_library(TinaluxCore STATIC
     core.cpp
     Log.cpp
+    Reflect.cpp
 )
 
 add_library(Tinalux::Core ALIAS TinaluxCore)

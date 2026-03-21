@@ -1,15 +1,15 @@
 # Tinalux 文档索引
 
-> 更新时间：2026-03-18
+> 更新时间：2026-03-21
 > 说明：本目录已按“当前事实 / 历史归档”重整。带日期的阶段报告默认视为归档，不再作为当前实现依据。
 
 ## 当前结论
 
-- 渲染后端：`OpenGL`、`Vulkan` 已实现，`Backend::Auto` 会按平台候选顺序自动选择并在失败时 fallback；`Metal` 只有枚举、候选策略和测试桩，尚未完成正式实现。
+- 渲染后端：`OpenGL`、`Vulkan` 已实现；`Metal` 在 Apple 平台已有上下文与窗口 surface 实现，`Backend::Auto` 会按平台候选顺序自动选择并在失败时 fallback。
 - 平台层：桌面端使用仓库内固定的 `3rdparty/tina_glfw`；`GLFWWindow` 已覆盖 Windows / macOS / Linux。Linux/X11 的 IME 与窗口链路代码已接通，但缺少真机运行验证。
 - Android：不再只是方案稿，当前已有 `AndroidWindow`、`AndroidRuntime`、JNI/C ABI、`android/host` 宿主层、`android/tinalux-sdk` 和 `android/validation-app` 验证工程。
 - UI：约束布局、VBox/HBox/Flex/Grid/Responsive、三阶段事件、主题系统、富文本、文本输入、资源管理、异步图片加载、图标注册、组件级渲染缓存都已落地。
-- 测试：源码中的 [`tests/CMakeLists.txt`](../tests/CMakeLists.txt) 当前定义 `46` 个 smoke target；本地 `cmake-build-debug` 的 `ctest -N` 只登记到 `44` 个测试，并提示大量可执行文件缺失，说明构建产物和测试清单目前不同步。
+- 测试：源码中的 [`tests/CMakeLists.txt`](../tests/CMakeLists.txt) 当前包含 `61` 个 smoke 声明和 `2` 个脚本测试；当前工作区里的 `cmake-build-debug` 已登记 `63` 个测试，并通过 `ctest --test-dir cmake-build-debug -C Debug --output-on-failure --timeout 60 -j 4` 全量跑通。
 
 ## 优先阅读
 

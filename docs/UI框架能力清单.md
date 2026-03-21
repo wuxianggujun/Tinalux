@@ -1,6 +1,6 @@
 # Tinalux UI 框架能力清单
 
-> 更新时间：2026-03-18  
+> 更新时间：2026-03-21  
 > 说明：本清单只记录当前源码已实现、部分实现和明确未完成的能力，不再使用早期“完成度百分比”写法。
 
 ## 已实现
@@ -16,6 +16,7 @@
 
 - OpenGL 后端
 - Vulkan 后端
+- Metal 后端（Apple 平台）
 - `Backend::Auto`
 - 窗口 surface
 - 离屏 raster surface
@@ -121,15 +122,16 @@
 
 ### 测试
 
-- 源码定义的 smoke target 数量已经扩展到 `46`
-- 本地 `cmake-build-debug` 的 `ctest -N` 只登记到 `44`
-- 还存在测试可执行文件缺失，说明构建目录未收敛
+- 源码中的 `tests/CMakeLists.txt` 当前包含 `61` 个 smoke 声明
+- 另有 `2` 个 PowerShell 脚本测试
+- 当前工作区里的 `cmake-build-debug` 当前登记 `63` 个测试
+- `TinaluxBuildSmokeTests` 已完成构建，`ctest --test-dir cmake-build-debug -C Debug --output-on-failure --timeout 60 -j 4` 全量通过
 
 ## 明确未完成
 
 ### 渲染
 
-- `Metal` 正式后端
+- `Metal` 的真机验证与稳定性结论
 
 ### 输入与交互
 
@@ -146,8 +148,8 @@
 
 ## 当前更值得继续投入的方向
 
-- 构建与测试清单收敛
+- 将当前 smoke 验证路径固化到 CI
 - Android 真机验证
 - Linux/X11 真机验证
-- Metal 后端
+- Metal 真机验证与构建验证
 - 更完整的移动端输入与手势能力

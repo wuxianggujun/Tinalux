@@ -347,6 +347,16 @@ std::weak_ptr<Widget> Widget::weakHandle()
     return weak_from_this();
 }
 
+void Widget::setId(const std::string& id)
+{
+    id_ = id;
+}
+
+const std::string& Widget::id() const
+{
+    return id_;
+}
+
 void Widget::markDirtyRect(const core::Rect& rect)
 {
     if (rect.isEmpty()) {

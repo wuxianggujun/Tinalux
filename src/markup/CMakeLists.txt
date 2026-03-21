@@ -1,0 +1,24 @@
+add_library(TinaluxMarkup STATIC
+    Lexer.cpp
+    Parser.cpp
+    LayoutBuilder.cpp
+    BuiltinRegistrations.cpp
+    LayoutLoader.cpp
+)
+
+add_library(Tinalux::Markup ALIAS TinaluxMarkup)
+
+target_include_directories(TinaluxMarkup
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(TinaluxMarkup
+    PUBLIC
+        Tinalux::Core
+        Tinalux::UI
+)
+
+if(MSVC)
+    target_compile_options(TinaluxMarkup PRIVATE /MP1)
+endif()

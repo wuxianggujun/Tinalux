@@ -52,6 +52,10 @@ add_library(TinaluxUI STATIC
     widgets/text_input/TextInputModel.cpp
     widgets/TextInput.cpp
     widgets/Toggle.cpp
+    widgets/VBox.cpp
+    widgets/HBox.cpp
+    widgets/Flex.cpp
+    widgets/Grid.cpp
 )
 
 add_library(Tinalux::UI ALIAS TinaluxUI)
