@@ -216,7 +216,9 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeSetPreferredBackend(
         return JNI_FALSE;
     }
 
-    runtime->setPreferredBackend(backendFromCode(backendCode));
+    tinalux::app::android::detail::AndroidRuntimeBridgeAccess::setPreferredBackend(
+        *runtime,
+        backendFromCode(backendCode));
     return JNI_TRUE;
 }
 
@@ -240,7 +242,7 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeAttachSurface(
             "app.android",
             "nativeAttachSurface received a null Surface; detaching current window instead");
         if (auto* runtime = runtimeFromJLong(runtimeHandle); runtime != nullptr) {
-            runtime->detachWindow();
+            tinalux::app::android::detail::AndroidRuntimeBridgeAccess::detachWindow(*runtime);
         }
         return kTextInputStateFailed;
     }
@@ -261,7 +263,10 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeAttachSurface(
         return kTextInputStateFailed;
     }
 
-    if (!runtime->attachWindow(nativeWindow.get(), static_cast<float>(dpiScale))) {
+    if (!tinalux::app::android::detail::AndroidRuntimeBridgeAccess::attachWindow(
+            *runtime,
+            nativeWindow.get(),
+            static_cast<float>(dpiScale))) {
         return kTextInputStateFailed;
     }
     return writeTextInputState(env, runtime, outRect);
@@ -271,7 +276,7 @@ JNIEXPORT void JNICALL
 Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDetachSurface(JNIEnv*, jclass, jlong runtimeHandle)
 {
     if (auto* runtime = runtimeFromJLong(runtimeHandle); runtime != nullptr) {
-        runtime->detachWindow();
+        tinalux::app::android::detail::AndroidRuntimeBridgeAccess::detachWindow(*runtime);
     }
 }
 
@@ -283,7 +288,8 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeRenderOnce(
     jfloatArray outRect)
 {
     auto* runtime = runtimeFromJLong(runtimeHandle);
-    if (runtime == nullptr || !runtime->renderOnce()) {
+    if (runtime == nullptr
+        || !tinalux::app::android::detail::AndroidRuntimeBridgeAccess::renderOnce(*runtime)) {
         return kTextInputStateFailed;
     }
     return writeTextInputState(env, runtime, outRect);
@@ -297,7 +303,8 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeInstallDemoScene(
     jfloatArray outRect)
 {
     auto* runtime = runtimeFromJLong(runtimeHandle);
-    if (runtime == nullptr || !runtime->installDemoScene()) {
+    if (runtime == nullptr
+        || !tinalux::app::android::detail::AndroidRuntimeBridgeAccess::installDemoScene(*runtime)) {
         return kTextInputStateFailed;
     }
     return writeTextInputState(env, runtime, outRect);
@@ -327,7 +334,11 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchKeyDown(
     }
 
     const auto clipboardText =
-        runtime->dispatchKeyDown(mappedKey, mapAndroidModifiers(metaState), repeatCount > 0);
+        tinalux::app::android::detail::AndroidRuntimeBridgeAccess::dispatchKeyDown(
+            *runtime,
+            mappedKey,
+            mapAndroidModifiers(metaState),
+            repeatCount > 0);
     if (!clipboardText.has_value()) {
         return nullptr;
     }
@@ -357,7 +368,11 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchKeyUp(
         return nullptr;
     }
 
-    const auto clipboardText = runtime->dispatchKeyUp(mappedKey, mapAndroidModifiers(metaState));
+    const auto clipboardText =
+        tinalux::app::android::detail::AndroidRuntimeBridgeAccess::dispatchKeyUp(
+            *runtime,
+            mappedKey,
+            mapAndroidModifiers(metaState));
     if (!clipboardText.has_value()) {
         return nullptr;
     }
@@ -374,7 +389,12 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeCommitText(
 {
     const std::string utf8Text = utf8FromJString(env, text);
     auto* runtime = runtimeFromJLong(runtimeHandle);
-    return runtime != nullptr && runtime->dispatchTextInput(utf8Text) ? JNI_TRUE : JNI_FALSE;
+    return runtime != nullptr
+            && tinalux::app::android::detail::AndroidRuntimeBridgeAccess::dispatchTextInput(
+                *runtime,
+                utf8Text)
+        ? JNI_TRUE
+        : JNI_FALSE;
 }
 
 JNIEXPORT jboolean JNICALL
@@ -388,16 +408,23 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeSetComposingText(
     const std::string utf8Text = utf8FromJString(env, text);
     auto* runtime = runtimeFromJLong(runtimeHandle);
     return runtime != nullptr
-            && runtime->dispatchCompositionUpdate(utf8Text, static_cast<int>(caretUtf8Offset))
+            && tinalux::app::android::detail::AndroidRuntimeBridgeAccess::dispatchCompositionUpdate(
+                *runtime,
+                utf8Text,
+                static_cast<int>(caretUtf8Offset))
         ? JNI_TRUE
         : JNI_FALSE;
 }
 
 JNIEXPORT jboolean JNICALL
-Java_com_tinalux_runtime_TinaluxNativeBridge_nativeFinishComposingText(JNIEnv*, jclass, jlong runtimeHandle)
+    Java_com_tinalux_runtime_TinaluxNativeBridge_nativeFinishComposingText(JNIEnv*, jclass, jlong runtimeHandle)
 {
     auto* runtime = runtimeFromJLong(runtimeHandle);
-    return runtime != nullptr && runtime->dispatchCompositionEnd() ? JNI_TRUE : JNI_FALSE;
+    return runtime != nullptr
+            && tinalux::app::android::detail::AndroidRuntimeBridgeAccess::dispatchCompositionEnd(
+                *runtime)
+        ? JNI_TRUE
+        : JNI_FALSE;
 }
 
 JNIEXPORT jboolean JNICALL
@@ -413,7 +440,7 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeSetClipboardText(
     }
 
     const std::string utf8Text = utf8FromJString(env, text);
-    runtime->setClipboardText(utf8Text);
+    tinalux::app::android::detail::AndroidRuntimeBridgeAccess::setClipboardText(*runtime, utf8Text);
     return JNI_TRUE;
 }
 
@@ -425,7 +452,9 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeSetSuspended(
     jboolean suspended)
 {
     if (auto* runtime = runtimeFromJLong(runtimeHandle); runtime != nullptr) {
-        runtime->setSuspended(suspended == JNI_TRUE);
+        tinalux::app::android::detail::AndroidRuntimeBridgeAccess::setSuspended(
+            *runtime,
+            suspended == JNI_TRUE);
     }
 }
 
@@ -440,7 +469,10 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchPointerMove(
 {
     auto* runtime = runtimeFromJLong(runtimeHandle);
     if (runtime == nullptr
-        || !runtime->dispatchPointerMove(static_cast<double>(x), static_cast<double>(y))) {
+        || !tinalux::app::android::detail::AndroidRuntimeBridgeAccess::dispatchPointerMove(
+            *runtime,
+            static_cast<double>(x),
+            static_cast<double>(y))) {
         return kTextInputStateFailed;
     }
     return writeTextInputState(env, runtime, outRect);
@@ -457,7 +489,10 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchPointerDown(
 {
     auto* runtime = runtimeFromJLong(runtimeHandle);
     if (runtime == nullptr
-        || !runtime->dispatchPointerDown(static_cast<double>(x), static_cast<double>(y))) {
+        || !tinalux::app::android::detail::AndroidRuntimeBridgeAccess::dispatchPointerDown(
+            *runtime,
+            static_cast<double>(x),
+            static_cast<double>(y))) {
         return kTextInputStateFailed;
     }
     return writeTextInputState(env, runtime, outRect);
@@ -474,7 +509,10 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchPointerUp(
 {
     auto* runtime = runtimeFromJLong(runtimeHandle);
     if (runtime == nullptr
-        || !runtime->dispatchPointerUp(static_cast<double>(x), static_cast<double>(y))) {
+        || !tinalux::app::android::detail::AndroidRuntimeBridgeAccess::dispatchPointerUp(
+            *runtime,
+            static_cast<double>(x),
+            static_cast<double>(y))) {
         return kTextInputStateFailed;
     }
     return writeTextInputState(env, runtime, outRect);

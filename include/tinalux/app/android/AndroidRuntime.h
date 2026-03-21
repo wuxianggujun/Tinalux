@@ -36,9 +36,12 @@ public:
     AndroidRuntime(const AndroidRuntime&) = delete;
     AndroidRuntime& operator=(const AndroidRuntime&) = delete;
 
+private:
+    friend struct detail::AndroidRuntimeBridgeAccess;
+    friend struct detail::AndroidRuntimeTestAccess;
+
     void setConfig(AndroidRuntimeConfig config);
     void setPreferredBackend(rendering::Backend backend);
-
     bool attachWindow(void* nativeWindow, float dpiScale = 1.0f);
     void detachWindow();
     bool renderOnce();
@@ -54,11 +57,6 @@ public:
     void setClipboardText(std::string text);
     void setSuspended(bool suspended);
     void requestClose();
-
-private:
-    friend struct detail::AndroidRuntimeBridgeAccess;
-    friend struct detail::AndroidRuntimeTestAccess;
-
     const AndroidRuntimeConfig& config() const;
     AndroidTextInputState textInputState() const;
     std::string clipboardText() const;
