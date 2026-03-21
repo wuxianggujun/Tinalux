@@ -34,7 +34,6 @@ public:
     void setConfig(AndroidRuntimeConfig config);
     const AndroidRuntimeConfig& config() const;
     void setPreferredBackend(rendering::Backend backend);
-    rendering::Backend preferredBackend() const;
 
     bool attachWindow(void* nativeWindow, float dpiScale = 1.0f);
     void detachWindow();
@@ -53,7 +52,6 @@ public:
     void setClipboardText(std::string text);
     std::string clipboardText() const;
     void setSuspended(bool suspended);
-    bool suspended() const;
     void requestClose();
     void shutdown();
 

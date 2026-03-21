@@ -228,7 +228,7 @@ int main()
 
         app::android::AndroidRuntime runtime;
         expect(
-            runtime.preferredBackend() == Backend::OpenGL,
+            runtime.config().application.backend == Backend::OpenGL,
             "Default Android runtime should prefer the OpenGL backend");
         expect(
             runtime.attachWindow(reinterpret_cast<void*>(0x001), 1.0f),
@@ -264,7 +264,7 @@ int main()
         config.application.backend = Backend::Vulkan;
         runtime.setConfig(config);
         expect(
-            runtime.preferredBackend() == Backend::Vulkan,
+            runtime.config().application.backend == Backend::Vulkan,
             "Explicit runtime config should preserve the preferred Vulkan backend");
 
         expect(
@@ -320,14 +320,12 @@ int main()
             "Clipboard text should be restored after reattach");
 
         runtime.setSuspended(true);
-        expect(runtime.suspended(), "setSuspended(true) should mark the runtime suspended");
         expect(!runtime.ready(), "Suspending should release the current render state");
         expect(
             runtime.clipboardText() == "persisted clipboard",
             "Clipboard text should survive runtime suspension");
 
         runtime.setSuspended(false);
-        expect(!runtime.suspended(), "setSuspended(false) should clear the suspended state");
         expect(runtime.ready(), "Resuming should rebuild the render state");
         expect(gWindowCreates.size() == 3, "Resuming should create a new window");
         expect(gContextRequests.size() == 3, "Resuming should create a new backend request");
@@ -340,7 +338,7 @@ int main()
 
         runtime.setPreferredBackend(Backend::OpenGL);
         expect(
-            runtime.preferredBackend() == Backend::OpenGL,
+            runtime.config().application.backend == Backend::OpenGL,
             "setPreferredBackend should update the preferred backend");
         expect(
             gWindowCreates.size() == 4,

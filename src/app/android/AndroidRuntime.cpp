@@ -119,11 +119,6 @@ void AndroidRuntime::setPreferredBackend(rendering::Backend backend)
     }
 }
 
-rendering::Backend AndroidRuntime::preferredBackend() const
-{
-    return impl_ != nullptr ? impl_->config.application.backend : rendering::Backend::OpenGL;
-}
-
 bool AndroidRuntime::attachWindow(void* nativeWindow, float dpiScale)
 {
     if (!impl_) {
@@ -476,11 +471,6 @@ void AndroidRuntime::setSuspended(bool suspended)
         "app.android",
         "Android runtime lifecycle state changed to {}",
         suspended ? "suspended" : "resumed");
-}
-
-bool AndroidRuntime::suspended() const
-{
-    return impl_ != nullptr && impl_->suspended;
 }
 
 void AndroidRuntime::requestClose()
