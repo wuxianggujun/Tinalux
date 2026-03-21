@@ -33,6 +33,7 @@ struct AstStyleDefinition {
 
 struct AstComponentDefinition {
     std::string name;
+    std::vector<AstProperty> parameters;
     AstNode root;
     int line = 0;
     int column = 0;

@@ -224,7 +224,11 @@ VBox(id: "root") {
 
     {
         const std::string source = R"(
-@component FormField: Dropdown(placeholder: "Base placeholder", maxVisibleItems: 5, selectedIndex: -1)
+@component FormField(placeholder: "Base placeholder", maxVisibleItems: 5): Dropdown(
+    placeholder: placeholder,
+    maxVisibleItems: maxVisibleItems,
+    selectedIndex: -1
+)
 VBox(id: "root") {
     FormField(id: "username"),
     FormField(id: "email", placeholder: "Email address", maxVisibleItems: 8)
@@ -252,6 +256,81 @@ VBox(id: "root") {
         expect(
             email->maxVisibleItems() == 8,
             "component instance should override template maxVisibleItems");
+    }
+
+    {
+        const std::string source = R"(
+@component CardShell: Panel(id: "shell") {
+    Slot()
+}
+CardShell(id: "card") {
+    Button(id: "inside", text: "OK")
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "component default slot should load");
+        expect(result.warnings.empty(), "component default slot smoke should not emit warnings");
+
+        const ui::Panel* card = result.handle.findById<ui::Panel>("card");
+        expect(card != nullptr, "default slot component should materialize as Panel");
+        expect(card->children().size() == 1, "default slot content should attach to Panel");
+        expect(card->children().front()->id() == "inside", "default slot child id should be preserved");
+    }
+
+    {
+        const std::string source = R"(
+@component DialogFrame: Panel(id: "frame") {
+    Panel(id: "bodyHost") {
+        Slot(name: body)
+    },
+    Panel(id: "footerHost") {
+        Slot(name: "footer")
+    }
+}
+DialogFrame(id: "dialog") {
+    Panel(slot: body, id: "content"),
+    Button(slot: footer, id: "ok", text: "OK")
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "component named slots should load");
+        expect(result.warnings.empty(), "component named slot smoke should not emit warnings");
+
+        const ui::Panel* dialog = result.handle.findById<ui::Panel>("dialog");
+        expect(dialog != nullptr, "named slot component should materialize as Panel");
+        expect(dialog->children().size() == 2, "named slot hosts should remain in template tree");
+
+        const ui::Panel* bodyHost = result.handle.findById<ui::Panel>("bodyHost");
+        expect(bodyHost != nullptr, "body slot host should exist");
+        expect(bodyHost->children().size() == 1, "body slot should project one child");
+        expect(bodyHost->children().front()->id() == "content", "body slot child id should be preserved");
+
+        const ui::Panel* footerHost = result.handle.findById<ui::Panel>("footerHost");
+        expect(footerHost != nullptr, "footer slot host should exist");
+        expect(footerHost->children().size() == 1, "footer slot should project one child");
+        expect(footerHost->children().front()->id() == "ok", "footer slot child id should be preserved");
+    }
+
+    {
+        const std::string source = R"(
+@component FooterShell: Panel(id: "shell") {
+    Slot(name: footer) {
+        Button(id: "fallbackBtn", text: "Cancel")
+    }
+}
+FooterShell(id: "withoutOverride")
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "component slot fallback should load");
+        expect(result.warnings.empty(), "component slot fallback smoke should not emit warnings");
+
+        const ui::Panel* shell = result.handle.findById<ui::Panel>("withoutOverride");
+        expect(shell != nullptr, "slot fallback component should materialize as Panel");
+        expect(shell->children().size() == 1, "slot fallback child should be attached");
+        expect(shell->children().front()->id() == "fallbackBtn", "slot fallback child id should be preserved");
     }
 
     return 0;

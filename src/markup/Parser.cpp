@@ -177,6 +177,21 @@ AstComponentDefinition Parser::parseComponentDefinition()
     component.name = current_.text;
     current_ = lexer_.next();
 
+    if (current_.type == TokenType::LeftParen) {
+        current_ = lexer_.next();
+
+        while (current_.type != TokenType::RightParen
+            && current_.type != TokenType::EndOfFile) {
+            component.parameters.push_back(parseProperty());
+
+            if (current_.type == TokenType::Comma) {
+                current_ = lexer_.next();
+            }
+        }
+
+        expect(TokenType::RightParen, "component parameter list");
+    }
+
     expect(TokenType::Colon, "component definition");
 
     component.root = parseNode();

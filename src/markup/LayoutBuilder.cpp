@@ -18,12 +18,21 @@ namespace tinalux::markup {
 
 namespace {
 
-std::optional<std::string> styleNameFromValue(const core::Value& value)
+std::optional<std::string> stringLikeValue(const core::Value& value)
 {
     if (value.type() == core::ValueType::Enum || value.type() == core::ValueType::String) {
         return value.asString();
     }
     return std::nullopt;
+}
+
+std::string slotLabel(std::string_view slotName)
+{
+    if (slotName.empty()) {
+        return "default slot";
+    }
+
+    return "slot '" + std::string(slotName) + "'";
 }
 
 template <typename Style, typename WidgetT, typename Mutator>
@@ -137,42 +146,272 @@ std::shared_ptr<ui::Widget> LayoutBuilder::buildComponentNode(
     }
 
     componentStack_.push_back(component.name);
-    AstNode mergedNode = mergeComponentNode(component.root, instanceNode);
-    auto widget = buildNode(mergedNode);
+    AstNode mergedNode = mergeComponentNode(component, instanceNode);
+    std::shared_ptr<ui::Widget> widget;
+    if (!mergedNode.typeName.empty()) {
+        widget = buildNode(mergedNode);
+    }
     componentStack_.pop_back();
     return widget;
 }
 
 AstNode LayoutBuilder::mergeComponentNode(
-    const AstNode& templateNode,
-    const AstNode& instanceNode) const
+    const AstComponentDefinition& component,
+    const AstNode& instanceNode)
 {
-    AstNode merged = templateNode;
+    std::unordered_map<std::string, core::Value> parameterValues;
+    parameterValues.reserve(component.parameters.size());
+    for (const auto& parameter : component.parameters) {
+        parameterValues[parameter.name] = parameter.value;
+    }
+
+    std::vector<AstProperty> rootOverrides;
+    rootOverrides.reserve(instanceNode.properties.size());
+    for (const auto& instanceProp : instanceNode.properties) {
+        bool matchedParameter = false;
+        for (const auto& parameter : component.parameters) {
+            if (parameter.name == instanceProp.name) {
+                parameterValues[parameter.name] = instanceProp.value;
+                matchedParameter = true;
+                break;
+            }
+        }
+
+        if (!matchedParameter) {
+            rootOverrides.push_back(instanceProp);
+        }
+    }
+
+    const bool templateHasSlots = containsSlotNode(component.root);
+    std::unordered_map<std::string, std::vector<AstNode>> slotChildren;
+    std::vector<AstNode> legacyChildren;
+
+    for (const auto& instanceChild : instanceNode.children) {
+        AstNode normalizedChild = instanceChild;
+        std::optional<std::string> explicitSlotName;
+
+        for (auto propIt = normalizedChild.properties.begin();
+             propIt != normalizedChild.properties.end();) {
+            if (propIt->name != "slot") {
+                ++propIt;
+                continue;
+            }
+
+            explicitSlotName = {};
+            const std::optional<std::string> slotName = stringLikeValue(propIt->value);
+            if (!slotName) {
+                std::ostringstream oss;
+                oss << "property 'slot' on component child '" << normalizedChild.typeName
+                    << "' must be a string or identifier at line " << propIt->line;
+                warnings_.push_back(oss.str());
+                explicitSlotName = std::string();
+            } else {
+                explicitSlotName = *slotName;
+            }
+            propIt = normalizedChild.properties.erase(propIt);
+        }
+
+        if (!templateHasSlots) {
+            if (explicitSlotName.has_value() && !explicitSlotName->empty()) {
+                std::ostringstream oss;
+                oss << slotLabel(*explicitSlotName) << " passed to component '"
+                    << component.name << "' at line " << normalizedChild.line
+                    << ", but template declares no Slot()";
+                warnings_.push_back(oss.str());
+                continue;
+            }
+
+            legacyChildren.push_back(std::move(normalizedChild));
+            continue;
+        }
+
+        const std::string slotName = explicitSlotName.value_or(std::string());
+        slotChildren[slotName].push_back(std::move(normalizedChild));
+    }
+
+    if (component.root.typeName == "Slot") {
+        std::ostringstream oss;
+        oss << "component '" << component.name << "' cannot use Slot as its root node at line "
+            << component.root.line;
+        warnings_.push_back(oss.str());
+        return {};
+    }
+
+    std::unordered_set<std::string> declaredSlots;
+    AstNode merged = resolveComponentTemplateNode(
+        component.root,
+        parameterValues,
+        slotChildren,
+        declaredSlots);
     merged.line = instanceNode.line;
     merged.column = instanceNode.column;
 
-    for (const auto& instanceProp : instanceNode.properties) {
+    applyNodePropertyOverrides(merged, rootOverrides);
+
+    if (!templateHasSlots && !legacyChildren.empty()) {
+        merged.children.insert(
+            merged.children.end(),
+            legacyChildren.begin(),
+            legacyChildren.end());
+    }
+
+    if (templateHasSlots) {
+        for (const auto& [slotName, slotNodes] : slotChildren) {
+            if (slotNodes.empty() || declaredSlots.contains(slotName)) {
+                continue;
+            }
+
+            std::ostringstream oss;
+            oss << slotLabel(slotName) << " passed to component '" << component.name
+                << "' at line " << instanceNode.line << " has no matching Slot()";
+            warnings_.push_back(oss.str());
+        }
+    }
+
+    return merged;
+}
+
+AstNode LayoutBuilder::resolveComponentTemplateNode(
+    const AstNode& templateNode,
+    const std::unordered_map<std::string, core::Value>& parameterValues,
+    const std::unordered_map<std::string, std::vector<AstNode>>& slotChildren,
+    std::unordered_set<std::string>& declaredSlots)
+{
+    AstNode resolved = templateNode;
+    for (auto& property : resolved.properties) {
+        property.value = resolveComponentValue(property.value, parameterValues);
+    }
+
+    resolved.children.clear();
+    for (const auto& child : templateNode.children) {
+        appendResolvedComponentChild(
+            child,
+            parameterValues,
+            slotChildren,
+            declaredSlots,
+            resolved.children);
+    }
+
+    return resolved;
+}
+
+void LayoutBuilder::appendResolvedComponentChild(
+    const AstNode& templateNode,
+    const std::unordered_map<std::string, core::Value>& parameterValues,
+    const std::unordered_map<std::string, std::vector<AstNode>>& slotChildren,
+    std::unordered_set<std::string>& declaredSlots,
+    std::vector<AstNode>& outChildren)
+{
+    if (templateNode.typeName != "Slot") {
+        outChildren.push_back(resolveComponentTemplateNode(
+            templateNode,
+            parameterValues,
+            slotChildren,
+            declaredSlots));
+        return;
+    }
+
+    const std::string slotName = resolveSlotName(templateNode, parameterValues);
+    declaredSlots.insert(slotName);
+
+    const auto providedChildren = slotChildren.find(slotName);
+    if (providedChildren != slotChildren.end() && !providedChildren->second.empty()) {
+        outChildren.insert(
+            outChildren.end(),
+            providedChildren->second.begin(),
+            providedChildren->second.end());
+        return;
+    }
+
+    for (const auto& fallbackChild : templateNode.children) {
+        appendResolvedComponentChild(
+            fallbackChild,
+            parameterValues,
+            slotChildren,
+            declaredSlots,
+            outChildren);
+    }
+}
+
+core::Value LayoutBuilder::resolveComponentValue(
+    const core::Value& value,
+    const std::unordered_map<std::string, core::Value>& parameterValues) const
+{
+    if (value.type() != core::ValueType::Enum) {
+        return value;
+    }
+
+    const auto parameterIt = parameterValues.find(value.asString());
+    if (parameterIt == parameterValues.end()) {
+        return value;
+    }
+
+    return parameterIt->second;
+}
+
+void LayoutBuilder::applyNodePropertyOverrides(
+    AstNode& node,
+    const std::vector<AstProperty>& overrideProperties) const
+{
+    for (const auto& overrideProp : overrideProperties) {
         bool replaced = false;
-        for (auto& mergedProp : merged.properties) {
-            if (mergedProp.name == instanceProp.name) {
-                mergedProp = instanceProp;
+        for (auto& nodeProp : node.properties) {
+            if (nodeProp.name == overrideProp.name) {
+                nodeProp = overrideProp;
                 replaced = true;
                 break;
             }
         }
+
         if (!replaced) {
-            merged.properties.push_back(instanceProp);
+            node.properties.push_back(overrideProp);
+        }
+    }
+}
+
+bool LayoutBuilder::containsSlotNode(const AstNode& node) const
+{
+    if (node.typeName == "Slot") {
+        return true;
+    }
+
+    for (const auto& child : node.children) {
+        if (containsSlotNode(child)) {
+            return true;
         }
     }
 
-    if (!instanceNode.children.empty()) {
-        merged.children.insert(
-            merged.children.end(),
-            instanceNode.children.begin(),
-            instanceNode.children.end());
+    return false;
+}
+
+std::string LayoutBuilder::resolveSlotName(
+    const AstNode& slotNode,
+    const std::unordered_map<std::string, core::Value>& parameterValues)
+{
+    std::string slotName;
+
+    for (const auto& prop : slotNode.properties) {
+        if (prop.name != "name") {
+            std::ostringstream oss;
+            oss << "unknown property '" << prop.name << "' on Slot at line " << prop.line;
+            warnings_.push_back(oss.str());
+            continue;
+        }
+
+        const core::Value resolvedValue = resolveComponentValue(prop.value, parameterValues);
+        const std::optional<std::string> resolvedName = stringLikeValue(resolvedValue);
+        if (!resolvedName) {
+            std::ostringstream oss;
+            oss << "property 'name' on Slot must be a string or identifier at line "
+                << prop.line;
+            warnings_.push_back(oss.str());
+            continue;
+        }
+
+        slotName = *resolvedName;
     }
 
-    return merged;
+    return slotName;
 }
 
 void LayoutBuilder::applyNamedStyle(
@@ -180,7 +419,7 @@ void LayoutBuilder::applyNamedStyle(
     const std::string& nodeType,
     const AstProperty& prop)
 {
-    const std::optional<std::string> styleName = styleNameFromValue(prop.value);
+    const std::optional<std::string> styleName = stringLikeValue(prop.value);
     if (!styleName) {
         std::ostringstream oss;
         oss << "style reference on '" << nodeType << "' must be a string or identifier at line "

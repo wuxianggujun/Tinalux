@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "tinalux/markup/Ast.h"
@@ -39,8 +40,29 @@ private:
         const AstComponentDefinition& component,
         const AstNode& instanceNode);
     AstNode mergeComponentNode(
+        const AstComponentDefinition& component,
+        const AstNode& instanceNode);
+    AstNode resolveComponentTemplateNode(
         const AstNode& templateNode,
-        const AstNode& instanceNode) const;
+        const std::unordered_map<std::string, core::Value>& parameterValues,
+        const std::unordered_map<std::string, std::vector<AstNode>>& slotChildren,
+        std::unordered_set<std::string>& declaredSlots);
+    void appendResolvedComponentChild(
+        const AstNode& templateNode,
+        const std::unordered_map<std::string, core::Value>& parameterValues,
+        const std::unordered_map<std::string, std::vector<AstNode>>& slotChildren,
+        std::unordered_set<std::string>& declaredSlots,
+        std::vector<AstNode>& outChildren);
+    core::Value resolveComponentValue(
+        const core::Value& value,
+        const std::unordered_map<std::string, core::Value>& parameterValues) const;
+    void applyNodePropertyOverrides(
+        AstNode& node,
+        const std::vector<AstProperty>& overrideProperties) const;
+    bool containsSlotNode(const AstNode& node) const;
+    std::string resolveSlotName(
+        const AstNode& slotNode,
+        const std::unordered_map<std::string, core::Value>& parameterValues);
     void applyNamedStyle(
         const std::shared_ptr<ui::Widget>& widget,
         const std::string& nodeType,
