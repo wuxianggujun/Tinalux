@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <optional>
 
 namespace tinalux::ui {
 
@@ -35,6 +36,8 @@ public:
         AnimationCallback onUpdate,
         CompletionCallback onComplete = {}) = 0;
     virtual void cancelAnimation(AnimationHandle handle) = 0;
+    virtual bool hasActiveAnimations() const = 0;
+    virtual std::optional<double> nextWakeDelaySeconds(double nowSeconds) const = 0;
 };
 
 double animationNowSeconds();

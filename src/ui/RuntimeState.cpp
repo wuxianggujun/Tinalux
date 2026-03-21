@@ -143,6 +143,7 @@ void AnimationScheduler::clear()
 
 bool AnimationScheduler::hasActiveAnimations() const
 {
+    // 事件循环直接依赖这里判断动画是否仍需驱动下一帧。
     return !frameRequests_.empty() || !tweens_.empty();
 }
 

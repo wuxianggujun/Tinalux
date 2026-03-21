@@ -624,9 +624,10 @@ bool Application::pumpOnce()
     }
 
     const double nowSeconds = ui::animationNowSeconds();
+    auto& animationSink = impl_->uiContext.animationSink();
     const detail::EventLoopDecision loopDecision = detail::chooseEventLoopDecision(
         impl_->uiContext.hasImmediateRenderWork(),
-        impl_->uiContext.nextAnimationDelaySeconds(nowSeconds),
+        animationSink.nextWakeDelaySeconds(nowSeconds),
         kIdleWaitSeconds);
     impl_->uiContext.noteEventLoop(loopDecision.mode);
 
@@ -654,7 +655,7 @@ bool Application::pumpOnce()
         impl_->uiContext.requestRedraw();
     }
 
-    if (impl_->uiContext.hasImmediateRenderWork() || impl_->uiContext.hasActiveAnimations()) {
+    if (impl_->uiContext.hasImmediateRenderWork() || animationSink.hasActiveAnimations()) {
         using clock = std::chrono::steady_clock;
         const auto frameStart = clock::now();
         const bool fullRedraw = renderFrame();

@@ -63,8 +63,6 @@ public:
     void noteFrameDeferred();
     bool tickAnimations(double nowSeconds);
     bool tickAsyncResources();
-    bool hasActiveAnimations() const;
-    std::optional<double> nextAnimationDelaySeconds(double nowSeconds) const;
 
     bool hasImmediateRenderWork() const;
     void requestRedraw();

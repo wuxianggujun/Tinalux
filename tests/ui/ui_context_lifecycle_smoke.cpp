@@ -90,7 +90,9 @@ int main()
 
     context.initializeFromEnvironment();
 
-    expect(!context.hasActiveAnimations(), "reinitializing UIContext should clear pending animation work");
+    expect(
+        !context.animationSink().hasActiveAnimations(),
+        "reinitializing UIContext should clear pending animation work");
     expect(!context.tickAnimations(1.0), "reinitializing UIContext should drop stale animation callbacks");
     expect(staleAnimationCallbacks == 0, "reinitializing UIContext should not execute stale animation callbacks");
     expect(!context.textInputActive(), "reinitializing UIContext should clear retained text input focus");
@@ -118,7 +120,9 @@ int main()
 
     context.shutdown();
 
-    expect(!context.hasActiveAnimations(), "shutdown should leave no active animations behind");
+    expect(
+        !context.animationSink().hasActiveAnimations(),
+        "shutdown should leave no active animations behind");
     expect(!context.textInputActive(), "shutdown should clear text input state");
     expect(!context.imeCursorRect().has_value(), "shutdown should clear IME rect state");
     expect(!restartedInput->focused(), "shutdown should clear focus on the active widget");

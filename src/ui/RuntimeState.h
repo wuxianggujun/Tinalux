@@ -17,9 +17,9 @@ public:
         AnimationCallback onUpdate,
         CompletionCallback onComplete = {}) override;
     void cancelAnimation(AnimationHandle handle) override;
+    bool hasActiveAnimations() const override;
+    std::optional<double> nextWakeDelaySeconds(double nowSeconds) const override;
     void clear();
-    bool hasActiveAnimations() const;
-    std::optional<double> nextWakeDelaySeconds(double nowSeconds) const;
     bool tick(double nowSeconds);
 
     struct FrameRequest {

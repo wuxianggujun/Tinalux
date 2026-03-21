@@ -748,19 +748,6 @@ bool UIContext::tickAsyncResources()
     return ui::ResourceLoader::instance().pumpCallbacks();
 }
 
-bool UIContext::hasActiveAnimations() const
-{
-    return runtimeState_ != nullptr && runtimeState_->animationScheduler.hasActiveAnimations();
-}
-
-std::optional<double> UIContext::nextAnimationDelaySeconds(double nowSeconds) const
-{
-    if (runtimeState_ == nullptr) {
-        return std::nullopt;
-    }
-    return runtimeState_->animationScheduler.nextWakeDelaySeconds(nowSeconds);
-}
-
 bool UIContext::hasImmediateRenderWork() const
 {
     return needsRedraw_
