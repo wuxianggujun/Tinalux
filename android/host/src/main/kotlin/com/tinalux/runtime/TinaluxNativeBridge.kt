@@ -16,8 +16,6 @@ object TinaluxNativeBridge {
         backendCode: Int,
     ): Boolean
 
-    @JvmStatic external fun nativeGetPreferredBackend(runtimeHandle: Long): Int
-
     @JvmStatic external fun nativeAttachSurface(
         runtimeHandle: Long,
         surface: Surface,
@@ -48,12 +46,10 @@ object TinaluxNativeBridge {
         y: Float,
     ): Boolean
 
-    @JvmStatic external fun nativeIsTextInputActive(runtimeHandle: Long): Boolean
-
-    @JvmStatic external fun nativeGetTextInputCursorRect(
+    @JvmStatic external fun nativeGetTextInputState(
         runtimeHandle: Long,
         outRect: FloatArray,
-    ): Boolean
+    ): Int
 
     @JvmStatic external fun nativeDispatchKeyDown(
         runtimeHandle: Long,

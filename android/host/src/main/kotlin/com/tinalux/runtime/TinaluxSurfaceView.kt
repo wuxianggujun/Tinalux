@@ -155,7 +155,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
     }
 
     override fun getFocusedRect(r: Rect?) {
-        val cursorRect = rendererHost.textInputCursorRect()
+        val cursorRect = rendererHost.textInputState().cursorRect
         if (r != null && cursorRect != null) {
             r.set(cursorRect)
             return
@@ -273,7 +273,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
 
     private fun syncTextInputState(force: Boolean = false) {
         val imm = context.getSystemService(InputMethodManager::class.java)
-        val active = surfaceReady && rendererHost.isTextInputActive()
+        val active = surfaceReady && rendererHost.textInputState().active
         if (!force && active == lastTextInputActive) {
             return
         }

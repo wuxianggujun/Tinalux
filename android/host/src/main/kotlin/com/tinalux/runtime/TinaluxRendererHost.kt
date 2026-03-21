@@ -4,6 +4,11 @@ import android.graphics.Rect
 import android.view.Surface
 import java.io.Closeable
 
+data class TinaluxTextInputState(
+    val active: Boolean,
+    val cursorRect: Rect?,
+)
+
 class TinaluxRendererHost(
     private val dpiScaleProvider: () -> Float,
     preferredBackend: TinaluxBackend = TinaluxBackend.OpenGL,
@@ -11,6 +16,7 @@ class TinaluxRendererHost(
     private var runtimeHandle: Long = 0L
     private var surfaceAttached = false
     private var suspended = false
+    private var clipboardText: String = ""
     private var preferredBackend: TinaluxBackend = preferredBackend
 
     fun ensureRuntime(): Long {
@@ -20,6 +26,11 @@ class TinaluxRendererHost(
             check(
                 TinaluxNativeBridge.nativeSetPreferredBackend(runtimeHandle, preferredBackend.code),
             ) { "Failed to configure the preferred Tinalux backend" }
+            if (clipboardText.isNotEmpty()) {
+                check(
+                    TinaluxNativeBridge.nativeSetClipboardText(runtimeHandle, clipboardText),
+                ) { "Failed to restore the cached clipboard text into the Tinalux runtime" }
+            }
         }
         return runtimeHandle
     }
@@ -33,15 +44,7 @@ class TinaluxRendererHost(
         }
     }
 
-    fun preferredBackend(): TinaluxBackend {
-        if (runtimeHandle == 0L) {
-            return preferredBackend
-        }
-
-        return TinaluxBackend.entries.firstOrNull {
-            it.code == TinaluxNativeBridge.nativeGetPreferredBackend(runtimeHandle)
-        } ?: preferredBackend
-    }
+    fun preferredBackend(): TinaluxBackend = preferredBackend
 
     fun attachSurface(surface: Surface) {
         val handle = ensureRuntime()
@@ -94,48 +97,52 @@ class TinaluxRendererHost(
         return TinaluxNativeBridge.nativeDispatchPointerUp(runtimeHandle, x, y)
     }
 
-    fun isTextInputActive(): Boolean {
+    fun textInputState(): TinaluxTextInputState {
         if (runtimeHandle == 0L || !surfaceAttached) {
-            return false
-        }
-        return TinaluxNativeBridge.nativeIsTextInputActive(runtimeHandle)
-    }
-
-    fun textInputCursorRect(): Rect? {
-        if (runtimeHandle == 0L || !surfaceAttached) {
-            return null
+            return TinaluxTextInputState(active = false, cursorRect = null)
         }
 
         val values = FloatArray(4)
-        if (!TinaluxNativeBridge.nativeGetTextInputCursorRect(runtimeHandle, values)) {
-            return null
+        return when (TinaluxNativeBridge.nativeGetTextInputState(runtimeHandle, values)) {
+            2 -> TinaluxTextInputState(
+                active = true,
+                cursorRect = Rect(
+                    values[0].toInt(),
+                    values[1].toInt(),
+                    values[2].toInt(),
+                    values[3].toInt(),
+                ),
+            )
+            1 -> TinaluxTextInputState(active = true, cursorRect = null)
+            else -> TinaluxTextInputState(active = false, cursorRect = null)
         }
-
-        return Rect(
-            values[0].toInt(),
-            values[1].toInt(),
-            values[2].toInt(),
-            values[3].toInt(),
-        )
     }
 
     fun dispatchKeyDown(androidKeyCode: Int, metaState: Int, repeatCount: Int): Boolean {
         if (runtimeHandle == 0L || !surfaceAttached) {
             return false
         }
-        return TinaluxNativeBridge.nativeDispatchKeyDown(
+        val handled = TinaluxNativeBridge.nativeDispatchKeyDown(
             runtimeHandle,
             androidKeyCode,
             metaState,
             repeatCount,
         )
+        if (handled) {
+            refreshClipboardTextFromRuntime()
+        }
+        return handled
     }
 
     fun dispatchKeyUp(androidKeyCode: Int, metaState: Int): Boolean {
         if (runtimeHandle == 0L || !surfaceAttached) {
             return false
         }
-        return TinaluxNativeBridge.nativeDispatchKeyUp(runtimeHandle, androidKeyCode, metaState)
+        val handled = TinaluxNativeBridge.nativeDispatchKeyUp(runtimeHandle, androidKeyCode, metaState)
+        if (handled) {
+            refreshClipboardTextFromRuntime()
+        }
+        return handled
     }
 
     fun commitText(text: String): Boolean {
@@ -164,17 +171,21 @@ class TinaluxRendererHost(
     }
 
     fun setClipboardText(text: String): Boolean {
+        clipboardText = text
         if (runtimeHandle == 0L) {
-            return false
+            return true
         }
         return TinaluxNativeBridge.nativeSetClipboardText(runtimeHandle, text)
     }
 
-    fun clipboardText(): String {
+    fun clipboardText(): String = clipboardText
+
+    private fun refreshClipboardTextFromRuntime(): String {
         if (runtimeHandle == 0L) {
-            return ""
+            return clipboardText
         }
-        return TinaluxNativeBridge.nativeGetClipboardText(runtimeHandle)
+        clipboardText = TinaluxNativeBridge.nativeGetClipboardText(runtimeHandle)
+        return clipboardText
     }
 
     fun setSuspended(suspended: Boolean) {

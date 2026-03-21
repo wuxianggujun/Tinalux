@@ -29,19 +29,6 @@ tinalux::rendering::Backend backendFromCode(int backendCode)
     }
 }
 
-int backendToCode(tinalux::rendering::Backend backend)
-{
-    switch (backend) {
-    case tinalux::rendering::Backend::OpenGL:
-        return 1;
-    case tinalux::rendering::Backend::Vulkan:
-        return 2;
-    case tinalux::rendering::Backend::Auto:
-    default:
-        return 0;
-    }
-}
-
 }  // namespace
 
 void* tinaluxAndroidCreateRuntime(void)
@@ -69,16 +56,6 @@ bool tinaluxAndroidSetPreferredBackend(void* runtimeHandle, int backendCode)
 
     runtime->setPreferredBackend(backendFromCode(backendCode));
     return true;
-}
-
-int tinaluxAndroidGetPreferredBackend(void* runtimeHandle)
-{
-    auto* runtime = runtimeFromHandle(runtimeHandle);
-    if (runtime == nullptr) {
-        return backendToCode(tinalux::rendering::Backend::OpenGL);
-    }
-
-    return backendToCode(runtime->preferredBackend());
 }
 
 bool tinaluxAndroidAttachWindow(
@@ -170,13 +147,7 @@ bool tinaluxAndroidDispatchPointerUp(void* runtimeHandle, double x, double y)
     return runtime->dispatchPointerUp(x, y);
 }
 
-bool tinaluxAndroidTextInputActive(void* runtimeHandle)
-{
-    auto* runtime = runtimeFromHandle(runtimeHandle);
-    return runtime != nullptr && runtime->textInputActive();
-}
-
-bool tinaluxAndroidGetTextInputCursorRect(
+int tinaluxAndroidGetTextInputState(
     void* runtimeHandle,
     float* left,
     float* top,
@@ -184,20 +155,27 @@ bool tinaluxAndroidGetTextInputCursorRect(
     float* bottom)
 {
     auto* runtime = runtimeFromHandle(runtimeHandle);
-    if (runtime == nullptr || left == nullptr || top == nullptr || right == nullptr || bottom == nullptr) {
-        return false;
+    if (runtime == nullptr) {
+        return 0;
     }
 
-    const auto rect = runtime->textInputCursorRect();
-    if (!rect.has_value()) {
-        return false;
+    const auto state = runtime->textInputState();
+    if (!state.active) {
+        return 0;
     }
 
-    *left = rect->left();
-    *top = rect->top();
-    *right = rect->right();
-    *bottom = rect->bottom();
-    return true;
+    if (!state.cursorRect.has_value()) {
+        return 1;
+    }
+    if (left == nullptr || top == nullptr || right == nullptr || bottom == nullptr) {
+        return 1;
+    }
+
+    *left = state.cursorRect->left();
+    *top = state.cursorRect->top();
+    *right = state.cursorRect->right();
+    *bottom = state.cursorRect->bottom();
+    return 2;
 }
 
 bool tinaluxAndroidDispatchKeyDown(void* runtimeHandle, int key, int modifiers, bool repeat)
@@ -283,40 +261,6 @@ bool tinaluxAndroidDispatchCompositionEnd(void* runtimeHandle)
     }
 
     return runtime->dispatchCompositionEnd();
-}
-
-bool tinaluxAndroidSetClipboardTextUtf8(void* runtimeHandle, const char* utf8Text)
-{
-    auto* runtime = runtimeFromHandle(runtimeHandle);
-    if (runtime == nullptr) {
-        tinalux::core::logErrorCat(
-            "app.android",
-            "SetClipboardTextUtf8 ignored because runtime handle is null");
-        return false;
-    }
-
-    runtime->setClipboardText(utf8Text != nullptr ? utf8Text : "");
-    return true;
-}
-
-int tinaluxAndroidGetClipboardTextUtf8(void* runtimeHandle, char* buffer, int bufferSize)
-{
-    auto* runtime = runtimeFromHandle(runtimeHandle);
-    if (runtime == nullptr) {
-        return 0;
-    }
-
-    const std::string text = runtime->clipboardText();
-    if (buffer != nullptr && bufferSize > 0) {
-        const std::size_t copyCount = std::min(
-            text.size(),
-            static_cast<std::size_t>(std::max(bufferSize - 1, 0)));
-        if (copyCount > 0) {
-            std::memcpy(buffer, text.data(), copyCount);
-        }
-        buffer[copyCount] = '\0';
-    }
-    return static_cast<int>(text.size());
 }
 
 void tinaluxAndroidSetSuspended(void* runtimeHandle, bool suspended)

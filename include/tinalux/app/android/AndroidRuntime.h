@@ -18,6 +18,11 @@ struct AndroidRuntimeConfig {
     }
 };
 
+struct AndroidTextInputState {
+    bool active = false;
+    std::optional<core::Rect> cursorRect;
+};
+
 class AndroidRuntime final {
 public:
     AndroidRuntime();
@@ -38,8 +43,7 @@ public:
     bool dispatchPointerMove(double x, double y);
     bool dispatchPointerDown(double x, double y);
     bool dispatchPointerUp(double x, double y);
-    bool textInputActive() const;
-    std::optional<core::Rect> textInputCursorRect() const;
+    AndroidTextInputState textInputState() const;
     bool dispatchKeyDown(int key, int modifiers = 0, bool repeat = false);
     bool dispatchKeyUp(int key, int modifiers = 0);
     bool dispatchTextInput(std::string text);

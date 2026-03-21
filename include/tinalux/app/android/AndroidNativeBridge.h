@@ -21,7 +21,6 @@ TINALUX_ANDROID_API void tinaluxAndroidDestroyRuntime(void* runtimeHandle);
 TINALUX_ANDROID_API bool tinaluxAndroidSetPreferredBackend(
     void* runtimeHandle,
     int backendCode);
-TINALUX_ANDROID_API int tinaluxAndroidGetPreferredBackend(void* runtimeHandle);
 TINALUX_ANDROID_API bool tinaluxAndroidAttachWindow(
     void* runtimeHandle,
     void* nativeWindow,
@@ -41,8 +40,7 @@ TINALUX_ANDROID_API bool tinaluxAndroidDispatchPointerUp(
     void* runtimeHandle,
     double x,
     double y);
-TINALUX_ANDROID_API bool tinaluxAndroidTextInputActive(void* runtimeHandle);
-TINALUX_ANDROID_API bool tinaluxAndroidGetTextInputCursorRect(
+TINALUX_ANDROID_API int tinaluxAndroidGetTextInputState(
     void* runtimeHandle,
     float* left,
     float* top,
@@ -66,13 +64,6 @@ TINALUX_ANDROID_API bool tinaluxAndroidDispatchCompositionUpdate(
     const char* utf8Text,
     int caretUtf8Offset);
 TINALUX_ANDROID_API bool tinaluxAndroidDispatchCompositionEnd(void* runtimeHandle);
-TINALUX_ANDROID_API bool tinaluxAndroidSetClipboardTextUtf8(
-    void* runtimeHandle,
-    const char* utf8Text);
-TINALUX_ANDROID_API int tinaluxAndroidGetClipboardTextUtf8(
-    void* runtimeHandle,
-    char* buffer,
-    int bufferSize);
 TINALUX_ANDROID_API void tinaluxAndroidSetSuspended(
     void* runtimeHandle,
     bool suspended);

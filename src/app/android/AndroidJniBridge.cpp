@@ -8,6 +8,7 @@
 #include <jni.h>
 
 #include "tinalux/app/android/AndroidNativeBridge.h"
+#include "tinalux/app/android/AndroidRuntime.h"
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/Log.h"
 
@@ -49,6 +50,11 @@ jlong toJLong(void* pointer)
 void* fromJLong(jlong value)
 {
     return reinterpret_cast<void*>(static_cast<std::intptr_t>(value));
+}
+
+tinalux::app::android::AndroidRuntime* runtimeFromJLong(jlong value)
+{
+    return static_cast<tinalux::app::android::AndroidRuntime*>(fromJLong(value));
 }
 
 int mapAndroidModifiers(jint metaState)
@@ -155,15 +161,6 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeSetPreferredBackend(
     return tinaluxAndroidSetPreferredBackend(fromJLong(runtimeHandle), backendCode) ? JNI_TRUE : JNI_FALSE;
 }
 
-JNIEXPORT jint JNICALL
-Java_com_tinalux_runtime_TinaluxNativeBridge_nativeGetPreferredBackend(
-    JNIEnv*,
-    jclass,
-    jlong runtimeHandle)
-{
-    return static_cast<jint>(tinaluxAndroidGetPreferredBackend(fromJLong(runtimeHandle)));
-}
-
 JNIEXPORT jboolean JNICALL
 Java_com_tinalux_runtime_TinaluxNativeBridge_nativeAttachSurface(
     JNIEnv* env,
@@ -220,35 +217,28 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeInstallDemoScene(JNIEnv*, jcl
     return tinaluxAndroidInstallDemoScene(fromJLong(runtimeHandle)) ? JNI_TRUE : JNI_FALSE;
 }
 
-JNIEXPORT jboolean JNICALL
-Java_com_tinalux_runtime_TinaluxNativeBridge_nativeIsTextInputActive(JNIEnv*, jclass, jlong runtimeHandle)
-{
-    return tinaluxAndroidTextInputActive(fromJLong(runtimeHandle)) ? JNI_TRUE : JNI_FALSE;
-}
-
-JNIEXPORT jboolean JNICALL
-Java_com_tinalux_runtime_TinaluxNativeBridge_nativeGetTextInputCursorRect(
+JNIEXPORT jint JNICALL
+Java_com_tinalux_runtime_TinaluxNativeBridge_nativeGetTextInputState(
     JNIEnv* env,
     jclass,
     jlong runtimeHandle,
     jfloatArray outRect)
 {
     if (env == nullptr || outRect == nullptr || env->GetArrayLength(outRect) < 4) {
-        return JNI_FALSE;
+        return 0;
     }
 
     float values[4] = {};
-    if (!tinaluxAndroidGetTextInputCursorRect(
-            fromJLong(runtimeHandle),
-            &values[0],
-            &values[1],
-            &values[2],
-            &values[3])) {
-        return JNI_FALSE;
+    const int state = tinaluxAndroidGetTextInputState(
+        fromJLong(runtimeHandle),
+        &values[0],
+        &values[1],
+        &values[2],
+        &values[3]);
+    if (state == 2) {
+        env->SetFloatArrayRegion(outRect, 0, 4, values);
     }
-
-    env->SetFloatArrayRegion(outRect, 0, 4, values);
-    return JNI_TRUE;
+    return static_cast<jint>(state);
 }
 
 JNIEXPORT jboolean JNICALL
@@ -338,10 +328,14 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeSetClipboardText(
     jlong runtimeHandle,
     jstring text)
 {
+    auto* runtime = runtimeFromJLong(runtimeHandle);
+    if (runtime == nullptr) {
+        return JNI_FALSE;
+    }
+
     const std::string utf8Text = utf8FromJString(env, text);
-    return tinaluxAndroidSetClipboardTextUtf8(fromJLong(runtimeHandle), utf8Text.c_str())
-        ? JNI_TRUE
-        : JNI_FALSE;
+    runtime->setClipboardText(utf8Text);
+    return JNI_TRUE;
 }
 
 JNIEXPORT jstring JNICALL
@@ -354,14 +348,8 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeGetClipboardText(
         return nullptr;
     }
 
-    const int textLength = tinaluxAndroidGetClipboardTextUtf8(fromJLong(runtimeHandle), nullptr, 0);
-    std::string utf8Text(static_cast<std::size_t>(std::max(textLength, 0)), '\0');
-    if (textLength > 0) {
-        tinaluxAndroidGetClipboardTextUtf8(
-            fromJLong(runtimeHandle),
-            utf8Text.data(),
-            textLength + 1);
-    }
+    auto* runtime = runtimeFromJLong(runtimeHandle);
+    const std::string utf8Text = runtime != nullptr ? runtime->clipboardText() : std::string {};
     return env->NewStringUTF(utf8Text.c_str());
 }
 

@@ -307,16 +307,19 @@ bool AndroidRuntime::ready() const
     return impl_ != nullptr && impl_->sessionActive && impl_->application.hasActiveRenderState();
 }
 
-bool AndroidRuntime::textInputActive() const
+AndroidTextInputState AndroidRuntime::textInputState() const
 {
-    return impl_ != nullptr && ready() && impl_->application.platformTextInputActive();
-}
+    if (!impl_ || !ready()) {
+        return {};
+    }
 
-std::optional<core::Rect> AndroidRuntime::textInputCursorRect() const
-{
-    return impl_ != nullptr && ready()
-        ? impl_->application.platformTextInputCursorRect()
-        : std::nullopt;
+    const bool active = impl_->application.platformTextInputActive();
+    return AndroidTextInputState {
+        .active = active,
+        .cursorRect = active
+            ? impl_->application.platformTextInputCursorRect()
+            : std::nullopt,
+    };
 }
 
 bool AndroidRuntime::dispatchKeyDown(int key, int modifiers, bool repeat)
