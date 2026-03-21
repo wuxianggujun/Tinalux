@@ -628,12 +628,11 @@ bool Application::pumpOnce()
         impl_->uiContext.hasImmediateRenderWork(),
         impl_->uiContext.nextAnimationDelaySeconds(nowSeconds),
         kIdleWaitSeconds);
+    impl_->uiContext.noteEventLoop(loopDecision.mode);
 
     if (loopDecision.mode == detail::EventLoopMode::Poll) {
-        impl_->uiContext.notePollLoop();
         impl_->window->pollEvents();
     } else {
-        impl_->uiContext.noteWaitLoop();
         impl_->window->waitEventsTimeout(loopDecision.waitSeconds);
     }
     const platform::WindowMetrics previousMetrics = impl_->lastObservedWindowMetrics;

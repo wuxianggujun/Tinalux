@@ -6,6 +6,7 @@
 #include <optional>
 #include <vector>
 
+#include "LoopTiming.h"
 #include "tinalux/core/Geometry.h"
 #include "tinalux/app/Application.h"
 #include "tinalux/rendering/rendering.h"
@@ -57,8 +58,7 @@ public:
     void setDebugHudConfig(DebugHudConfig config);
     DebugHudConfig debugHudConfig() const;
 
-    void noteWaitLoop();
-    void notePollLoop();
+    void noteEventLoop(detail::EventLoopMode mode);
     void noteFrameRendered(bool fullRedraw, double frameMs);
     void noteFrameDeferred();
     bool tickAnimations(double nowSeconds);

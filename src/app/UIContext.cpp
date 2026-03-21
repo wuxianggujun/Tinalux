@@ -687,16 +687,16 @@ DebugHudConfig UIContext::debugHudConfig() const
     return debugHudConfig_;
 }
 
-void UIContext::noteWaitLoop()
+void UIContext::noteEventLoop(detail::EventLoopMode mode)
 {
+    if (mode == detail::EventLoopMode::Poll) {
+        ++frameStats_.pollEventLoops;
+        ++perfLogIntervalStats_.pollEventLoops;
+        return;
+    }
+
     ++frameStats_.waitEventLoops;
     ++perfLogIntervalStats_.waitEventLoops;
-}
-
-void UIContext::notePollLoop()
-{
-    ++frameStats_.pollEventLoops;
-    ++perfLogIntervalStats_.pollEventLoops;
 }
 
 void UIContext::noteFrameRendered(bool fullRedraw, double frameMs)

@@ -69,8 +69,8 @@ int main()
     context.animationSink().requestAnimationFrame(
         [&staleAnimationCallbacks](double) { ++staleAnimationCallbacks; });
 
-    context.noteWaitLoop();
-    context.notePollLoop();
+    context.noteEventLoop(tinalux::app::detail::EventLoopMode::Wait);
+    context.noteEventLoop(tinalux::app::detail::EventLoopMode::Poll);
     context.noteFrameDeferred();
     context.noteFrameRendered(true, 4.0);
 
