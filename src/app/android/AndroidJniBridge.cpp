@@ -8,6 +8,7 @@
 #include <android/native_window_jni.h>
 #include <jni.h>
 
+#include "AndroidRuntimeBridgeAccess.h"
 #include "tinalux/app/android/AndroidRuntime.h"
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/Log.h"
@@ -72,7 +73,8 @@ jint writeTextInputState(
         return kTextInputStateFailed;
     }
 
-    const auto state = runtime->textInputState();
+    const auto state = tinalux::app::android::detail::AndroidRuntimeBridgeAccess::textInputState(
+        *runtime);
     if (!state.active) {
         return kTextInputStateInactive;
     }

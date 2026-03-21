@@ -8,6 +8,7 @@
 #include "tinalux/core/Geometry.h"
 
 namespace tinalux::app::android::detail {
+struct AndroidRuntimeBridgeAccess;
 struct AndroidRuntimeTestAccess;
 }
 
@@ -45,7 +46,6 @@ public:
     bool dispatchPointerMove(double x, double y);
     bool dispatchPointerDown(double x, double y);
     bool dispatchPointerUp(double x, double y);
-    AndroidTextInputState textInputState() const;
     std::optional<std::string> dispatchKeyDown(int key, int modifiers = 0, bool repeat = false);
     std::optional<std::string> dispatchKeyUp(int key, int modifiers = 0);
     bool dispatchTextInput(std::string text);
@@ -56,9 +56,11 @@ public:
     void requestClose();
 
 private:
+    friend struct detail::AndroidRuntimeBridgeAccess;
     friend struct detail::AndroidRuntimeTestAccess;
 
     const AndroidRuntimeConfig& config() const;
+    AndroidTextInputState textInputState() const;
     std::string clipboardText() const;
     bool ready() const;
     std::string currentClipboardText() const;
