@@ -5,6 +5,7 @@
 #include <string>
 
 #include "../../src/app/UIContext.h"
+#include "../../src/app/UIContextTestAccess.h"
 #include "../../src/ui/RuntimeState.h"
 #include "tinalux/core/Geometry.h"
 #include "tinalux/ui/ThemeManager.h"
@@ -77,6 +78,16 @@ public:
         ++cancelCount_;
     }
 
+    bool hasActiveAnimations() const override
+    {
+        return false;
+    }
+
+    std::optional<double> nextWakeDelaySeconds(double) const override
+    {
+        return std::nullopt;
+    }
+
     std::size_t animateCallbackCount() const
     {
         return animateCallbackCount_;
@@ -100,6 +111,7 @@ private:
 int main()
 {
     using tinalux::app::UIContext;
+    using UIContextTestAccess = tinalux::app::detail::UIContextTestAccess;
     using tinalux::ui::AnimationScheduler;
     using tinalux::ui::ColorScheme;
     using tinalux::ui::Theme;
@@ -123,7 +135,9 @@ int main()
         UIContext context;
         context.initializeFromEnvironment();
         expect(
-            sameColor(context.theme().colors.background, manager.currentTheme().colors.background),
+            sameColor(
+                UIContextTestAccess::theme(context).colors.background,
+                manager.currentTheme().colors.background),
             "UIContext should mirror ThemeManager current theme");
 
         Theme light = Theme::light();
@@ -132,7 +146,7 @@ int main()
             sameColor(manager.currentTheme().colors.background, light.colors.background),
             "UIContext::setTheme should update ThemeManager immediately");
         expect(
-            sameColor(context.theme().colors.primary, light.colors.primary),
+            sameColor(UIContextTestAccess::theme(context).colors.primary, light.colors.primary),
             "UIContext should receive ThemeManager theme updates");
 
         auto& scheduler = static_cast<AnimationScheduler&>(context.animationSink());
@@ -144,7 +158,7 @@ int main()
 
         scheduler.tick(10.0);
         scheduler.tick(10.15);
-        const Theme midTheme = context.theme();
+        const Theme midTheme = UIContextTestAccess::theme(context);
         expect(
             !sameColor(midTheme.colors.background, light.colors.background),
             "mid animation theme should differ from start theme");
@@ -157,7 +171,9 @@ int main()
 
         scheduler.tick(10.31);
         expect(
-            sameColor(context.theme().colors.background, dark.colors.background),
+            sameColor(
+                UIContextTestAccess::theme(context).colors.background,
+                dark.colors.background),
             "animation completion should land on exact target theme");
         expect(!scheduler.hasActiveAnimations(), "theme tween should complete");
         expect(
@@ -253,7 +269,9 @@ int main()
         secondScheduler.tick(20.0);
         secondScheduler.tick(20.31);
         expect(
-            sameColor(second.theme().colors.background, Theme::dark().colors.background),
+            sameColor(
+                UIContextTestAccess::theme(second).colors.background,
+                Theme::dark().colors.background),
             "remaining UIContext should still receive animated theme completion");
         expect(
             manager.version() > versionBeforeAnimation,
@@ -289,7 +307,9 @@ int main()
         firstScheduler.tick(40.3);
         firstScheduler.tick(40.61);
         expect(
-            sameColor(first.theme().colors.background, Theme::dark().colors.background),
+            sameColor(
+                UIContextTestAccess::theme(first).colors.background,
+                Theme::dark().colors.background),
             "remaining UIContext should complete a migrated in-flight theme animation");
         expect(
             sameColor(manager.currentTheme().colors.background, Theme::dark().colors.background),
@@ -312,7 +332,9 @@ int main()
         restartedScheduler.tick(30.0);
         restartedScheduler.tick(30.31);
         expect(
-            sameColor(restarted.theme().colors.background, Theme::dark().colors.background),
+            sameColor(
+                UIContextTestAccess::theme(restarted).colors.background,
+                Theme::dark().colors.background),
             "reinitialized UIContext should receive animated theme updates");
     }
 

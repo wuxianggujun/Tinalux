@@ -21,6 +21,10 @@ struct RuntimeState;
 class Widget;
 }
 
+namespace tinalux::app::detail {
+struct UIContextTestAccess;
+}
+
 namespace tinalux::app {
 
 class Application;
@@ -48,7 +52,6 @@ public:
     FrameStats frameStats() const;
 
     void setTheme(ui::Theme theme);
-    ui::Theme theme() const;
 
     void setPerfLogConfig(PerfLogConfig config);
     PerfLogConfig perfLogConfig() const;
@@ -72,6 +75,7 @@ public:
 
 private:
     friend class Application;
+    friend struct detail::UIContextTestAccess;
 
     struct PerfLogIntervalStats {
         std::uint64_t renderedFrames = 0;
@@ -96,6 +100,7 @@ private:
     void unbindThemeRuntime();
     void resetForStartup();
     void configurePartialRedraw(bool enabled);
+    ui::Theme theme() const;
     core::Rect debugHudBounds(float logicalWidth, float logicalHeight) const;
     void drawDebugHud(
         rendering::Canvas& canvas,
