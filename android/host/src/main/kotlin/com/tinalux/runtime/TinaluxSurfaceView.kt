@@ -77,7 +77,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
         if (!surfaceReady) {
             return
         }
-        if (rendererHost.isSuspended()) {
+        if (TinaluxRendererHost.Access.isSuspended(rendererHost)) {
             return
         }
 
@@ -102,7 +102,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
         if (consecutiveRenderFailures == 1 || consecutiveRenderFailures % 30 == 0) {
             Log.w(
                 logTag,
-                "renderOnce returned false surfaceReady=$surfaceReady suspended=${rendererHost.isSuspended()} failures=$consecutiveRenderFailures",
+                "renderOnce returned false surfaceReady=$surfaceReady suspended=${TinaluxRendererHost.Access.isSuspended(rendererHost)} failures=$consecutiveRenderFailures",
             )
         }
     }
@@ -151,7 +151,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
     }
 
     override fun getFocusedRect(r: Rect?) {
-        val cursorRect = rendererHost.textInputState().cursorRect
+        val cursorRect = TinaluxRendererHost.Access.textInputState(rendererHost).cursorRect
         if (r != null && cursorRect != null) {
             r.set(cursorRect)
             return
@@ -246,7 +246,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
         }
 
         val text = clipData.getItemAt(0).coerceToText(context)?.toString().orEmpty()
-        if (text == rendererHost.clipboardText()) {
+        if (text == TinaluxRendererHost.Access.clipboardText(rendererHost)) {
             return
         }
 
@@ -255,7 +255,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
 
     private fun syncTextInputState(force: Boolean = false) {
         val imm = context.getSystemService(InputMethodManager::class.java)
-        val active = surfaceReady && rendererHost.textInputState().active
+        val active = surfaceReady && TinaluxRendererHost.Access.textInputState(rendererHost).active
         if (!force && active == lastTextInputActive) {
             return
         }

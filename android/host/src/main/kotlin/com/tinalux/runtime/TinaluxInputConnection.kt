@@ -77,7 +77,7 @@ class TinaluxInputConnection(
 
     private fun syncClipboardFromSystem() {
         val text = currentClipboardText() ?: return
-        if (text == rendererHost.clipboardText()) {
+        if (text == TinaluxRendererHost.Access.clipboardText(rendererHost)) {
             return
         }
         rendererHost.setClipboardText(text)
@@ -85,7 +85,7 @@ class TinaluxInputConnection(
 
     private fun syncClipboardToSystem() {
         val clipboard = clipboardManager() ?: return
-        val text = rendererHost.clipboardText()
+        val text = TinaluxRendererHost.Access.clipboardText(rendererHost)
         if (text == currentClipboardText().orEmpty()) {
             return
         }

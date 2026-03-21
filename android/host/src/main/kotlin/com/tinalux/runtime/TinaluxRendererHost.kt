@@ -13,6 +13,14 @@ class TinaluxRendererHost(
     private val dpiScaleProvider: () -> Float,
     preferredBackend: TinaluxBackend = TinaluxBackend.OpenGL,
 ) : Closeable {
+    internal object Access {
+        fun textInputState(host: TinaluxRendererHost): TinaluxTextInputState = host.textInputState()
+
+        fun clipboardText(host: TinaluxRendererHost): String = host.clipboardText()
+
+        fun isSuspended(host: TinaluxRendererHost): Boolean = host.isSuspended()
+    }
+
     private companion object {
         const val TEXT_INPUT_STATE_FAILED = -1
         const val TEXT_INPUT_STATE_INACTIVE = 0
@@ -124,7 +132,7 @@ class TinaluxRendererHost(
         }
     }
 
-    internal fun textInputState(): TinaluxTextInputState {
+    private fun textInputState(): TinaluxTextInputState {
         if (runtimeHandle == 0L || !surfaceAttached) {
             return TinaluxTextInputState(active = false, cursorRect = null)
         }
@@ -197,7 +205,7 @@ class TinaluxRendererHost(
         return TinaluxNativeBridge.nativeSetClipboardText(runtimeHandle, text)
     }
 
-    internal fun clipboardText(): String = clipboardText
+    private fun clipboardText(): String = clipboardText
 
     fun setSuspended(suspended: Boolean) {
         this.suspended = suspended
@@ -210,7 +218,7 @@ class TinaluxRendererHost(
         }
     }
 
-    internal fun isSuspended(): Boolean = suspended
+    private fun isSuspended(): Boolean = suspended
 
     override fun close() {
         detachSurface()
