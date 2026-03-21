@@ -51,6 +51,7 @@ struct AndroidRuntime::Impl {
     void* attachedNativeWindow = nullptr;
     float attachedDpiScale = 1.0f;
     bool sessionActive = false;
+    bool demoSceneInstalled = false;
     bool suspended = false;
 };
 
@@ -155,6 +156,7 @@ bool AndroidRuntime::attachWindow(void* nativeWindow, float dpiScale)
             return false;
         }
         impl_->sessionActive = true;
+        impl_->demoSceneInstalled = false;
     } else if (!impl_->application.hasActiveRenderState()) {
         if (!impl_->application.resumeRendering(launchConfig.window)) {
             core::logErrorCat(
@@ -203,6 +205,7 @@ bool AndroidRuntime::renderOnce()
             "Android runtime stopped because the application requested close");
         impl_->application.shutdown();
         impl_->sessionActive = false;
+        impl_->demoSceneInstalled = false;
     }
     return keepRunning;
 }
@@ -214,6 +217,10 @@ bool AndroidRuntime::installDemoScene()
             "app.android",
             "InstallDemoScene requires an attached Android window");
         return false;
+    }
+
+    if (impl_->demoSceneInstalled) {
+        return true;
     }
 
     const ui::Theme theme = ui::Theme::mobile();
@@ -229,6 +236,7 @@ bool AndroidRuntime::installDemoScene()
     core::logInfoCat(
         "app.android",
         "Android demo scene installation finished");
+    impl_->demoSceneInstalled = true;
     return true;
 }
 
@@ -289,6 +297,7 @@ void AndroidRuntime::shutdown()
 
     impl_->attachedNativeWindow = nullptr;
     impl_->sessionActive = false;
+    impl_->demoSceneInstalled = false;
     impl_->suspended = false;
     impl_->application.shutdown();
 }
@@ -469,11 +478,6 @@ void AndroidRuntime::setSuspended(bool suspended)
 bool AndroidRuntime::suspended() const
 {
     return impl_ != nullptr && impl_->suspended;
-}
-
-bool AndroidRuntime::sessionActive() const
-{
-    return impl_ != nullptr && impl_->sessionActive;
 }
 
 void AndroidRuntime::requestClose()

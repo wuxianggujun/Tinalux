@@ -80,7 +80,6 @@ public:
     void setOverlayWidget(std::shared_ptr<ui::Widget> overlay);
     void requestClose();
     void setTheme(ui::Theme theme);
-    ui::Theme theme() const;
     void setPerfLogConfig(PerfLogConfig config);
     void setDebugHudConfig(DebugHudConfig config);
     rendering::Backend renderBackend() const;

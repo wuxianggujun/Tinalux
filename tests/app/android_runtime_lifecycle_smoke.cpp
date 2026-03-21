@@ -282,6 +282,15 @@ int main()
         expect(
             gWindowCreates.back().dpiScale == 2.0f,
             "First attach should forward the dpi scale");
+        expect(
+            runtime.installDemoScene(),
+            "Android runtime should install the demo scene for an active session");
+        expect(
+            runtime.installDemoScene(),
+            "installDemoScene should be idempotent for the same active session");
+        expect(
+            gWindowCreates.size() == 1 && gContextCreates == 1 && gSurfaceCreates == 1,
+            "installDemoScene should not recreate rendering resources");
 
         runtime.setClipboardText("persisted clipboard");
         expect(
@@ -365,6 +374,9 @@ int main()
             runtime.attachWindow(reinterpret_cast<void*>(0x404), 1.25f),
             "Android runtime should create a fresh application session after close");
         expect(runtime.ready(), "Runtime should be ready again after reattach");
+        expect(
+            runtime.installDemoScene(),
+            "A recreated Android runtime session should accept demo scene installation");
         expect(gWindowCreates.size() == 2, "Close and reattach should create a second window");
         expect(gContextCreates == 2, "Close and reattach should create a second render context");
         expect(gSurfaceCreates == 2, "Close and reattach should create a second render surface");

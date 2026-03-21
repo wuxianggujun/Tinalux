@@ -50,7 +50,6 @@ public:
     std::string clipboardText() const;
     void setSuspended(bool suspended);
     bool suspended() const;
-    bool sessionActive() const;
     void requestClose();
     void shutdown();
 

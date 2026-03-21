@@ -376,24 +376,6 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeSetSuspended(
 }
 
 JNIEXPORT jboolean JNICALL
-Java_com_tinalux_runtime_TinaluxNativeBridge_nativeIsSuspended(
-    JNIEnv*,
-    jclass,
-    jlong runtimeHandle)
-{
-    return tinaluxAndroidIsSuspended(fromJLong(runtimeHandle)) ? JNI_TRUE : JNI_FALSE;
-}
-
-JNIEXPORT jboolean JNICALL
-Java_com_tinalux_runtime_TinaluxNativeBridge_nativeIsSessionActive(
-    JNIEnv*,
-    jclass,
-    jlong runtimeHandle)
-{
-    return tinaluxAndroidIsSessionActive(fromJLong(runtimeHandle)) ? JNI_TRUE : JNI_FALSE;
-}
-
-JNIEXPORT jboolean JNICALL
 Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchPointerMove(
     JNIEnv*,
     jclass,

@@ -815,11 +815,6 @@ void Application::setTheme(ui::Theme theme)
     impl_->uiContext.setTheme(theme);
 }
 
-ui::Theme Application::theme() const
-{
-    return impl_ ? impl_->uiContext.theme() : ui::Theme::dark();
-}
-
 void Application::setPerfLogConfig(PerfLogConfig config)
 {
     if (!impl_) {

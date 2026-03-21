@@ -328,15 +328,3 @@ void tinaluxAndroidSetSuspended(void* runtimeHandle, bool suspended)
 
     runtime->setSuspended(suspended);
 }
-
-bool tinaluxAndroidIsSuspended(void* runtimeHandle)
-{
-    auto* runtime = runtimeFromHandle(runtimeHandle);
-    return runtime != nullptr && runtime->suspended();
-}
-
-bool tinaluxAndroidIsSessionActive(void* runtimeHandle)
-{
-    auto* runtime = runtimeFromHandle(runtimeHandle);
-    return runtime != nullptr && runtime->sessionActive();
-}

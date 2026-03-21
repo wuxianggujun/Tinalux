@@ -25,7 +25,6 @@ class TinaluxSurfaceView @JvmOverloads constructor(
     private val inputConnection = TinaluxInputConnection(this, rendererHost)
     private var surfaceReady = false
     private var frameCallbackPosted = false
-    private var demoSceneInstalled = false
     private var lastTextInputActive = false
     private var lastClipboardText = ""
     private var lastRenderHealthy = true
@@ -106,7 +105,7 @@ class TinaluxSurfaceView @JvmOverloads constructor(
         if (consecutiveRenderFailures == 1 || consecutiveRenderFailures % 30 == 0) {
             Log.w(
                 logTag,
-                "renderOnce returned false surfaceReady=$surfaceReady suspended=${rendererHost.isSuspended()} demoSceneInstalled=$demoSceneInstalled failures=$consecutiveRenderFailures",
+                "renderOnce returned false surfaceReady=$surfaceReady suspended=${rendererHost.isSuspended()} failures=$consecutiveRenderFailures",
             )
         }
     }
@@ -227,13 +226,12 @@ class TinaluxSurfaceView @JvmOverloads constructor(
             return false
         }
 
-        val needsSceneInstall = !demoSceneInstalled || !rendererHost.isSessionActive()
         return try {
             rendererHost.attachSurface(surface)
             rendererHost.setSuspended(false)
-            if (needsSceneInstall) {
-                demoSceneInstalled = rendererHost.installDemoScene()
-                Log.i(logTag, "installDemoScene result=$demoSceneInstalled reason=$reason")
+            if (!rendererHost.installDemoScene()) {
+                Log.w(logTag, "installDemoScene failed reason=$reason")
+                return false
             }
             true
         } catch (error: IllegalStateException) {

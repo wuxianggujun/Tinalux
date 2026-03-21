@@ -92,8 +92,4 @@ object TinaluxNativeBridge {
         runtimeHandle: Long,
         suspended: Boolean,
     )
-
-    @JvmStatic external fun nativeIsSuspended(runtimeHandle: Long): Boolean
-
-    @JvmStatic external fun nativeIsSessionActive(runtimeHandle: Long): Boolean
 }

@@ -10,6 +10,7 @@ class TinaluxRendererHost(
 ) : Closeable {
     private var runtimeHandle: Long = 0L
     private var surfaceAttached = false
+    private var suspended = false
     private var preferredBackend: TinaluxBackend = preferredBackend
 
     fun ensureRuntime(): Long {
@@ -59,7 +60,7 @@ class TinaluxRendererHost(
     }
 
     fun installDemoScene(): Boolean {
-        if (runtimeHandle == 0L) {
+        if (runtimeHandle == 0L || !surfaceAttached) {
             return false
         }
         return TinaluxNativeBridge.nativeInstallDemoScene(runtimeHandle)
@@ -177,25 +178,14 @@ class TinaluxRendererHost(
     }
 
     fun setSuspended(suspended: Boolean) {
+        this.suspended = suspended
         if (runtimeHandle == 0L) {
             return
         }
         TinaluxNativeBridge.nativeSetSuspended(runtimeHandle, suspended)
     }
 
-    fun isSuspended(): Boolean {
-        if (runtimeHandle == 0L) {
-            return false
-        }
-        return TinaluxNativeBridge.nativeIsSuspended(runtimeHandle)
-    }
-
-    fun isSessionActive(): Boolean {
-        if (runtimeHandle == 0L) {
-            return false
-        }
-        return TinaluxNativeBridge.nativeIsSessionActive(runtimeHandle)
-    }
+    fun isSuspended(): Boolean = suspended
 
     override fun close() {
         detachSurface()

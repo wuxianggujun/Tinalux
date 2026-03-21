@@ -76,8 +76,6 @@ TINALUX_ANDROID_API int tinaluxAndroidGetClipboardTextUtf8(
 TINALUX_ANDROID_API void tinaluxAndroidSetSuspended(
     void* runtimeHandle,
     bool suspended);
-TINALUX_ANDROID_API bool tinaluxAndroidIsSuspended(void* runtimeHandle);
-TINALUX_ANDROID_API bool tinaluxAndroidIsSessionActive(void* runtimeHandle);
 
 #ifdef __cplusplus
 }
