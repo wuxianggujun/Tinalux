@@ -99,7 +99,7 @@ int main()
     ui::ScopedRuntimeState bind(runtime);
 
     app::UIContext context;
-    auto rootWidget = ui::createDemoScene(runtime.theme, runtime.animationScheduler);
+    auto rootWidget = ui::createDemoScene(runtime.theme);
     auto root = std::dynamic_pointer_cast<ui::Container>(rootWidget);
     expect(root != nullptr, "demo scene should expose a container root");
     context.setRootWidget(rootWidget);

@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "ShowcaseSupport.h"
+#include "../RuntimeState.h"
 #include "tinalux/ui/Button.h"
 #include "tinalux/ui/Checkbox.h"
 #include "tinalux/ui/Label.h"
@@ -18,7 +19,7 @@ namespace tinalux::ui::showcase {
 
 using namespace support;
 
-std::shared_ptr<Widget> createAuthFormPage(Theme theme, AnimationSink& animations)
+std::shared_ptr<Widget> createAuthFormPage(Theme theme)
 {
     const rendering::Image userIcon = makeUserIcon(theme.colors.primary, 18.0f);
     const rendering::Image lockIcon = makeLockIcon(theme.colors.primary, 18.0f);
@@ -85,7 +86,7 @@ std::shared_ptr<Widget> createAuthFormPage(Theme theme, AnimationSink& animation
     loginCard->addChild(actionRow);
     loginCard->addChild(status);
 
-    animations.animate(
+    runtimeAnimationSink().animate(
         {
             .from = 0.0f,
             .to = 1.0f,

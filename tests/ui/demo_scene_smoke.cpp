@@ -88,7 +88,7 @@ int main()
     runtime.theme = ui::Theme::dark();
     ui::ScopedRuntimeState bind(runtime);
 
-    auto rootWidget = ui::createDemoScene(runtime.theme, runtime.animationScheduler);
+    auto rootWidget = ui::createDemoScene(runtime.theme);
     auto root = std::dynamic_pointer_cast<ui::Container>(rootWidget);
     expect(root != nullptr, "demo scene should return a container root");
 

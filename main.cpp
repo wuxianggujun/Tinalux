@@ -37,7 +37,7 @@ int main()
 
     app.setTheme(tinalux::ui::Theme::dark());
     app.setRootWidget(app.buildWidgetTree([&app] {
-        return tinalux::ui::createDemoScene(app.theme(), app.animationSink());
+        return tinalux::ui::createDemoScene(app.theme());
     }));
     return app.run();
 }

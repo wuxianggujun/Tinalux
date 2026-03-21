@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 
-#include "tinalux/ui/Animation.h"
 #include "tinalux/ui/Theme.h"
 
 namespace tinalux::ui {
@@ -20,7 +19,7 @@ struct ShowcasePage {
     std::shared_ptr<Widget> content;
 };
 
-std::vector<ShowcasePage> buildShowcasePages(Theme theme, AnimationSink& animations);
+std::vector<ShowcasePage> buildShowcasePages(Theme theme);
 
 }  // namespace showcase
 

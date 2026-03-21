@@ -6,7 +6,7 @@
 
 namespace tinalux::ui::showcase {
 
-std::vector<ShowcasePage> buildShowcasePages(Theme theme, AnimationSink& animations)
+std::vector<ShowcasePage> buildShowcasePages(Theme theme)
 {
     return {
         {
@@ -28,7 +28,7 @@ std::vector<ShowcasePage> buildShowcasePages(Theme theme, AnimationSink& animati
             .title = "Auth Form",
             .summary =
                 "TextInput, button, validation, and action feedback isolated on a single authentication-flavored page.",
-            .content = createAuthFormPage(theme, animations),
+            .content = createAuthFormPage(theme),
         },
         {
             .category = "Input",

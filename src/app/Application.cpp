@@ -757,11 +757,6 @@ platform::Window* Application::window() const
     return impl_ ? impl_->window.get() : nullptr;
 }
 
-ui::AnimationSink& Application::animationSink()
-{
-    return impl_->uiContext.animationSink();
-}
-
 void Application::requestClose()
 {
     if (impl_ && impl_->window != nullptr) {

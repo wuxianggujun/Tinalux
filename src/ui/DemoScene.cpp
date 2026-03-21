@@ -64,9 +64,8 @@ ButtonStyle makeNavigationButtonStyle(Theme theme, bool selected)
 
 class DemoSceneRoot final : public Panel {
 public:
-    DemoSceneRoot(Theme theme, AnimationSink& animations)
-        : animations_(animations)
-        , theme_(std::move(theme))
+    explicit DemoSceneRoot(Theme theme)
+        : theme_(std::move(theme))
     {
         themeListenerId_ = ThemeManager::instance().addThemeChangeListener(
             [this](const Theme& theme) { rebuild(theme); });
@@ -83,7 +82,7 @@ private:
     {
         theme_ = theme;
         const float density = visualDensity(theme_);
-        pages_ = showcase::buildShowcasePages(theme_, animations_);
+        pages_ = showcase::buildShowcasePages(theme_);
         if (!pages_.empty()) {
             selectedPageIndex_ = std::min(selectedPageIndex_, pages_.size() - 1);
         } else {
@@ -248,7 +247,6 @@ private:
         }
     }
 
-    AnimationSink& animations_;
     Theme theme_;
     std::vector<showcase::ShowcasePage> pages_;
     std::shared_ptr<Container> contentHost_;
@@ -262,9 +260,9 @@ private:
 
 }  // namespace
 
-std::shared_ptr<Widget> createDemoScene(Theme theme, AnimationSink& animations)
+std::shared_ptr<Widget> createDemoScene(Theme theme)
 {
-    return std::make_shared<DemoSceneRoot>(std::move(theme), animations);
+    return std::make_shared<DemoSceneRoot>(std::move(theme));
 }
 
 }  // namespace tinalux::ui

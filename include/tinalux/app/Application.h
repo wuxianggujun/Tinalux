@@ -13,7 +13,6 @@ class Event;
 }
 
 namespace tinalux::ui {
-class AnimationSink;
 class Container;
 class Widget;
 }
@@ -74,7 +73,6 @@ public:
     void setRootWidget(std::shared_ptr<ui::Widget> root);
     void setOverlayWidget(std::shared_ptr<ui::Widget> overlay);
     platform::Window* window() const;
-    ui::AnimationSink& animationSink();
     void requestClose();
     FrameStats frameStats() const;
     void resetFrameStats();
