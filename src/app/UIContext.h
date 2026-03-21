@@ -28,8 +28,6 @@ struct UIContextTestAccess;
 
 namespace tinalux::app {
 
-class Application;
-
 class UIContext final {
 public:
     UIContext();

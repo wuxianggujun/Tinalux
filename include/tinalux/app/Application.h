@@ -15,10 +15,6 @@ namespace tinalux::core {
 class Event;
 }
 
-namespace tinalux::app::android {
-class AndroidRuntime;
-}
-
 namespace tinalux::ui {
 class Container;
 class Widget;
