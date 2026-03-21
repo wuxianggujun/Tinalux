@@ -308,12 +308,10 @@ AndroidTextInputState AndroidRuntime::textInputState() const
         return {};
     }
 
-    const bool active = impl_->application.platformTextInputActive();
+    const auto state = impl_->application.platformTextInputState();
     return AndroidTextInputState {
-        .active = active,
-        .cursorRect = active
-            ? impl_->application.platformTextInputCursorRect()
-            : std::nullopt,
+        .active = state.active,
+        .cursorRect = state.cursorRect,
     };
 }
 

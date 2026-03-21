@@ -789,16 +789,17 @@ std::string Application::platformClipboardText() const
         : std::string {};
 }
 
-bool Application::platformTextInputActive() const
+PlatformTextInputState Application::platformTextInputState() const
 {
-    return impl_ != nullptr && impl_->window != nullptr && impl_->window->textInputActive();
-}
+    if (impl_ == nullptr || impl_->window == nullptr) {
+        return {};
+    }
 
-std::optional<core::Rect> Application::platformTextInputCursorRect() const
-{
-    return impl_ != nullptr && impl_->window != nullptr
-        ? impl_->window->textInputCursorRect()
-        : std::nullopt;
+    const bool active = impl_->window->textInputActive();
+    return PlatformTextInputState {
+        .active = active,
+        .cursorRect = active ? impl_->window->textInputCursorRect() : std::nullopt,
+    };
 }
 
 FrameStats Application::currentFrameStats() const

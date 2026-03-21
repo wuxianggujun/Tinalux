@@ -58,6 +58,11 @@ struct ApplicationConfig {
     rendering::Backend backend = rendering::Backend::Auto;
 };
 
+struct PlatformTextInputState {
+    bool active = false;
+    std::optional<core::Rect> cursorRect;
+};
+
 class Application final {
 public:
     Application();
@@ -97,8 +102,7 @@ private:
     void setRenderBackendPreference(rendering::Backend backend);
     void setPlatformClipboardText(const std::string& text);
     std::string platformClipboardText() const;
-    bool platformTextInputActive() const;
-    std::optional<core::Rect> platformTextInputCursorRect() const;
+    PlatformTextInputState platformTextInputState() const;
     bool renderFrame();
     bool tryInitializeBackend(
         const platform::WindowConfig& windowConfig,
