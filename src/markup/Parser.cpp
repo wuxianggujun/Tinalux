@@ -217,7 +217,12 @@ AstComponentDefinition Parser::parseComponentDefinition()
 
 AstNode Parser::parseNode()
 {
+    if (current_.type == TokenType::At) {
+        return parseControlNode();
+    }
+
     AstNode node;
+    node.kind = AstNodeKind::Widget;
     node.line = current_.line;
     node.column = current_.column;
 
@@ -264,6 +269,103 @@ AstNode Parser::parseNode()
         expect(TokenType::RightBrace, "children block");
     }
 
+    return node;
+}
+
+AstNode Parser::parseControlNode()
+{
+    const Token atToken = expect(TokenType::At, "control node");
+    if (current_.type != TokenType::Identifier) {
+        error("expected control directive name after '@'");
+        return {};
+    }
+
+    const std::string directive = current_.text;
+    current_ = lexer_.next();
+
+    if (directive == "if") {
+        return parseIfNode(atToken.line, atToken.column);
+    }
+
+    if (directive == "for") {
+        return parseForNode(atToken.line, atToken.column);
+    }
+
+    error("unknown control directive '@" + directive + "'");
+    return {};
+}
+
+AstNode Parser::parseIfNode(int line, int column)
+{
+    AstNode node;
+    node.kind = AstNodeKind::IfBlock;
+    node.line = line;
+    node.column = column;
+
+    expect(TokenType::LeftParen, "@if directive");
+    if (current_.type != TokenType::BindingLiteral) {
+        error("expected binding expression inside @if(...)");
+        return node;
+    }
+
+    node.controlPath = current_.text;
+    current_ = lexer_.next();
+    expect(TokenType::RightParen, "@if directive");
+    expect(TokenType::LeftBrace, "@if body");
+
+    while (current_.type != TokenType::RightBrace
+        && current_.type != TokenType::EndOfFile) {
+        node.children.push_back(parseNode());
+        if (current_.type == TokenType::Comma) {
+            current_ = lexer_.next();
+        }
+    }
+
+    expect(TokenType::RightBrace, "@if body");
+    return node;
+}
+
+AstNode Parser::parseForNode(int line, int column)
+{
+    AstNode node;
+    node.kind = AstNodeKind::ForBlock;
+    node.line = line;
+    node.column = column;
+
+    expect(TokenType::LeftParen, "@for directive");
+    if (current_.type != TokenType::Identifier) {
+        error("expected loop variable name inside @for(...)");
+        return node;
+    }
+
+    node.loopVariable = current_.text;
+    current_ = lexer_.next();
+
+    if (current_.type != TokenType::Identifier || current_.text != "in") {
+        error("expected 'in' inside @for(...)");
+        return node;
+    }
+    current_ = lexer_.next();
+
+    if (current_.type != TokenType::BindingLiteral) {
+        error("expected binding expression after 'in' inside @for(...)");
+        return node;
+    }
+
+    node.controlPath = current_.text;
+    current_ = lexer_.next();
+    expect(TokenType::RightParen, "@for directive");
+    expect(TokenType::LeftBrace, "@for body");
+
+    while (current_.type != TokenType::RightBrace
+        && current_.type != TokenType::EndOfFile) {
+        node.children.push_back(parseNode());
+        if (current_.type == TokenType::Comma) {
+            current_ = lexer_.next();
+        }
+    }
+
+    expect(TokenType::RightBrace, "@for body");
     return node;
 }
 

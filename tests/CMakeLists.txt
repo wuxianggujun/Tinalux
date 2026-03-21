@@ -85,6 +85,11 @@ tinalux_add_smoke_test(TinaluxMarkupLayoutBindingSmoke
     LINK_LIBS Tinalux::Markup
 )
 
+tinalux_add_smoke_test(TinaluxMarkupLayoutControlFlowSmoke
+    SOURCE markup/layout_control_flow_smoke.cpp
+    LINK_LIBS Tinalux::Markup
+)
+
 tinalux_add_smoke_test(TinaluxPlatformGLFWDpiScaleSmoke
     SOURCE platform/glfw_window_scale_smoke.cpp
     LINK_LIBS Tinalux::Platform

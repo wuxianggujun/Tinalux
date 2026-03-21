@@ -9,8 +9,8 @@
 - 平台层：桌面端使用仓库内固定的 `3rdparty/tina_glfw`；`GLFWWindow` 已覆盖 Windows / macOS / Linux。Linux/X11 的 IME 与窗口链路代码已接通，但缺少真机运行验证。
 - Android：不再只是方案稿，当前已有 `AndroidWindow`、`AndroidRuntime`、JNI/C ABI、`android/host` 宿主层、`android/tinalux-sdk` 和 `android/validation-app` 验证工程。
 - UI：约束布局、VBox/HBox/Flex/Grid/Responsive、三阶段事件、主题系统、富文本、文本输入、资源管理、异步图片加载、图标注册、组件级渲染缓存都已落地。
-- Markup：轻量声明式布局 DSL 已落地，当前支持 `@style`、样式继承、inline `style: { ... }`、`@import`、`@res("...")` 资源引用、带参数的 `@component`、`Slot` 内容投影，以及 `${model.xxx}` + `ViewModel` 的单向/双向属性绑定，并可构建 `Dialog` / `ScrollView` / `Dropdown` / `ImageWidget` 等节点。
-- 测试：源码中的 [`tests/CMakeLists.txt`](../tests/CMakeLists.txt) 当前包含 `62` 个 smoke 声明和 `2` 个脚本测试；当前工作区里的 `cmake-build-debug` 已登记 `64` 个测试，并已通过 `ctest --test-dir cmake-build-debug -C Debug --output-on-failure --timeout 60 -j 4` 全量跑通。
+- Markup：轻量声明式布局 DSL 已落地，当前支持 `@style`、样式继承、inline `style: { ... }`、`@import`、`@res("...")`、带参数的 `@component`、`Slot`、`${model.xxx}` 单向/双向属性绑定、树状 `ViewModel`、`@if / @for` 控制流，以及基于结构路径失效的整树重建，可构建 `Dialog` / `ScrollView` / `Dropdown` / `ImageWidget` 等节点。
+- 测试：源码中的 [`tests/CMakeLists.txt`](../tests/CMakeLists.txt) 当前包含 `63` 个 smoke 声明和 `2` 个脚本测试；当前工作区里的 `cmake-build-debug` 通过 `ctest -N -C Debug --test-dir cmake-build-debug` 可见 `65` 个测试。
 
 ## 优先阅读
 

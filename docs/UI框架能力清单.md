@@ -1,6 +1,6 @@
 # Tinalux UI 框架能力清单
 
-> 更新时间：2026-03-21  
+> 更新时间：2026-03-22  
 > 说明：本清单只记录当前源码已实现、部分实现和明确未完成的能力，不再使用早期“完成度百分比”写法。
 
 ## 已实现
@@ -92,6 +92,21 @@
 - 多分辨率图片路径解析
 - 异步图片加载与回调
 
+### Markup / 声明式布局
+
+- `Lexer` / `Parser` / `Ast`
+- `LayoutBuilder` / `LayoutLoader`
+- 运行时类型注册与属性装配
+- `@style`、样式继承、inline `style: { ... }`
+- `@import`
+- `@res("...")`
+- 带参数的 `@component`
+- `Slot`
+- `${model.xxx}` 单向/双向属性绑定
+- 树状 `ViewModel`：`Scalar / Object / Array`
+- `@if / @for`
+- 基于结构路径失效的整树重建
+
 ### Android 相关
 
 - `AndroidWindow`
@@ -122,9 +137,9 @@
 
 ### 测试
 
-- 源码中的 `tests/CMakeLists.txt` 当前包含 `61` 个 smoke 声明
+- 源码中的 `tests/CMakeLists.txt` 当前包含 `63` 个 smoke 声明
 - 另有 `2` 个 PowerShell 脚本测试
-- 当前工作区里的 `cmake-build-debug` 当前登记 `63` 个测试
+- 当前工作区里的 `cmake-build-debug` 当前登记 `65` 个测试
 - `TinaluxBuildSmokeTests` 已完成构建，`ctest --test-dir cmake-build-debug -C Debug --output-on-failure --timeout 60 -j 4` 全量通过
 
 ## 明确未完成
@@ -145,6 +160,12 @@
 - 热重载
 - 布局调试器 UI
 - 可视化性能分析工具
+
+### Markup 工具链
+
+- 文件级热重载
+- 语言服务 / 自动补全
+- 可视化布局编辑器
 
 ## 当前更值得继续投入的方向
 

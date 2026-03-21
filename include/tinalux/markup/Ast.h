@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -7,6 +8,12 @@
 #include "tinalux/core/Reflect.h"
 
 namespace tinalux::markup {
+
+enum class AstNodeKind : std::uint8_t {
+    Widget,
+    IfBlock,
+    ForBlock,
+};
 
 struct AstProperty {
     std::string name;
@@ -22,11 +29,18 @@ struct AstProperty {
 };
 
 struct AstNode {
+    AstNodeKind kind = AstNodeKind::Widget;
     std::string typeName;
     std::vector<AstProperty> properties;
     std::vector<AstNode> children;
+    std::optional<std::string> controlPath;
+    std::string loopVariable;
     int line = 0;
     int column = 0;
+
+    [[nodiscard]] bool isWidget() const { return kind == AstNodeKind::Widget; }
+    [[nodiscard]] bool isIfBlock() const { return kind == AstNodeKind::IfBlock; }
+    [[nodiscard]] bool isForBlock() const { return kind == AstNodeKind::ForBlock; }
 };
 
 struct AstStyleDefinition {

@@ -1,6 +1,7 @@
 #include "tinalux/markup/LayoutBuilder.h"
 
 #include <algorithm>
+#include <cmath>
 #include <optional>
 #include <sstream>
 
@@ -44,6 +45,68 @@ void mutateWidgetStyle(WidgetT& widget, const Style& fallbackStyle, Mutator muta
     widget.setStyle(style);
 }
 
+std::string normalizeScopedPath(std::string_view path)
+{
+    std::size_t start = 0;
+    while (start < path.size()
+        && (path[start] == ' ' || path[start] == '\t'
+            || path[start] == '\r' || path[start] == '\n')) {
+        ++start;
+    }
+
+    std::size_t end = path.size();
+    while (end > start
+        && (path[end - 1] == ' ' || path[end - 1] == '\t'
+            || path[end - 1] == '\r' || path[end - 1] == '\n')) {
+        --end;
+    }
+
+    std::string normalized(path.substr(start, end - start));
+    constexpr std::string_view kModelPrefix = "model.";
+    if (normalized.compare(0, kModelPrefix.size(), kModelPrefix) == 0) {
+        normalized.erase(0, kModelPrefix.size());
+    }
+    return normalized;
+}
+
+std::vector<std::string_view> splitScopedPath(std::string_view path)
+{
+    std::vector<std::string_view> parts;
+    std::size_t start = 0;
+    while (start < path.size()) {
+        std::size_t end = path.find('.', start);
+        if (end == std::string_view::npos) {
+            parts.push_back(path.substr(start));
+            break;
+        }
+
+        parts.push_back(path.substr(start, end - start));
+        start = end + 1;
+    }
+    return parts;
+}
+
+bool truthyScalar(const core::Value& value)
+{
+    switch (value.type()) {
+    case core::ValueType::Bool:
+        return value.asBool();
+    case core::ValueType::Int:
+        return value.asInt() != 0;
+    case core::ValueType::Float:
+        return std::abs(value.asFloat()) > 0.0001f;
+    case core::ValueType::String:
+    case core::ValueType::Enum:
+        return !value.asString().empty();
+    case core::ValueType::Color:
+        return value.asColor().value() != 0;
+    case core::ValueType::None:
+        return false;
+    }
+
+    return false;
+}
+
 core::ValueType stylePropertyBindingType(std::string_view propertyName)
 {
     if (propertyName == "backgroundColor"
@@ -70,29 +133,39 @@ core::ValueType stylePropertyBindingType(std::string_view propertyName)
 
 } // namespace
 
-LayoutBuilder::LayoutBuilder(const ui::Theme& theme)
+LayoutBuilder::LayoutBuilder(const ui::Theme& theme, std::shared_ptr<ViewModel> viewModel)
     : theme_(theme)
+    , viewModel_(std::move(viewModel))
 {
 }
 
-BuildResult LayoutBuilder::build(const AstNode& ast, const ui::Theme& theme)
+BuildResult LayoutBuilder::build(
+    const AstNode& ast,
+    const ui::Theme& theme,
+    const std::shared_ptr<ViewModel>& viewModel)
 {
     AstDocument document;
     document.root = ast;
-    return build(document, theme);
+    return build(document, theme, viewModel);
 }
 
-BuildResult LayoutBuilder::build(const AstDocument& document, const ui::Theme& theme)
+BuildResult LayoutBuilder::build(
+    const AstDocument& document,
+    const ui::Theme& theme,
+    const std::shared_ptr<ViewModel>& viewModel)
 {
-    LayoutBuilder builder(theme);
+    LayoutBuilder builder(theme, viewModel);
     builder.registerStyles(document.styles);
     builder.registerComponents(document.components);
     BuildResult result;
-    if (document.root) {
-        result.root = builder.buildNode(*document.root);
+    if (document.root && document.root->isWidget()) {
+        result.root = builder.buildNode(*document.root, LayoutBuilder::ScopeBindings {});
+    } else if (document.root && !document.root->isWidget()) {
+        result.warnings.push_back("markup document root must be a widget node");
     }
     result.idMap = std::move(builder.idMap_);
     result.bindings = std::move(builder.bindings_);
+    result.structuralPaths = std::move(builder.structuralPaths_);
     result.warnings = std::move(builder.warnings_);
     return result;
 }
@@ -111,11 +184,21 @@ void LayoutBuilder::registerComponents(const std::vector<AstComponentDefinition>
     }
 }
 
-std::shared_ptr<ui::Widget> LayoutBuilder::buildNode(const AstNode& node)
+std::shared_ptr<ui::Widget> LayoutBuilder::buildNode(
+    const AstNode& node,
+    const ScopeBindings& scope)
 {
+    if (!node.isWidget()) {
+        std::ostringstream oss;
+        oss << "control directive cannot be materialized as a standalone widget at line "
+            << node.line;
+        warnings_.push_back(oss.str());
+        return nullptr;
+    }
+
     const auto componentIt = componentMap_.find(node.typeName);
     if (componentIt != componentMap_.end()) {
-        return buildComponentNode(componentIt->second, node);
+        return buildComponentNode(componentIt->second, node, scope);
     }
 
     auto& registry = core::TypeRegistry::instance();
@@ -135,23 +218,25 @@ std::shared_ptr<ui::Widget> LayoutBuilder::buildNode(const AstNode& node)
     }
 
     for (const auto& prop : node.properties) {
-        if (prop.name == "style") {
-            if (prop.hasObjectValue()) {
-                applyInlineStyle(widget, node.typeName, prop);
+        const AstProperty resolvedProp = resolveScopedProperty(prop, scope);
+        if (resolvedProp.name == "style") {
+            if (resolvedProp.hasObjectValue()) {
+                applyInlineStyle(widget, node.typeName, resolvedProp);
             } else {
-                applyNamedStyle(widget, node.typeName, prop);
+                applyNamedStyle(widget, node.typeName, resolvedProp);
             }
         }
     }
 
     for (const auto& prop : node.properties) {
-        if (prop.name == "style") {
+        const AstProperty resolvedProp = resolveScopedProperty(prop, scope);
+        if (resolvedProp.name == "style") {
             continue;
         }
-        applyStandardProperty(widget, *typeInfo, node.typeName, prop);
+        applyStandardProperty(widget, *typeInfo, node.typeName, resolvedProp);
     }
 
-    if (!attachChildren(widget, node.typeName, node) && !node.children.empty()) {
+    if (!attachChildren(widget, node.typeName, node, scope) && !node.children.empty()) {
         std::ostringstream oss;
         oss << "'" << node.typeName << "' is not a container but has children at line "
             << node.line;
@@ -163,7 +248,8 @@ std::shared_ptr<ui::Widget> LayoutBuilder::buildNode(const AstNode& node)
 
 std::shared_ptr<ui::Widget> LayoutBuilder::buildComponentNode(
     const AstComponentDefinition& component,
-    const AstNode& instanceNode)
+    const AstNode& instanceNode,
+    const ScopeBindings& scope)
 {
     for (const auto& activeComponent : componentStack_) {
         if (activeComponent == component.name) {
@@ -179,7 +265,7 @@ std::shared_ptr<ui::Widget> LayoutBuilder::buildComponentNode(
     AstNode mergedNode = mergeComponentNode(component, instanceNode);
     std::shared_ptr<ui::Widget> widget;
     if (!mergedNode.typeName.empty()) {
-        widget = buildNode(mergedNode);
+        widget = buildNode(mergedNode, scope);
     }
     componentStack_.pop_back();
     return widget;
@@ -299,6 +385,66 @@ AstNode LayoutBuilder::mergeComponentNode(
     }
 
     return merged;
+}
+
+void LayoutBuilder::appendExpandedNodes(
+    const std::vector<AstNode>& sourceNodes,
+    const ScopeBindings& scope,
+    std::vector<ExpandedNode>& outNodes)
+{
+    for (const auto& node : sourceNodes) {
+        if (node.isWidget()) {
+            outNodes.push_back(ExpandedNode {
+                .node = node,
+                .scope = scope,
+            });
+            continue;
+        }
+
+        if (node.controlPath.has_value() && !node.controlPath->empty()) {
+            const std::string normalizedPath = normalizeScopedPath(*node.controlPath);
+            if (!normalizedPath.empty()) {
+                const auto pathParts = splitScopedPath(normalizedPath);
+                if (!pathParts.empty() && !scope.contains(std::string(pathParts.front()))) {
+                    trackStructuralPath(normalizedPath);
+                }
+            }
+        }
+
+        if (node.isIfBlock()) {
+            if (node.controlPath.has_value()
+                && evaluateConditionPath(*node.controlPath, scope)) {
+                appendExpandedNodes(node.children, scope, outNodes);
+            }
+            continue;
+        }
+
+        if (node.isForBlock()) {
+            if (!node.controlPath.has_value()) {
+                continue;
+            }
+
+            const ModelNode* collectionNode = resolveScopedNode(*node.controlPath, scope);
+            const ModelNode::Array* array = collectionNode != nullptr
+                ? collectionNode->arrayValue()
+                : nullptr;
+            if (array == nullptr) {
+                if (collectionNode != nullptr) {
+                    std::ostringstream oss;
+                    oss << "@for source '" << *node.controlPath << "' at line "
+                        << node.line << " is not an array";
+                    warnings_.push_back(oss.str());
+                }
+                continue;
+            }
+
+            for (const ModelNode& itemNode : *array) {
+                ScopeBindings loopScope = scope;
+                loopScope[node.loopVariable] = &itemNode;
+                appendExpandedNodes(node.children, loopScope, outNodes);
+            }
+        }
+    }
 }
 
 AstNode LayoutBuilder::resolveComponentTemplateNode(
@@ -435,6 +581,110 @@ void LayoutBuilder::applyNodePropertyOverrides(
     }
 }
 
+AstProperty LayoutBuilder::resolveScopedProperty(
+    const AstProperty& property,
+    const ScopeBindings& scope) const
+{
+    AstProperty resolved = property;
+    if (property.hasObjectValue()) {
+        resolved.objectProperties.clear();
+        resolved.objectProperties.reserve(property.objectProperties.size());
+        for (const auto& childProperty : property.objectProperties) {
+            resolved.objectProperties.push_back(resolveScopedProperty(childProperty, scope));
+        }
+        return resolved;
+    }
+
+    if (!property.hasBinding()) {
+        return resolved;
+    }
+
+    const std::string normalizedPath = normalizeScopedPath(*property.bindingPath);
+    const std::vector<std::string_view> parts = splitScopedPath(normalizedPath);
+    if (parts.empty() || !scope.contains(std::string(parts.front()))) {
+        return resolved;
+    }
+
+    const core::Value* localValue = resolveScopedValue(normalizedPath, scope);
+    if (localValue != nullptr) {
+        resolved.bindingPath.reset();
+        resolved.value = *localValue;
+    }
+
+    return resolved;
+}
+
+const ModelNode* LayoutBuilder::resolveScopedNode(
+    std::string_view path,
+    const ScopeBindings& scope) const
+{
+    const std::string normalizedPath = normalizeScopedPath(path);
+    if (normalizedPath.empty()) {
+        return nullptr;
+    }
+
+    const std::vector<std::string_view> parts = splitScopedPath(normalizedPath);
+    if (parts.empty()) {
+        return nullptr;
+    }
+
+    const auto localIt = scope.find(std::string(parts.front()));
+    if (localIt != scope.end()) {
+        const ModelNode* currentNode = localIt->second;
+        for (std::size_t index = 1; currentNode != nullptr && index < parts.size(); ++index) {
+            currentNode = currentNode->child(parts[index]);
+        }
+        return currentNode;
+    }
+
+    return viewModel_ ? viewModel_->findNode(normalizedPath) : nullptr;
+}
+
+const core::Value* LayoutBuilder::resolveScopedValue(
+    std::string_view path,
+    const ScopeBindings& scope) const
+{
+    const ModelNode* node = resolveScopedNode(path, scope);
+    return node != nullptr ? node->scalar() : nullptr;
+}
+
+bool LayoutBuilder::evaluateConditionPath(
+    std::string_view path,
+    const ScopeBindings& scope) const
+{
+    const ModelNode* node = resolveScopedNode(path, scope);
+    if (node == nullptr) {
+        return false;
+    }
+
+    if (const core::Value* value = node->scalar()) {
+        return truthyScalar(*value);
+    }
+
+    if (const auto* object = node->objectValue()) {
+        return !object->empty();
+    }
+
+    if (const auto* array = node->arrayValue()) {
+        return !array->empty();
+    }
+
+    return false;
+}
+
+void LayoutBuilder::trackStructuralPath(std::string_view path)
+{
+    const std::string normalizedPath = normalizeScopedPath(path);
+    if (normalizedPath.empty()) {
+        return;
+    }
+
+    if (std::find(structuralPaths_.begin(), structuralPaths_.end(), normalizedPath)
+        == structuralPaths_.end()) {
+        structuralPaths_.push_back(normalizedPath);
+    }
+}
+
 bool LayoutBuilder::containsSlotNode(const AstNode& node) const
 {
     if (node.typeName == "Slot") {
@@ -550,7 +800,7 @@ void LayoutBuilder::applyStyleProperties(
                     }
 
                     boundStyleProp.value = value;
-                    LayoutBuilder builder(theme);
+                    LayoutBuilder builder(theme, nullptr);
                     builder.applyStyleProperty(*lockedWidget, nodeType, boundStyleProp);
                 });
             continue;
@@ -1125,21 +1375,25 @@ bool LayoutBuilder::applyStyleProperty(
 bool LayoutBuilder::attachChildren(
     const std::shared_ptr<ui::Widget>& widget,
     const std::string& nodeType,
-    const AstNode& node)
+    const AstNode& node,
+    const ScopeBindings& scope)
 {
+    std::vector<ExpandedNode> expandedChildren;
+    appendExpandedNodes(node.children, scope, expandedChildren);
+
     if (auto* dialog = dynamic_cast<ui::Dialog*>(widget.get())) {
-        if (node.children.empty()) {
+        if (expandedChildren.empty()) {
             return true;
         }
 
-        if (node.children.size() > 1) {
+        if (expandedChildren.size() > 1) {
             std::ostringstream oss;
             oss << "'" << nodeType << "' accepts only one child content node at line "
                 << node.line;
             warnings_.push_back(oss.str());
         }
 
-        auto child = buildNode(node.children.front());
+        auto child = buildNode(expandedChildren.front().node, expandedChildren.front().scope);
         if (child) {
             dialog->setContent(std::move(child));
         }
@@ -1147,18 +1401,18 @@ bool LayoutBuilder::attachChildren(
     }
 
     if (auto* scrollView = dynamic_cast<ui::ScrollView*>(widget.get())) {
-        if (node.children.empty()) {
+        if (expandedChildren.empty()) {
             return true;
         }
 
-        if (node.children.size() > 1) {
+        if (expandedChildren.size() > 1) {
             std::ostringstream oss;
             oss << "'" << nodeType << "' accepts only one child content node at line "
                 << node.line;
             warnings_.push_back(oss.str());
         }
 
-        auto child = buildNode(node.children.front());
+        auto child = buildNode(expandedChildren.front().node, expandedChildren.front().scope);
         if (child) {
             scrollView->setContent(std::move(child));
         }
@@ -1166,8 +1420,8 @@ bool LayoutBuilder::attachChildren(
     }
 
     if (auto* container = dynamic_cast<ui::Container*>(widget.get())) {
-        for (const auto& childNode : node.children) {
-            auto child = buildNode(childNode);
+        for (const auto& childNode : expandedChildren) {
+            auto child = buildNode(childNode.node, childNode.scope);
             if (child) {
                 container->addChild(std::move(child));
             }

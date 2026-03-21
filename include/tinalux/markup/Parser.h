@@ -35,6 +35,9 @@ private:
     AstStyleDefinition parseStyleDefinition();
     AstComponentDefinition parseComponentDefinition();
     AstNode parseNode();
+    AstNode parseControlNode();
+    AstNode parseIfNode(int line, int column);
+    AstNode parseForNode(int line, int column);
     AstProperty parseProperty();
     core::Value parseValue();
     core::Value parseValueDirective();

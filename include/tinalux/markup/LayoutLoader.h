@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "tinalux/markup/Ast.h"
 #include "tinalux/markup/ViewModel.h"
 #include "tinalux/ui/Widget.h"
 
@@ -24,18 +25,31 @@ class Radio;
 
 namespace tinalux::markup {
 
+class LayoutHandle;
+
+namespace detail {
+
+struct LayoutHandleState {
+    LayoutHandle* owner = nullptr;
+};
+
+} // namespace detail
+
 class LayoutHandle {
 public:
-    LayoutHandle() = default;
+    LayoutHandle();
     ~LayoutHandle();
     LayoutHandle(const LayoutHandle&) = delete;
     LayoutHandle& operator=(const LayoutHandle&) = delete;
-    LayoutHandle(LayoutHandle&&) noexcept = default;
-    LayoutHandle& operator=(LayoutHandle&&) noexcept = default;
+    LayoutHandle(LayoutHandle&& other) noexcept;
+    LayoutHandle& operator=(LayoutHandle&& other) noexcept;
     LayoutHandle(
         std::shared_ptr<ui::Widget> root,
         std::unordered_map<std::string, std::shared_ptr<ui::Widget>> idMap,
-        std::vector<detail::BindingDescriptor> bindings);
+        std::vector<detail::BindingDescriptor> bindings,
+        std::shared_ptr<AstDocument> documentTemplate,
+        const ui::Theme& theme,
+        std::vector<std::string> structuralPaths);
 
     std::shared_ptr<ui::Widget> root() const;
     void bindViewModel(const std::shared_ptr<ViewModel>& viewModel);
@@ -59,11 +73,16 @@ public:
     void bindSelectionChanged(const std::string& id, std::function<void(int)> handler);
 
 private:
-    void clearViewModelListeners();
+    void clearValueListeners();
+    void clearStructureListeners();
+    void registerValueListeners();
+    void registerStructureListeners();
+    void rebuildFromTemplate();
     void refreshInteractionBindings();
     const detail::BindingDescriptor* findBinding(
         const ui::Widget* widget,
         std::string_view propertyName) const;
+    void refreshButtonBinding(ui::Button& button);
     void refreshTextInputBinding(ui::TextInput& input);
     void refreshDropdownBinding(ui::Dropdown& dropdown);
     void refreshCheckboxBinding(ui::Checkbox& checkbox);
@@ -74,9 +93,16 @@ private:
     std::shared_ptr<ui::Widget> root_;
     std::unordered_map<std::string, std::shared_ptr<ui::Widget>> idMap_;
     std::vector<detail::BindingDescriptor> bindings_;
+    std::shared_ptr<AstDocument> documentTemplate_;
+    std::shared_ptr<ui::Theme> theme_;
+    std::vector<std::string> structuralPaths_;
     std::shared_ptr<ViewModel> viewModel_;
-    std::vector<ViewModel::ListenerId> listenerIds_;
+    std::vector<ViewModel::ListenerId> valueListenerIds_;
+    std::vector<ViewModel::ListenerId> structureListenerIds_;
+    bool rebuildInProgress_ = false;
     std::shared_ptr<std::uint64_t> bindingGeneration_ = std::make_shared<std::uint64_t>(0);
+    std::shared_ptr<detail::LayoutHandleState> runtimeState_;
+    std::unordered_map<std::string, std::function<void()>> clickHandlers_;
     std::unordered_map<std::string, std::function<void(bool)>> toggleHandlers_;
     std::unordered_map<std::string, std::function<void(const std::string&)>> textChangedHandlers_;
     std::unordered_map<std::string, std::function<void(float)>> valueChangedHandlers_;
