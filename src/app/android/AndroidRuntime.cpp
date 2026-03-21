@@ -354,23 +354,6 @@ bool AndroidRuntime::dispatchTextInput(std::string text)
     return true;
 }
 
-bool AndroidRuntime::dispatchCompositionStart()
-{
-    if (!impl_ || !ready()) {
-        return false;
-    }
-
-    core::TextCompositionEvent event(
-        core::EventType::TextCompositionStart,
-        {},
-        std::nullopt,
-        std::nullopt,
-        std::nullopt,
-        true);
-    impl_->application.handleEvent(event);
-    return true;
-}
-
 bool AndroidRuntime::dispatchCompositionUpdate(
     std::string text,
     std::optional<std::size_t> caretUtf8Offset)

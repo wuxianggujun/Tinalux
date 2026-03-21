@@ -46,18 +46,17 @@ public:
     bool dispatchKeyDown(int key, int modifiers = 0, bool repeat = false);
     bool dispatchKeyUp(int key, int modifiers = 0);
     bool dispatchTextInput(std::string text);
-    bool dispatchCompositionStart();
     bool dispatchCompositionUpdate(std::string text, std::optional<std::size_t> caretUtf8Offset);
     bool dispatchCompositionEnd();
     void setClipboardText(std::string text);
     std::string clipboardText() const;
     void setSuspended(bool suspended);
     void requestClose();
-    void shutdown();
 
     bool ready() const;
 
 private:
+    void shutdown();
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
