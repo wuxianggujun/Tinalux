@@ -122,27 +122,33 @@ class TinaluxRendererHost(
         if (runtimeHandle == 0L || !surfaceAttached) {
             return false
         }
-        val handled = TinaluxNativeBridge.nativeDispatchKeyDown(
+        val nextClipboardText = TinaluxNativeBridge.nativeDispatchKeyDown(
             runtimeHandle,
             androidKeyCode,
             metaState,
             repeatCount,
         )
-        if (handled) {
-            refreshClipboardTextFromRuntime()
+        if (nextClipboardText == null) {
+            return false
         }
-        return handled
+        clipboardText = nextClipboardText
+        return true
     }
 
     fun dispatchKeyUp(androidKeyCode: Int, metaState: Int): Boolean {
         if (runtimeHandle == 0L || !surfaceAttached) {
             return false
         }
-        val handled = TinaluxNativeBridge.nativeDispatchKeyUp(runtimeHandle, androidKeyCode, metaState)
-        if (handled) {
-            refreshClipboardTextFromRuntime()
+        val nextClipboardText = TinaluxNativeBridge.nativeDispatchKeyUp(
+            runtimeHandle,
+            androidKeyCode,
+            metaState,
+        )
+        if (nextClipboardText == null) {
+            return false
         }
-        return handled
+        clipboardText = nextClipboardText
+        return true
     }
 
     fun commitText(text: String): Boolean {
@@ -179,14 +185,6 @@ class TinaluxRendererHost(
     }
 
     fun clipboardText(): String = clipboardText
-
-    private fun refreshClipboardTextFromRuntime(): String {
-        if (runtimeHandle == 0L) {
-            return clipboardText
-        }
-        clipboardText = TinaluxNativeBridge.nativeGetClipboardText(runtimeHandle)
-        return clipboardText
-    }
 
     fun setSuspended(suspended: Boolean) {
         this.suspended = suspended

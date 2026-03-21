@@ -56,13 +56,13 @@ object TinaluxNativeBridge {
         androidKeyCode: Int,
         metaState: Int,
         repeatCount: Int,
-    ): Boolean
+    ): String?
 
     @JvmStatic external fun nativeDispatchKeyUp(
         runtimeHandle: Long,
         androidKeyCode: Int,
         metaState: Int,
-    ): Boolean
+    ): String?
 
     @JvmStatic external fun nativeCommitText(
         runtimeHandle: Long,
@@ -81,8 +81,6 @@ object TinaluxNativeBridge {
         runtimeHandle: Long,
         text: String,
     ): Boolean
-
-    @JvmStatic external fun nativeGetClipboardText(runtimeHandle: Long): String
 
     @JvmStatic external fun nativeSetSuspended(
         runtimeHandle: Long,

@@ -76,20 +76,30 @@ class TinaluxInputConnection(
     }
 
     private fun syncClipboardFromSystem() {
-        val clipboard = clipboardManager() ?: return
-        val clipData = clipboard.primaryClip ?: return
-        if (clipData.itemCount <= 0) {
+        val text = currentClipboardText() ?: return
+        if (text == rendererHost.clipboardText()) {
             return
         }
-
-        val text = clipData.getItemAt(0).coerceToText(targetView.context)?.toString().orEmpty()
         rendererHost.setClipboardText(text)
     }
 
     private fun syncClipboardToSystem() {
         val clipboard = clipboardManager() ?: return
+        val text = rendererHost.clipboardText()
+        if (text == currentClipboardText().orEmpty()) {
+            return
+        }
         clipboard.setPrimaryClip(
-            ClipData.newPlainText("Tinalux", rendererHost.clipboardText()),
+            ClipData.newPlainText("Tinalux", text),
         )
+    }
+
+    private fun currentClipboardText(): String? {
+        val clipboard = clipboardManager() ?: return null
+        val clipData = clipboard.primaryClip ?: return null
+        if (clipData.itemCount <= 0) {
+            return null
+        }
+        return clipData.getItemAt(0).coerceToText(targetView.context)?.toString().orEmpty()
     }
 }

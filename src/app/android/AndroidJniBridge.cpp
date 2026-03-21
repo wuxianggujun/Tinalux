@@ -241,48 +241,72 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeGetTextInputState(
     return static_cast<jint>(state);
 }
 
-JNIEXPORT jboolean JNICALL
+JNIEXPORT jstring JNICALL
 Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchKeyDown(
-    JNIEnv*,
+    JNIEnv* env,
     jclass,
     jlong runtimeHandle,
     jint androidKeyCode,
     jint metaState,
     jint repeatCount)
 {
-    const int mappedKey = mapAndroidKeyCode(androidKeyCode);
-    if (mappedKey < 0) {
-        return JNI_FALSE;
+    if (env == nullptr) {
+        return nullptr;
     }
 
-    return tinaluxAndroidDispatchKeyDown(
-               fromJLong(runtimeHandle),
-               mappedKey,
-               mapAndroidModifiers(metaState),
-               repeatCount > 0)
-        ? JNI_TRUE
-        : JNI_FALSE;
+    const int mappedKey = mapAndroidKeyCode(androidKeyCode);
+    if (mappedKey < 0) {
+        return nullptr;
+    }
+
+    auto* runtime = runtimeFromJLong(runtimeHandle);
+    if (runtime == nullptr) {
+        return nullptr;
+    }
+
+    if (!tinaluxAndroidDispatchKeyDown(
+            fromJLong(runtimeHandle),
+            mappedKey,
+            mapAndroidModifiers(metaState),
+            repeatCount > 0)) {
+        return nullptr;
+    }
+
+    const std::string utf8Text = runtime->clipboardText();
+    return env->NewStringUTF(utf8Text.c_str());
 }
 
-JNIEXPORT jboolean JNICALL
+JNIEXPORT jstring JNICALL
 Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchKeyUp(
-    JNIEnv*,
+    JNIEnv* env,
     jclass,
     jlong runtimeHandle,
     jint androidKeyCode,
     jint metaState)
 {
-    const int mappedKey = mapAndroidKeyCode(androidKeyCode);
-    if (mappedKey < 0) {
-        return JNI_FALSE;
+    if (env == nullptr) {
+        return nullptr;
     }
 
-    return tinaluxAndroidDispatchKeyUp(
-               fromJLong(runtimeHandle),
-               mappedKey,
-               mapAndroidModifiers(metaState))
-        ? JNI_TRUE
-        : JNI_FALSE;
+    const int mappedKey = mapAndroidKeyCode(androidKeyCode);
+    if (mappedKey < 0) {
+        return nullptr;
+    }
+
+    auto* runtime = runtimeFromJLong(runtimeHandle);
+    if (runtime == nullptr) {
+        return nullptr;
+    }
+
+    if (!tinaluxAndroidDispatchKeyUp(
+            fromJLong(runtimeHandle),
+            mappedKey,
+            mapAndroidModifiers(metaState))) {
+        return nullptr;
+    }
+
+    const std::string utf8Text = runtime->clipboardText();
+    return env->NewStringUTF(utf8Text.c_str());
 }
 
 JNIEXPORT jboolean JNICALL
@@ -336,21 +360,6 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeSetClipboardText(
     const std::string utf8Text = utf8FromJString(env, text);
     runtime->setClipboardText(utf8Text);
     return JNI_TRUE;
-}
-
-JNIEXPORT jstring JNICALL
-Java_com_tinalux_runtime_TinaluxNativeBridge_nativeGetClipboardText(
-    JNIEnv* env,
-    jclass,
-    jlong runtimeHandle)
-{
-    if (env == nullptr) {
-        return nullptr;
-    }
-
-    auto* runtime = runtimeFromJLong(runtimeHandle);
-    const std::string utf8Text = runtime != nullptr ? runtime->clipboardText() : std::string {};
-    return env->NewStringUTF(utf8Text.c_str());
 }
 
 JNIEXPORT void JNICALL
