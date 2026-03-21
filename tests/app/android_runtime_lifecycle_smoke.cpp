@@ -8,6 +8,7 @@
 #include "tinalux/app/android/AndroidRuntime.h"
 
 #include "../../src/app/RuntimeHooks.h"
+#include "../../src/app/android/AndroidRuntimeTestAccess.h"
 #include "../../src/rendering/RenderHandles.h"
 #include "tinalux/platform/Window.h"
 #include "tinalux/rendering/rendering.h"
@@ -168,6 +169,7 @@ void resetScenario()
 int main()
 {
     using namespace tinalux;
+    using AndroidRuntimeTestAccess = app::android::detail::AndroidRuntimeTestAccess;
 
     app::detail::RuntimeHooks hooks {
         .createWindow = &createFakeWindow,
@@ -228,7 +230,7 @@ int main()
 
         app::android::AndroidRuntime runtime;
         expect(
-            runtime.config().application.backend == Backend::OpenGL,
+            AndroidRuntimeTestAccess::config(runtime).application.backend == Backend::OpenGL,
             "Default Android runtime should prefer the OpenGL backend");
         expect(
             runtime.attachWindow(reinterpret_cast<void*>(0x001), 1.0f),
@@ -264,13 +266,13 @@ int main()
         config.application.backend = Backend::Vulkan;
         runtime.setConfig(config);
         expect(
-            runtime.config().application.backend == Backend::Vulkan,
+            AndroidRuntimeTestAccess::config(runtime).application.backend == Backend::Vulkan,
             "Explicit runtime config should preserve the preferred Vulkan backend");
 
         expect(
             runtime.attachWindow(reinterpret_cast<void*>(0x101), 2.0f),
             "Android runtime should attach the first window");
-        expect(runtime.ready(), "Android runtime should be ready after the first attach");
+        expect(AndroidRuntimeTestAccess::ready(runtime), "Android runtime should be ready after the first attach");
         expect(gWindowCreates.size() == 1, "First attach should create one window");
         expect(gContextRequests.size() == 1, "First attach should create one backend request");
         expect(gContextRequests[0] == Backend::Vulkan, "Explicit Vulkan config should request the Vulkan backend");
@@ -294,19 +296,19 @@ int main()
 
         runtime.setClipboardText("persisted clipboard");
         expect(
-            runtime.clipboardText() == "persisted clipboard",
+            AndroidRuntimeTestAccess::clipboardText(runtime) == "persisted clipboard",
             "Runtime clipboard should reflect the attached window state");
 
         runtime.detachWindow();
-        expect(!runtime.ready(), "detachWindow should release the current render state");
+        expect(!AndroidRuntimeTestAccess::ready(runtime), "detachWindow should release the current render state");
         expect(
-            runtime.clipboardText() == "persisted clipboard",
+            AndroidRuntimeTestAccess::clipboardText(runtime) == "persisted clipboard",
             "Clipboard text should survive detachWindow");
 
         expect(
             runtime.attachWindow(reinterpret_cast<void*>(0x202), 1.5f),
             "Android runtime should reattach a second window");
-        expect(runtime.ready(), "Android runtime should be ready after reattach");
+        expect(AndroidRuntimeTestAccess::ready(runtime), "Android runtime should be ready after reattach");
         expect(gWindowCreates.size() == 2, "Reattach should create a second window");
         expect(gContextRequests.size() == 2, "Reattach should create a second backend request");
         expect(gContextRequests[1] == Backend::Vulkan, "Reattach should preserve the explicit Vulkan backend");
@@ -316,29 +318,29 @@ int main()
             gWindowCreates.back().nativeWindow == reinterpret_cast<void*>(0x202),
             "Reattach should use the new native window handle");
         expect(
-            runtime.clipboardText() == "persisted clipboard",
+            AndroidRuntimeTestAccess::clipboardText(runtime) == "persisted clipboard",
             "Clipboard text should be restored after reattach");
 
         runtime.setSuspended(true);
-        expect(!runtime.ready(), "Suspending should release the current render state");
+        expect(!AndroidRuntimeTestAccess::ready(runtime), "Suspending should release the current render state");
         expect(
-            runtime.clipboardText() == "persisted clipboard",
+            AndroidRuntimeTestAccess::clipboardText(runtime) == "persisted clipboard",
             "Clipboard text should survive runtime suspension");
 
         runtime.setSuspended(false);
-        expect(runtime.ready(), "Resuming should rebuild the render state");
+        expect(AndroidRuntimeTestAccess::ready(runtime), "Resuming should rebuild the render state");
         expect(gWindowCreates.size() == 3, "Resuming should create a new window");
         expect(gContextRequests.size() == 3, "Resuming should create a new backend request");
         expect(gContextRequests[2] == Backend::Vulkan, "Suspend/resume should preserve the explicit Vulkan backend");
         expect(gContextCreates == 3, "Resuming should create a new render context");
         expect(gSurfaceCreates == 3, "Resuming should create a new render surface");
         expect(
-            runtime.clipboardText() == "persisted clipboard",
+            AndroidRuntimeTestAccess::clipboardText(runtime) == "persisted clipboard",
             "Clipboard text should survive suspend/resume");
 
         runtime.setPreferredBackend(Backend::OpenGL);
         expect(
-            runtime.config().application.backend == Backend::OpenGL,
+            AndroidRuntimeTestAccess::config(runtime).application.backend == Backend::OpenGL,
             "setPreferredBackend should update the preferred backend");
         expect(
             gWindowCreates.size() == 4,
@@ -359,19 +361,19 @@ int main()
         expect(
             runtime.attachWindow(reinterpret_cast<void*>(0x303), 1.0f),
             "Android runtime should attach before close lifecycle smoke");
-        expect(runtime.ready(), "Runtime should be ready before requestClose");
+        expect(AndroidRuntimeTestAccess::ready(runtime), "Runtime should be ready before requestClose");
 
         runtime.requestClose();
 
         expect(
             !runtime.renderOnce(),
             "renderOnce should report false after the application requests close");
-        expect(!runtime.ready(), "Runtime should no longer be ready after application shutdown");
+        expect(!AndroidRuntimeTestAccess::ready(runtime), "Runtime should no longer be ready after application shutdown");
 
         expect(
             runtime.attachWindow(reinterpret_cast<void*>(0x404), 1.25f),
             "Android runtime should create a fresh application session after close");
-        expect(runtime.ready(), "Runtime should be ready again after reattach");
+        expect(AndroidRuntimeTestAccess::ready(runtime), "Runtime should be ready again after reattach");
         expect(
             runtime.installDemoScene(),
             "A recreated Android runtime session should accept demo scene installation");

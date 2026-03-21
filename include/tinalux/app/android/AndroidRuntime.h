@@ -7,6 +7,10 @@
 #include "tinalux/app/Application.h"
 #include "tinalux/core/Geometry.h"
 
+namespace tinalux::app::android::detail {
+struct AndroidRuntimeTestAccess;
+}
+
 namespace tinalux::app::android {
 
 struct AndroidRuntimeConfig {
@@ -32,7 +36,6 @@ public:
     AndroidRuntime& operator=(const AndroidRuntime&) = delete;
 
     void setConfig(AndroidRuntimeConfig config);
-    const AndroidRuntimeConfig& config() const;
     void setPreferredBackend(rendering::Backend backend);
 
     bool attachWindow(void* nativeWindow, float dpiScale = 1.0f);
@@ -49,13 +52,15 @@ public:
     bool dispatchCompositionUpdate(std::string text, std::optional<std::size_t> caretUtf8Offset);
     bool dispatchCompositionEnd();
     void setClipboardText(std::string text);
-    std::string clipboardText() const;
     void setSuspended(bool suspended);
     void requestClose();
 
-    bool ready() const;
-
 private:
+    friend struct detail::AndroidRuntimeTestAccess;
+
+    const AndroidRuntimeConfig& config() const;
+    std::string clipboardText() const;
+    bool ready() const;
     std::string currentClipboardText() const;
     void shutdown();
     struct Impl;
