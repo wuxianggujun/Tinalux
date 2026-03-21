@@ -10,6 +10,7 @@
 #include "tinalux/ui/Button.h"
 #include "tinalux/ui/Dialog.h"
 #include "tinalux/ui/Dropdown.h"
+#include "tinalux/ui/ImageWidget.h"
 #include "tinalux/ui/Panel.h"
 #include "tinalux/ui/ScrollView.h"
 #include "tinalux/ui/TextInput.h"
@@ -53,6 +54,40 @@ int main()
     using namespace tinalux;
 
     const ui::Theme theme = ui::Theme::light();
+
+    {
+        const std::string source = R"(
+VBox(id: "root") {
+    Button(id: "cta", text: "Ship", icon: @res("assets/icons/ship.png")),
+    TextInput(id: "query", placeholder: "Search", leadingIcon: @res("assets/icons/search.png")),
+    ImageWidget(id: "hero", source: @res("assets/images/hero.png"), fit: Cover, opacity: 0.75)
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "@res should work in inline markup");
+        expect(result.warnings.empty(), "inline @res smoke should not emit warnings");
+
+        const ui::Button* button = result.handle.findById<ui::Button>("cta");
+        expect(button != nullptr, "Button with @res icon should be discoverable by id");
+        expect(
+            button->iconPath() == "assets/icons/ship.png",
+            "inline @res should preserve relative path text");
+
+        const ui::TextInput* input = result.handle.findById<ui::TextInput>("query");
+        expect(input != nullptr, "TextInput with @res icon should be discoverable by id");
+        expect(
+            input->leadingIconPath() == "assets/icons/search.png",
+            "inline @res should preserve TextInput icon path");
+
+        const ui::ImageWidget* hero = result.handle.findById<ui::ImageWidget>("hero");
+        expect(hero != nullptr, "ImageWidget should be constructible from markup");
+        expect(
+            hero->imagePath() == "assets/images/hero.png",
+            "inline @res should feed ImageWidget source");
+        expect(hero->fit() == ui::ImageFit::Cover, "ImageWidget fit should be parsed");
+        expect(nearlyEqual(hero->opacity(), 0.75f), "ImageWidget opacity should be parsed");
+    }
 
     {
         const std::string source = R"(
@@ -127,22 +162,24 @@ VBox(id: "root") {
     }
 
     {
-        namespace fs = std::filesystem;
+        const std::filesystem::path tempRoot =
+            std::filesystem::temp_directory_path() / "tinalux_markup_layout_loader_smoke";
+        std::filesystem::remove_all(tempRoot);
+        std::filesystem::create_directories(tempRoot);
 
-        const fs::path tempRoot = fs::temp_directory_path() / "tinalux_markup_layout_loader_smoke";
-        fs::remove_all(tempRoot);
-        fs::create_directories(tempRoot);
-
-        const fs::path sharedPath = tempRoot / "shared.tui";
-        const fs::path layoutPath = tempRoot / "layout.tui";
+        const std::filesystem::path sharedPath = tempRoot / "components" / "shared.tui";
+        const std::filesystem::path layoutPath = tempRoot / "layout.tui";
 
         {
+            std::filesystem::create_directories(sharedPath.parent_path());
+            std::filesystem::create_directories(sharedPath.parent_path() / "icons");
             std::ofstream shared(sharedPath);
             shared << R"(
 @style importedPanel: Panel(
     backgroundColor: #FF102030,
     cornerRadius: 14
 )
+@component SharedSearchButton: Button(text: "Search", icon: @res("icons/search.png"))
 @component SearchCard: Panel(style: importedPanel) {
     Label(text: "Shared title")
 }
@@ -153,9 +190,10 @@ VBox(id: "root") {
         {
             std::ofstream layout(layoutPath);
             layout << R"(
-@import "shared.tui"
+@import "components/shared.tui"
 VBox(id: "root") {
     Panel(id: "card", style: importedPanel),
+    SharedSearchButton(id: "searchButton"),
     SearchCard(id: "searchCard"),
     SharedPicker(id: "sharedPicker"),
     SharedPicker(id: "sharedPickerOverride", placeholder: "Overridden choice", maxVisibleItems: 9),
@@ -189,6 +227,20 @@ VBox(id: "root") {
         expect(
             importedCard->children().size() == 1,
             "component template children should be attached to imported component instance");
+
+        const ui::Button* sharedSearchButton = result.handle.findById<ui::Button>("searchButton");
+        expect(sharedSearchButton != nullptr, "imported component with @res icon should resolve to Button root");
+        const std::string expectedImportedIconPath = std::filesystem::weakly_canonical(
+            sharedPath.parent_path() / "icons" / "search.png").generic_string();
+        const std::string actualImportedIconPath = std::filesystem::weakly_canonical(
+            std::filesystem::path(sharedSearchButton->iconPath())).generic_string();
+        if (actualImportedIconPath != expectedImportedIconPath) {
+            std::cerr
+                << "imported component @res path should resolve relative to defining file\n"
+                << "expected: " << expectedImportedIconPath << '\n'
+                << "actual:   " << actualImportedIconPath << '\n';
+            std::exit(1);
+        }
 
         const ui::Dropdown* importedPicker = result.handle.findById<ui::Dropdown>("sharedPicker");
         expect(
@@ -225,7 +277,7 @@ VBox(id: "root") {
             nearlyEqual(scrollView->preferredHeight(), 180.0f),
             "ScrollView preferredHeight should be parsed");
 
-        fs::remove_all(tempRoot);
+        std::filesystem::remove_all(tempRoot);
     }
 
     {

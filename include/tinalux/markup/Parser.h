@@ -22,11 +22,13 @@ struct DocumentParseResult {
 
 class Parser {
 public:
-    static ParseResult parse(std::string_view source);
-    static DocumentParseResult parseDocument(std::string_view source);
+    static ParseResult parse(std::string_view source, std::string_view baseDirectory = {});
+    static DocumentParseResult parseDocument(
+        std::string_view source,
+        std::string_view baseDirectory = {});
 
 private:
-    explicit Parser(Lexer lexer);
+    explicit Parser(Lexer lexer, std::string baseDirectory);
 
     AstDocument parseDocumentInternal();
     void parseDirective(AstDocument& document);
@@ -35,11 +37,13 @@ private:
     AstNode parseNode();
     AstProperty parseProperty();
     core::Value parseValue();
+    core::Value parseValueDirective();
     Token expect(TokenType type, const char* context);
     void error(const std::string& message);
 
     Lexer lexer_;
     Token current_;
+    std::string baseDirectory_;
     std::vector<std::string> errors_;
 };
 

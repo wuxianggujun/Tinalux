@@ -18,8 +18,6 @@ namespace tinalux::markup {
 
 namespace {
 
-namespace fs = std::filesystem;
-
 struct LoadedDocumentResult {
     AstDocument document;
     std::vector<std::string> errors;
@@ -35,14 +33,16 @@ void ensureBuiltinTypesRegistered()
 }
 
 LoadedDocumentResult loadDocumentFileRecursive(
-    const fs::path& path,
+    const std::filesystem::path& path,
     std::unordered_set<std::string>& activeDocuments)
 {
     LoadedDocumentResult result;
 
     std::error_code pathError;
-    const fs::path normalizedPath = fs::weakly_canonical(path, pathError);
-    const fs::path resolvedPath = pathError ? fs::absolute(path) : normalizedPath;
+    const std::filesystem::path normalizedPath =
+        std::filesystem::weakly_canonical(path, pathError);
+    const std::filesystem::path resolvedPath =
+        pathError ? std::filesystem::absolute(path) : normalizedPath;
     const std::string activeKey = resolvedPath.generic_string();
 
     if (!activeDocuments.insert(activeKey).second) {
@@ -60,7 +60,9 @@ LoadedDocumentResult loadDocumentFileRecursive(
     std::ostringstream source;
     source << file.rdbuf();
 
-    auto parseResult = Parser::parseDocument(source.str());
+    auto parseResult = Parser::parseDocument(
+        source.str(),
+        resolvedPath.parent_path().generic_string());
     if (!parseResult.ok()) {
         activeDocuments.erase(activeKey);
         result.errors = std::move(parseResult.errors);
@@ -68,7 +70,8 @@ LoadedDocumentResult loadDocumentFileRecursive(
     }
 
     for (const auto& importPathText : parseResult.document.imports) {
-        const fs::path importPath = resolvedPath.parent_path() / fs::path(importPathText);
+        const std::filesystem::path importPath =
+            resolvedPath.parent_path() / std::filesystem::path(importPathText);
         auto imported = loadDocumentFileRecursive(importPath, activeDocuments);
         for (auto& error : imported.errors) {
             result.errors.push_back(std::move(error));
@@ -202,7 +205,7 @@ LoadResult LayoutLoader::loadFile(const std::string& path, const ui::Theme& them
 
     LoadResult result;
     std::unordered_set<std::string> activeDocuments;
-    auto loadedDocument = loadDocumentFileRecursive(fs::path(path), activeDocuments);
+    auto loadedDocument = loadDocumentFileRecursive(std::filesystem::path(path), activeDocuments);
     if (!loadedDocument.errors.empty()) {
         result.errors = std::move(loadedDocument.errors);
         return result;

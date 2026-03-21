@@ -3,6 +3,7 @@
 #include <charconv>
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
 #include <sstream>
 
 namespace tinalux::markup {
@@ -21,17 +22,31 @@ core::Color parseColorHex(const std::string& hex)
     return core::Color(value);
 }
 
+std::string resolveResourcePath(
+    const std::string& baseDirectory,
+    const std::string& resourcePath)
+{
+    if (baseDirectory.empty()) {
+        return resourcePath;
+    }
+
+    const std::filesystem::path candidate =
+        std::filesystem::path(baseDirectory) / std::filesystem::path(resourcePath);
+    return candidate.lexically_normal().generic_string();
+}
+
 } // namespace
 
-Parser::Parser(Lexer lexer)
+Parser::Parser(Lexer lexer, std::string baseDirectory)
     : lexer_(std::move(lexer))
+    , baseDirectory_(std::move(baseDirectory))
 {
     current_ = lexer_.next();
 }
 
-ParseResult Parser::parse(std::string_view source)
+ParseResult Parser::parse(std::string_view source, std::string_view baseDirectory)
 {
-    auto documentResult = parseDocument(source);
+    auto documentResult = parseDocument(source, baseDirectory);
 
     ParseResult result;
     if (documentResult.document.root) {
@@ -47,10 +62,12 @@ ParseResult Parser::parse(std::string_view source)
     return result;
 }
 
-DocumentParseResult Parser::parseDocument(std::string_view source)
+DocumentParseResult Parser::parseDocument(
+    std::string_view source,
+    std::string_view baseDirectory)
 {
     Lexer lexer(source);
-    Parser parser(std::move(lexer));
+    Parser parser(std::move(lexer), std::string(baseDirectory));
 
     DocumentParseResult result;
     result.document = parser.parseDocumentInternal();
@@ -295,6 +312,10 @@ AstProperty Parser::parseProperty()
 
 core::Value Parser::parseValue()
 {
+    if (current_.type == TokenType::At) {
+        return parseValueDirective();
+    }
+
     Token tok = current_;
     current_ = lexer_.next();
 
@@ -328,6 +349,37 @@ core::Value Parser::parseValue()
         error("expected value, got '" + tok.text + "'");
         return core::Value();
     }
+}
+
+core::Value Parser::parseValueDirective()
+{
+    expect(TokenType::At, "value directive");
+
+    if (current_.type != TokenType::Identifier) {
+        error("expected value directive name after '@'");
+        return core::Value();
+    }
+
+    const std::string directive = current_.text;
+    current_ = lexer_.next();
+
+    if (directive != "res") {
+        error("unknown value directive '@" + directive + "'");
+        return core::Value();
+    }
+
+    expect(TokenType::LeftParen, "resource directive");
+
+    if (current_.type != TokenType::StringLiteral) {
+        error("expected string literal inside @res(...)");
+        return core::Value();
+    }
+
+    const std::string resourcePath = current_.text;
+    current_ = lexer_.next();
+
+    expect(TokenType::RightParen, "resource directive");
+    return core::Value(resolveResourcePath(baseDirectory_, resourcePath));
 }
 
 Token Parser::expect(TokenType type, const char* context)

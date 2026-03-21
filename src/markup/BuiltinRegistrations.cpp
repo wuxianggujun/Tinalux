@@ -9,6 +9,7 @@
 #include "tinalux/ui/Flex.h"
 #include "tinalux/ui/Grid.h"
 #include "tinalux/ui/HBox.h"
+#include "tinalux/ui/ImageWidget.h"
 #include "tinalux/ui/Label.h"
 #include "tinalux/ui/Panel.h"
 #include "tinalux/ui/ParagraphLabel.h"
@@ -270,6 +271,10 @@ void registerBuiltinTypes()
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Button&>(w).setLabel(v.asString());
                 }},
+            {"icon", core::ValueType::String,
+                [](ui::Widget& w, const core::Value& v) {
+                    static_cast<ui::Button&>(w).loadIconAsync(v.asString());
+                }},
         },
     });
 
@@ -289,6 +294,14 @@ void registerBuiltinTypes()
             {"obscured", core::ValueType::Bool,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::TextInput&>(w).setObscured(v.asBool());
+                }},
+            {"leadingIcon", core::ValueType::String,
+                [](ui::Widget& w, const core::Value& v) {
+                    static_cast<ui::TextInput&>(w).loadLeadingIconAsync(v.asString());
+                }},
+            {"trailingIcon", core::ValueType::String,
+                [](ui::Widget& w, const core::Value& v) {
+                    static_cast<ui::TextInput&>(w).loadTrailingIconAsync(v.asString());
                 }},
         },
     });
@@ -310,6 +323,10 @@ void registerBuiltinTypes()
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Dropdown&>(w).setSelectedIndex(v.asInt());
                 }},
+            {"indicatorIcon", core::ValueType::String,
+                [](ui::Widget& w, const core::Value& v) {
+                    static_cast<ui::Dropdown&>(w).loadIndicatorIconAsync(v.asString());
+                }},
         },
     });
 
@@ -325,6 +342,10 @@ void registerBuiltinTypes()
             {"checked", core::ValueType::Bool,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Checkbox&>(w).setChecked(v.asBool());
+                }},
+            {"checkmarkIcon", core::ValueType::String,
+                [](ui::Widget& w, const core::Value& v) {
+                    static_cast<ui::Checkbox&>(w).loadCheckmarkIconAsync(v.asString());
                 }},
         },
     });
@@ -345,6 +366,35 @@ void registerBuiltinTypes()
             {"selected", core::ValueType::Bool,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Radio&>(w).setSelected(v.asBool());
+                }},
+            {"selectionIcon", core::ValueType::String,
+                [](ui::Widget& w, const core::Value& v) {
+                    static_cast<ui::Radio&>(w).loadSelectionIconAsync(v.asString());
+                }},
+        },
+    });
+
+    reg.registerType(core::TypeInfo {
+        .name = "ImageWidget",
+        .isContainer = false,
+        .factory = [] { return std::make_shared<ui::ImageWidget>(); },
+        .properties = {
+            {"source", core::ValueType::String,
+                [](ui::Widget& w, const core::Value& v) {
+                    static_cast<ui::ImageWidget&>(w).loadImageAsync(v.asString());
+                }},
+            {"fit", core::ValueType::Enum,
+                [](ui::Widget& w, const core::Value& v) {
+                    const auto& s = v.asString();
+                    auto& image = static_cast<ui::ImageWidget&>(w);
+                    if (s == "None") image.setFit(ui::ImageFit::None);
+                    else if (s == "Fill") image.setFit(ui::ImageFit::Fill);
+                    else if (s == "Contain") image.setFit(ui::ImageFit::Contain);
+                    else if (s == "Cover") image.setFit(ui::ImageFit::Cover);
+                }},
+            {"opacity", core::ValueType::Float,
+                [](ui::Widget& w, const core::Value& v) {
+                    static_cast<ui::ImageWidget&>(w).setOpacity(v.asNumber());
                 }},
         },
     });
