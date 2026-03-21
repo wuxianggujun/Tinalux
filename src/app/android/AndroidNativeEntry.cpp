@@ -147,37 +147,6 @@ bool tinaluxAndroidDispatchPointerUp(void* runtimeHandle, double x, double y)
     return runtime->dispatchPointerUp(x, y);
 }
 
-int tinaluxAndroidGetTextInputState(
-    void* runtimeHandle,
-    float* left,
-    float* top,
-    float* right,
-    float* bottom)
-{
-    auto* runtime = runtimeFromHandle(runtimeHandle);
-    if (runtime == nullptr) {
-        return 0;
-    }
-
-    const auto state = runtime->textInputState();
-    if (!state.active) {
-        return 0;
-    }
-
-    if (!state.cursorRect.has_value()) {
-        return 1;
-    }
-    if (left == nullptr || top == nullptr || right == nullptr || bottom == nullptr) {
-        return 1;
-    }
-
-    *left = state.cursorRect->left();
-    *top = state.cursorRect->top();
-    *right = state.cursorRect->right();
-    *bottom = state.cursorRect->bottom();
-    return 2;
-}
-
 bool tinaluxAndroidDispatchKeyDown(void* runtimeHandle, int key, int modifiers, bool repeat)
 {
     auto* runtime = runtimeFromHandle(runtimeHandle);

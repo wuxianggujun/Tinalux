@@ -40,12 +40,6 @@ TINALUX_ANDROID_API bool tinaluxAndroidDispatchPointerUp(
     void* runtimeHandle,
     double x,
     double y);
-TINALUX_ANDROID_API int tinaluxAndroidGetTextInputState(
-    void* runtimeHandle,
-    float* left,
-    float* top,
-    float* right,
-    float* bottom);
 TINALUX_ANDROID_API bool tinaluxAndroidDispatchKeyDown(
     void* runtimeHandle,
     int key,

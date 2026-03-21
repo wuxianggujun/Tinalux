@@ -228,17 +228,26 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeGetTextInputState(
         return 0;
     }
 
-    float values[4] = {};
-    const int state = tinaluxAndroidGetTextInputState(
-        fromJLong(runtimeHandle),
-        &values[0],
-        &values[1],
-        &values[2],
-        &values[3]);
-    if (state == 2) {
-        env->SetFloatArrayRegion(outRect, 0, 4, values);
+    auto* runtime = runtimeFromJLong(runtimeHandle);
+    if (runtime == nullptr) {
+        return 0;
     }
-    return static_cast<jint>(state);
+
+    const auto state = runtime->textInputState();
+    if (!state.active) {
+        return 0;
+    }
+    if (!state.cursorRect.has_value()) {
+        return 1;
+    }
+
+    float values[4] = {};
+    values[0] = state.cursorRect->left();
+    values[1] = state.cursorRect->top();
+    values[2] = state.cursorRect->right();
+    values[3] = state.cursorRect->bottom();
+    env->SetFloatArrayRegion(outRect, 0, 4, values);
+    return 2;
 }
 
 JNIEXPORT jstring JNICALL
