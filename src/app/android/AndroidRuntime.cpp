@@ -4,6 +4,7 @@
 #include <cmath>
 #include <utility>
 
+#include "../ApplicationAndroidRuntimeAccess.h"
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/Log.h"
 #include "tinalux/core/events/Event.h"
@@ -93,7 +94,9 @@ void AndroidRuntime::setPreferredBackend(rendering::Backend backend)
     }
 
     impl_->config.application.backend = backend;
-    impl_->application.setRenderBackendPreference(backend);
+    tinalux::app::detail::ApplicationAndroidRuntimeAccess::setRenderBackendPreference(
+        impl_->application,
+        backend);
     if (!impl_->sessionActive || impl_->attachedNativeWindow == nullptr) {
         return;
     }
@@ -115,7 +118,9 @@ void AndroidRuntime::setPreferredBackend(rendering::Backend backend)
                 rendering::backendName(backend));
             return;
         }
-        impl_->application.setPlatformClipboardText(impl_->clipboardText);
+        tinalux::app::detail::ApplicationAndroidRuntimeAccess::setPlatformClipboardText(
+            impl_->application,
+            impl_->clipboardText);
     }
 }
 
@@ -152,7 +157,8 @@ bool AndroidRuntime::attachWindow(void* nativeWindow, float dpiScale)
         }
         impl_->sessionActive = true;
         impl_->demoSceneInstalled = false;
-    } else if (!impl_->application.hasActiveRenderState()) {
+    } else if (!tinalux::app::detail::ApplicationAndroidRuntimeAccess::hasActiveRenderState(
+                   impl_->application)) {
         if (!impl_->application.resumeRendering(launchConfig.window)) {
             core::logErrorCat(
                 "app.android",
@@ -162,7 +168,9 @@ bool AndroidRuntime::attachWindow(void* nativeWindow, float dpiScale)
     }
 
     if (ready()) {
-        impl_->application.setPlatformClipboardText(impl_->clipboardText);
+        tinalux::app::detail::ApplicationAndroidRuntimeAccess::setPlatformClipboardText(
+            impl_->application,
+            impl_->clipboardText);
     }
 
     core::logInfoCat(
@@ -299,7 +307,10 @@ void AndroidRuntime::shutdown()
 
 bool AndroidRuntime::ready() const
 {
-    return impl_ != nullptr && impl_->sessionActive && impl_->application.hasActiveRenderState();
+    return impl_ != nullptr
+        && impl_->sessionActive
+        && tinalux::app::detail::ApplicationAndroidRuntimeAccess::hasActiveRenderState(
+            impl_->application);
 }
 
 AndroidTextInputState AndroidRuntime::textInputState() const
@@ -308,7 +319,8 @@ AndroidTextInputState AndroidRuntime::textInputState() const
         return {};
     }
 
-    const auto state = impl_->application.platformTextInputState();
+    const auto state = tinalux::app::detail::ApplicationAndroidRuntimeAccess::platformTextInputState(
+        impl_->application);
     return AndroidTextInputState {
         .active = state.active,
         .cursorRect = state.cursorRect,
@@ -396,7 +408,9 @@ void AndroidRuntime::setClipboardText(std::string text)
 
     impl_->clipboardText = std::move(text);
     if (ready()) {
-        impl_->application.setPlatformClipboardText(impl_->clipboardText);
+        tinalux::app::detail::ApplicationAndroidRuntimeAccess::setPlatformClipboardText(
+            impl_->application,
+            impl_->clipboardText);
     }
 }
 
@@ -412,7 +426,8 @@ std::string AndroidRuntime::currentClipboardText() const
     }
 
     return ready()
-        ? impl_->application.platformClipboardText()
+        ? tinalux::app::detail::ApplicationAndroidRuntimeAccess::platformClipboardText(
+            impl_->application)
         : impl_->clipboardText;
 }
 
@@ -434,7 +449,8 @@ void AndroidRuntime::setSuspended(bool suspended)
         impl_->suspended = true;
     } else {
         if (impl_->sessionActive
-            && !impl_->application.hasActiveRenderState()
+            && !tinalux::app::detail::ApplicationAndroidRuntimeAccess::hasActiveRenderState(
+                impl_->application)
             && impl_->attachedNativeWindow != nullptr) {
             platform::WindowConfig windowConfig = makeWindowConfig(
                 impl_->config.application.window,
@@ -448,7 +464,9 @@ void AndroidRuntime::setSuspended(bool suspended)
                 impl_->suspended = true;
                 return;
             }
-            impl_->application.setPlatformClipboardText(impl_->clipboardText);
+            tinalux::app::detail::ApplicationAndroidRuntimeAccess::setPlatformClipboardText(
+                impl_->application,
+                impl_->clipboardText);
         }
         impl_->suspended = false;
     }

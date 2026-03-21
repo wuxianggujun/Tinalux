@@ -25,6 +25,7 @@ class Widget;
 }
 
 namespace tinalux::app::detail {
+struct ApplicationAndroidRuntimeAccess;
 struct ApplicationTestAccess;
 }
 
@@ -90,8 +91,8 @@ public:
     rendering::Backend renderBackend() const;
 
 private:
+    friend struct detail::ApplicationAndroidRuntimeAccess;
     friend struct detail::ApplicationTestAccess;
-    friend class android::AndroidRuntime;
 
     struct Impl;
     bool hasActiveRenderState() const;
