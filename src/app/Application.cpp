@@ -872,11 +872,24 @@ bool Application::renderFrame()
         return true;
     }
 
-    const auto handleRuntimeSurfaceFailure = [this](rendering::SurfaceFailureReason failureReason) {
-        impl_->uiContext.requestRedraw();
+    const auto resetTrackedSurfaceState = [this](bool pendingSurfaceRecreate) {
         impl_->surface = {};
         impl_->surfaceWidth = 0;
         impl_->surfaceHeight = 0;
+        impl_->pendingSurfaceRecreate = pendingSurfaceRecreate;
+    };
+
+    const auto handleSurfaceRecreateFailure = [this, &resetTrackedSurfaceState]() {
+        resetTrackedSurfaceState(false);
+        impl_->runtimeSurfaceFailureRecoveryState = {};
+        impl_->uiContext.requestRedraw();
+        tryPromoteNextBackend();
+        return true;
+    };
+
+    const auto handleRuntimeSurfaceFailure =
+        [this, &resetTrackedSurfaceState](rendering::SurfaceFailureReason failureReason) {
+        impl_->uiContext.requestRedraw();
 
         const auto now = nowSteadyTime();
         const bool recentInteractiveMetricsChange =
@@ -884,7 +897,7 @@ bool Application::renderFrame()
             && hasRecentInteractiveMetricsChange(
                 impl_->lastWindowMetricsChangeAt,
                 now);
-        impl_->pendingSurfaceRecreate = recentInteractiveMetricsChange;
+        resetTrackedSurfaceState(recentInteractiveMetricsChange);
 
         if (shouldPromoteFallbackAfterRuntimeSurfaceFailure(
                 impl_->runtimeSurfaceFailureRecoveryState,
@@ -905,6 +918,18 @@ bool Application::renderFrame()
 
         syncTextInputState();
         return true;
+    };
+
+    const auto handleLoggedRuntimeSurfaceFailure =
+        [this, &handleRuntimeSurfaceFailure](SurfaceFailureLogStage stage) {
+        const rendering::SurfaceFailureReason failureReason =
+            rendering::lastSurfaceFailureReason(impl_->surface);
+        logSurfaceFailureEvent(
+            impl_->surfaceFailureLogState,
+            impl_->context.backend(),
+            failureReason,
+            stage);
+        return handleRuntimeSurfaceFailure(failureReason);
     };
 
     const bool surfaceSizeChanged =
@@ -934,15 +959,7 @@ bool Application::renderFrame()
             impl_->context,
             *impl_->window);
         if (!impl_->surface) {
-            impl_->surfaceWidth = 0;
-            impl_->surfaceHeight = 0;
-            impl_->pendingSurfaceRecreate = false;
-            impl_->runtimeSurfaceFailureRecoveryState = {};
-            impl_->uiContext.requestRedraw();
-            if (tryPromoteNextBackend()) {
-                return true;
-            }
-            return true;
+            return handleSurfaceRecreateFailure();
         }
         impl_->surfaceWidth = framebufferWidth;
         impl_->surfaceHeight = framebufferHeight;
@@ -966,26 +983,12 @@ bool Application::renderFrame()
         return true;
     }
     if (framePrepareStatus == rendering::FramePrepareStatus::SurfaceLost) {
-        const rendering::SurfaceFailureReason failureReason =
-            rendering::lastSurfaceFailureReason(impl_->surface);
-        logSurfaceFailureEvent(
-            impl_->surfaceFailureLogState,
-            impl_->context.backend(),
-            failureReason,
-            SurfaceFailureLogStage::SurfaceLost);
-        return handleRuntimeSurfaceFailure(failureReason);
+        return handleLoggedRuntimeSurfaceFailure(SurfaceFailureLogStage::SurfaceLost);
     }
 
     rendering::Canvas canvas = impl_->surface.canvas();
     if (!canvas) {
-        const rendering::SurfaceFailureReason failureReason =
-            rendering::lastSurfaceFailureReason(impl_->surface);
-        logSurfaceFailureEvent(
-            impl_->surfaceFailureLogState,
-            impl_->context.backend(),
-            failureReason,
-            SurfaceFailureLogStage::CanvasUnavailable);
-        return handleRuntimeSurfaceFailure(failureReason);
+        return handleLoggedRuntimeSurfaceFailure(SurfaceFailureLogStage::CanvasUnavailable);
     }
     impl_->surfaceFailureLogState = {};
     syncResourceManagerDevicePixelRatio(
