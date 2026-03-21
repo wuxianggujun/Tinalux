@@ -47,6 +47,9 @@ private:
         const std::unordered_map<std::string, core::Value>& parameterValues,
         const std::unordered_map<std::string, std::vector<AstNode>>& slotChildren,
         std::unordered_set<std::string>& declaredSlots);
+    AstProperty resolveComponentProperty(
+        const AstProperty& property,
+        const std::unordered_map<std::string, core::Value>& parameterValues) const;
     void appendResolvedComponentChild(
         const AstNode& templateNode,
         const std::unordered_map<std::string, core::Value>& parameterValues,
@@ -63,6 +66,15 @@ private:
     std::string resolveSlotName(
         const AstNode& slotNode,
         const std::unordered_map<std::string, core::Value>& parameterValues);
+    void applyInlineStyle(
+        const std::shared_ptr<ui::Widget>& widget,
+        const std::string& nodeType,
+        const AstProperty& prop);
+    void applyStyleProperties(
+        const std::shared_ptr<ui::Widget>& widget,
+        const std::string& nodeType,
+        const std::vector<AstProperty>& properties,
+        const std::string& context);
     void applyNamedStyle(
         const std::shared_ptr<ui::Widget>& widget,
         const std::string& nodeType,
@@ -86,6 +98,7 @@ private:
     std::unordered_map<std::string, AstStyleDefinition> styleMap_;
     std::unordered_map<std::string, AstComponentDefinition> componentMap_;
     std::vector<std::string> componentStack_;
+    std::vector<std::string> styleStack_;
     std::vector<std::string> warnings_;
 };
 

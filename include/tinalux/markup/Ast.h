@@ -11,8 +11,11 @@ namespace tinalux::markup {
 struct AstProperty {
     std::string name;
     core::Value value;
+    std::vector<AstProperty> objectProperties;
     int line = 0;
     int column = 0;
+
+    bool hasObjectValue() const { return !objectProperties.empty(); }
 };
 
 struct AstNode {

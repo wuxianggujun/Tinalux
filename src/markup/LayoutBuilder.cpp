@@ -1,5 +1,6 @@
 #include "tinalux/markup/LayoutBuilder.h"
 
+#include <algorithm>
 #include <optional>
 #include <sstream>
 
@@ -110,7 +111,11 @@ std::shared_ptr<ui::Widget> LayoutBuilder::buildNode(const AstNode& node)
 
     for (const auto& prop : node.properties) {
         if (prop.name == "style") {
-            applyNamedStyle(widget, node.typeName, prop);
+            if (prop.hasObjectValue()) {
+                applyInlineStyle(widget, node.typeName, prop);
+            } else {
+                applyNamedStyle(widget, node.typeName, prop);
+            }
         }
     }
 
@@ -278,8 +283,10 @@ AstNode LayoutBuilder::resolveComponentTemplateNode(
     std::unordered_set<std::string>& declaredSlots)
 {
     AstNode resolved = templateNode;
-    for (auto& property : resolved.properties) {
-        property.value = resolveComponentValue(property.value, parameterValues);
+    resolved.properties.clear();
+    resolved.properties.reserve(templateNode.properties.size());
+    for (const auto& property : templateNode.properties) {
+        resolved.properties.push_back(resolveComponentProperty(property, parameterValues));
     }
 
     resolved.children.clear();
@@ -292,6 +299,25 @@ AstNode LayoutBuilder::resolveComponentTemplateNode(
             resolved.children);
     }
 
+    return resolved;
+}
+
+AstProperty LayoutBuilder::resolveComponentProperty(
+    const AstProperty& property,
+    const std::unordered_map<std::string, core::Value>& parameterValues) const
+{
+    AstProperty resolved = property;
+    if (property.hasObjectValue()) {
+        resolved.objectProperties.clear();
+        resolved.objectProperties.reserve(property.objectProperties.size());
+        for (const auto& childProperty : property.objectProperties) {
+            resolved.objectProperties.push_back(
+                resolveComponentProperty(childProperty, parameterValues));
+        }
+        return resolved;
+    }
+
+    resolved.value = resolveComponentValue(property.value, parameterValues);
     return resolved;
 }
 
@@ -398,6 +424,14 @@ std::string LayoutBuilder::resolveSlotName(
             continue;
         }
 
+        if (prop.hasObjectValue()) {
+            std::ostringstream oss;
+            oss << "property 'name' on Slot does not accept object values at line "
+                << prop.line;
+            warnings_.push_back(oss.str());
+            continue;
+        }
+
         const core::Value resolvedValue = resolveComponentValue(prop.value, parameterValues);
         const std::optional<std::string> resolvedName = stringLikeValue(resolvedValue);
         if (!resolvedName) {
@@ -414,11 +448,64 @@ std::string LayoutBuilder::resolveSlotName(
     return slotName;
 }
 
+void LayoutBuilder::applyInlineStyle(
+    const std::shared_ptr<ui::Widget>& widget,
+    const std::string& nodeType,
+    const AstProperty& prop)
+{
+    applyStyleProperties(
+        widget,
+        nodeType,
+        prop.objectProperties,
+        "inline style on '" + nodeType + "'");
+}
+
+void LayoutBuilder::applyStyleProperties(
+    const std::shared_ptr<ui::Widget>& widget,
+    const std::string& nodeType,
+    const std::vector<AstProperty>& properties,
+    const std::string& context)
+{
+    for (const auto& styleProp : properties) {
+        if (styleProp.name == "style") {
+            if (styleProp.hasObjectValue()) {
+                applyStyleProperties(widget, nodeType, styleProp.objectProperties, context);
+            } else {
+                applyNamedStyle(widget, nodeType, styleProp);
+            }
+            continue;
+        }
+
+        if (styleProp.hasObjectValue()) {
+            std::ostringstream oss;
+            oss << "nested object style property '" << styleProp.name << "' in " << context
+                << " at line " << styleProp.line << " is not supported";
+            warnings_.push_back(oss.str());
+            continue;
+        }
+
+        if (!applyStyleProperty(*widget, nodeType, styleProp)) {
+            std::ostringstream oss;
+            oss << "unsupported style property '" << styleProp.name << "' in " << context
+                << " for '" << nodeType << "' at line " << styleProp.line;
+            warnings_.push_back(oss.str());
+        }
+    }
+}
+
 void LayoutBuilder::applyNamedStyle(
     const std::shared_ptr<ui::Widget>& widget,
     const std::string& nodeType,
     const AstProperty& prop)
 {
+    if (prop.hasObjectValue()) {
+        std::ostringstream oss;
+        oss << "style reference on '" << nodeType << "' must be a string or identifier at line "
+            << prop.line;
+        warnings_.push_back(oss.str());
+        return;
+    }
+
     const std::optional<std::string> styleName = stringLikeValue(prop.value);
     if (!styleName) {
         std::ostringstream oss;
@@ -446,14 +533,17 @@ void LayoutBuilder::applyNamedStyle(
         return;
     }
 
-    for (const auto& styleProp : style.properties) {
-        if (!applyStyleProperty(*widget, nodeType, styleProp)) {
-            std::ostringstream oss;
-            oss << "unsupported style property '" << styleProp.name << "' in style '"
-                << style.name << "' for '" << nodeType << "' at line " << styleProp.line;
-            warnings_.push_back(oss.str());
-        }
+    if (std::find(styleStack_.begin(), styleStack_.end(), style.name) != styleStack_.end()) {
+        std::ostringstream oss;
+        oss << "cyclic style reference '" << style.name << "' on '" << nodeType
+            << "' at line " << prop.line;
+        warnings_.push_back(oss.str());
+        return;
     }
+
+    styleStack_.push_back(style.name);
+    applyStyleProperties(widget, nodeType, style.properties, "style '" + style.name + "'");
+    styleStack_.pop_back();
 }
 
 void LayoutBuilder::applyStandardProperty(
@@ -462,6 +552,14 @@ void LayoutBuilder::applyStandardProperty(
     const std::string& nodeType,
     const AstProperty& prop)
 {
+    if (prop.hasObjectValue()) {
+        std::ostringstream oss;
+        oss << "property '" << prop.name << "' on '" << nodeType
+            << "' does not accept object values at line " << prop.line;
+        warnings_.push_back(oss.str());
+        return;
+    }
+
     if (prop.name == "id") {
         if (prop.value.type() == core::ValueType::String) {
             widget->setId(prop.value.asString());

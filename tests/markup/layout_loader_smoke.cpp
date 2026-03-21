@@ -59,18 +59,24 @@ int main()
 @style primaryAction: Button(
     backgroundColor: #FF336699,
     textColor: #FFF5F7FA,
-    borderRadius: 24,
     paddingHorizontal: 20,
     paddingVertical: 12
 )
-@style searchField: TextInput(
+@style searchFieldBase: TextInput(
     backgroundColor: #FFF0F4F8,
     borderColor: #FF336699,
+    borderRadius: 12
+)
+@style searchField: TextInput(
+    style: searchFieldBase,
     borderRadius: 18,
     minWidth: 320
 )
 VBox(id: "root") {
-    Button(id: "cta", text: "Ship", style: primaryAction),
+    Button(id: "cta", text: "Ship", style: {
+        style: primaryAction,
+        borderRadius: 24
+    }),
     TextInput(id: "query", placeholder: "Search", style: searchField),
     Dropdown(id: "picker", placeholder: "Pick one", maxVisibleItems: 7, selectedIndex: -1)
 }
@@ -108,10 +114,10 @@ VBox(id: "root") {
             "named TextInput style should override borderColor");
         expect(
             nearlyEqual(input->style()->borderRadius, 18.0f),
-            "named TextInput style should override borderRadius");
+            "derived TextInput style should override borderRadius");
         expect(
             nearlyEqual(input->style()->minWidth, 320.0f),
-            "named TextInput style should override minWidth");
+            "derived TextInput style should override minWidth");
 
         const ui::Dropdown* dropdown = result.handle.findById<ui::Dropdown>("picker");
         expect(dropdown != nullptr, "Dropdown should be constructible from markup");
@@ -256,6 +262,44 @@ VBox(id: "root") {
         expect(
             email->maxVisibleItems() == 8,
             "component instance should override template maxVisibleItems");
+    }
+
+    {
+        const std::string source = R"(
+@component AccentButton(accent: #FF336699): Button(
+    text: "Styled",
+    style: {
+        backgroundColor: accent,
+        textColor: #FFF5F7FA,
+        borderRadius: 14
+    }
+)
+VBox(id: "root") {
+    AccentButton(id: "primary"),
+    AccentButton(id: "danger", accent: #FFC0392B)
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "component parameters inside inline style should load");
+        expect(result.warnings.empty(), "component inline style smoke should not emit warnings");
+
+        const ui::Button* primary = result.handle.findById<ui::Button>("primary");
+        expect(primary != nullptr, "inline style component should materialize as Button");
+        expect(primary->style() != nullptr, "inline style component should install a custom style");
+        expect(
+            primary->style()->backgroundColor.normal == core::colorARGB(255, 51, 102, 153),
+            "component default inline style color should resolve");
+
+        const ui::Button* danger = result.handle.findById<ui::Button>("danger");
+        expect(danger != nullptr, "inline style component override should materialize as Button");
+        expect(danger->style() != nullptr, "inline style component override should install a custom style");
+        expect(
+            danger->style()->backgroundColor.normal == core::colorARGB(255, 192, 57, 43),
+            "component parameter override should flow into inline style block");
+        expect(
+            nearlyEqual(danger->style()->borderRadius, 14.0f),
+            "inline style block should preserve non-parameter properties");
     }
 
     {

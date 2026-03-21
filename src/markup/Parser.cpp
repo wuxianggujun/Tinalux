@@ -272,6 +272,22 @@ AstProperty Parser::parseProperty()
 
     expect(TokenType::Colon, "property");
 
+    if (current_.type == TokenType::LeftBrace) {
+        current_ = lexer_.next();
+
+        while (current_.type != TokenType::RightBrace
+            && current_.type != TokenType::EndOfFile) {
+            prop.objectProperties.push_back(parseProperty());
+
+            if (current_.type == TokenType::Comma) {
+                current_ = lexer_.next();
+            }
+        }
+
+        expect(TokenType::RightBrace, "object property value");
+        return prop;
+    }
+
     prop.value = parseValue();
 
     return prop;
