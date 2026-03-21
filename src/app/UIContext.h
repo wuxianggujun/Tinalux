@@ -39,7 +39,6 @@ public:
         const std::function<std::shared_ptr<ui::Widget>()>& builder);
     void setRootWidget(std::shared_ptr<ui::Widget> root);
     void setOverlayWidget(std::shared_ptr<ui::Widget> overlay);
-    void clearOverlayWidget();
     ui::AnimationSink& animationSink();
     bool textInputActive();
     std::optional<core::Rect> imeCursorRect();

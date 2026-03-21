@@ -73,7 +73,6 @@ public:
         const std::function<std::shared_ptr<ui::Widget>()>& builder);
     void setRootWidget(std::shared_ptr<ui::Widget> root);
     void setOverlayWidget(std::shared_ptr<ui::Widget> overlay);
-    void clearOverlayWidget();
     platform::Window* window() const;
     ui::AnimationSink& animationSink();
     void requestClose();

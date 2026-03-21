@@ -577,11 +577,6 @@ void UIContext::setOverlayWidget(std::shared_ptr<ui::Widget> overlay)
             : std::string("null"));
 }
 
-void UIContext::clearOverlayWidget()
-{
-    setOverlayWidget(nullptr);
-}
-
 ui::AnimationSink& UIContext::animationSink()
 {
     return runtimeState_->animationScheduler;

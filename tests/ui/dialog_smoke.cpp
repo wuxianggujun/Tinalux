@@ -1,8 +1,10 @@
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
 
 #include "../../src/ui/RuntimeState.h"
+#include "../../src/ui/TextPrimitives.h"
 #include "tinalux/app/Application.h"
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
@@ -20,6 +22,27 @@ void expect(bool condition, const char* message)
         std::cerr << message << '\n';
         std::exit(1);
     }
+}
+
+tinalux::core::Point dialogCloseButtonCenter(
+    tinalux::ui::Dialog& dialog,
+    const tinalux::ui::DialogStyle& style,
+    float hostWidth,
+    float hostHeight)
+{
+    const tinalux::ui::TextMetrics titleMetrics = dialog.title().empty()
+        ? tinalux::ui::TextMetrics {}
+        : tinalux::ui::measureTextMetrics(dialog.title(), style.titleTextStyle.fontSize);
+    const float closeButtonSide = std::max(18.0f, style.titleTextStyle.fontSize * 0.85f);
+    const float headerBoxHeight = std::max(titleMetrics.height, closeButtonSide);
+    const tinalux::core::Size dialogSize = dialog.measure(
+        tinalux::ui::Constraints::loose(hostWidth, hostHeight));
+    const float cardLeft = (hostWidth - dialogSize.width()) * 0.5f;
+    const float cardTop = (hostHeight - dialogSize.height()) * 0.5f;
+    return tinalux::core::Point::Make(
+        cardLeft + dialogSize.width() - style.padding - closeButtonSide * 0.5f,
+        cardTop + style.padding + (headerBoxHeight - closeButtonSide) * 0.5f
+            + closeButtonSide * 0.5f);
 }
 
 }  // namespace
@@ -68,20 +91,22 @@ int main()
     app.handleEvent(enterKey);
     expect(dialogClicks == 1, "Enter on focused dialog button should trigger click");
 
-    const core::Size dialogSize = dialog->measure(ui::Constraints::loose(320.0f, 200.0f));
-    const double closeX = (320.0 - dialogSize.width()) * 0.5 + dialogSize.width() - 24.0;
-    const double closeY = (200.0 - dialogSize.height()) * 0.5 + 24.0;
+    const core::Point closeButtonCenter = dialogCloseButtonCenter(
+        *dialog,
+        runtime.theme.dialogStyle,
+        320.0f,
+        200.0f);
     core::MouseButtonEvent closePress(
         core::mouse::kLeft,
         0,
-        closeX,
-        closeY,
+        closeButtonCenter.x(),
+        closeButtonCenter.y(),
         core::EventType::MouseButtonPress);
     core::MouseButtonEvent closeRelease(
         core::mouse::kLeft,
         0,
-        closeX,
-        closeY,
+        closeButtonCenter.x(),
+        closeButtonCenter.y(),
         core::EventType::MouseButtonRelease);
     app.handleEvent(closePress);
     app.handleEvent(closeRelease);
@@ -103,7 +128,7 @@ int main()
     app.handleEvent(backdropRelease);
     expect(dismissCount == 2, "backdrop click should dismiss dialog");
 
-    app.clearOverlayWidget();
+    app.setOverlayWidget(nullptr);
 
     const core::Rect rootButtonBounds = rootButton->globalBounds();
     core::MouseButtonEvent rootPress(

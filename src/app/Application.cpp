@@ -752,16 +752,6 @@ void Application::setOverlayWidget(std::shared_ptr<ui::Widget> overlay)
     syncTextInputState();
 }
 
-void Application::clearOverlayWidget()
-{
-    if (!impl_) {
-        return;
-    }
-
-    impl_->uiContext.clearOverlayWidget();
-    syncTextInputState();
-}
-
 platform::Window* Application::window() const
 {
     return impl_ ? impl_->window.get() : nullptr;

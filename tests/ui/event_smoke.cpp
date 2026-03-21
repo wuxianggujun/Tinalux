@@ -653,7 +653,7 @@ int main()
         app.handleEvent(tabForward);
         expect(overlayLeaf->focused(), "overlay should own focus traversal while active");
 
-        app.clearOverlayWidget();
+        app.setOverlayWidget(nullptr);
         app.handleEvent(tabForward);
         expect(rootLeaf->focused(), "focus traversal should fall back to root after clearing overlay");
     }
