@@ -28,7 +28,7 @@ struct FrameStats {
     std::uint64_t totalFrames = 0;
     std::uint64_t fullRedrawFrames = 0;
     std::uint64_t partialRedrawFrames = 0;
-    std::uint64_t skippedFrames = 0;
+    std::uint64_t deferredFrames = 0;
     std::uint64_t waitEventLoops = 0;
     std::uint64_t pollEventLoops = 0;
     double lastFrameMs = 0.0;

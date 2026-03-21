@@ -666,7 +666,7 @@ bool Application::pumpOnce()
             impl_->uiContext.noteFrameRendered(fullRedraw, frameMs);
             impl_->uiContext.clearNeedsRedraw();
         } else {
-            impl_->uiContext.noteFrameSkipped();
+            impl_->uiContext.noteFrameDeferred();
         }
     }
 

@@ -71,7 +71,7 @@ int main()
 
     context.noteWaitLoop();
     context.notePollLoop();
-    context.noteFrameSkipped();
+    context.noteFrameDeferred();
     context.noteFrameRendered(true, 4.0);
 
     tinalux::core::MouseMoveEvent hoverOverlay(40.0, 40.0);
@@ -99,7 +99,7 @@ int main()
 
     const FrameStats resetStats = context.frameStats();
     expect(resetStats.totalFrames == 0, "reinitializing UIContext should reset total frame count");
-    expect(resetStats.skippedFrames == 0, "reinitializing UIContext should reset skipped frame count");
+    expect(resetStats.deferredFrames == 0, "reinitializing UIContext should reset deferred frame count");
     expect(resetStats.waitEventLoops == 0, "reinitializing UIContext should reset wait loop count");
     expect(resetStats.pollEventLoops == 0, "reinitializing UIContext should reset poll loop count");
 

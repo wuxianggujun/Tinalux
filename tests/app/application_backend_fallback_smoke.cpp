@@ -409,8 +409,8 @@ int main()
             statsBeforeFallback.totalFrames == 0,
             "Fallback smoke should start with zero recorded rendered frames");
         expect(
-            statsBeforeFallback.skippedFrames == 0,
-            "Fallback smoke should start with zero skipped frames");
+            statsBeforeFallback.deferredFrames == 0,
+            "Fallback smoke should start with zero deferred frames");
 
         gFramebufferWidthOverride = 1280;
         gFramebufferHeightOverride = 720;
@@ -423,8 +423,8 @@ int main()
             statsAfterFallback.totalFrames == statsBeforeFallback.totalFrames,
             "Backend recovery without a presented frame should not increment rendered frame count");
         expect(
-            statsAfterFallback.skippedFrames == statsBeforeFallback.skippedFrames + 1,
-            "Backend recovery without a presented frame should be recorded as a skipped frame");
+            statsAfterFallback.deferredFrames == statsBeforeFallback.deferredFrames + 1,
+            "Backend recovery without a presented frame should be recorded as a deferred frame");
     }
 
     {
@@ -443,8 +443,8 @@ int main()
             statsAfterInitialFrame.totalFrames == 1,
             "Initial idle frame stats smoke pass should record one presented frame");
         expect(
-            statsAfterInitialFrame.skippedFrames == 0,
-            "Initial idle frame stats smoke pass should not record skipped frames");
+            statsAfterInitialFrame.deferredFrames == 0,
+            "Initial idle frame stats smoke pass should not record deferred frames");
 
         expect(
             app.pumpOnce(),
@@ -454,8 +454,8 @@ int main()
             statsAfterIdleLoop.totalFrames == statsAfterInitialFrame.totalFrames,
             "Idle loops without render attempts should not change rendered frame count");
         expect(
-            statsAfterIdleLoop.skippedFrames == statsAfterInitialFrame.skippedFrames,
-            "Idle loops without render attempts should not be counted as skipped frames");
+            statsAfterIdleLoop.deferredFrames == statsAfterInitialFrame.deferredFrames,
+            "Idle loops without render attempts should not be counted as deferred frames");
         expect(
             statsAfterIdleLoop.waitEventLoops + statsAfterIdleLoop.pollEventLoops
                 == statsAfterInitialFrame.waitEventLoops + statsAfterInitialFrame.pollEventLoops + 1,
@@ -525,8 +525,8 @@ int main()
             statsAfterPresentLoss.totalFrames == 0,
             "A frame invalidated during flush should not be counted as presented");
         expect(
-            statsAfterPresentLoss.skippedFrames == 1,
-            "A frame invalidated during flush should be recorded as skipped");
+            statsAfterPresentLoss.deferredFrames == 1,
+            "A frame invalidated during flush should be recorded as deferred");
         expect(
             gSurfaceCreateCalls == 1,
             "Flush-stage surface invalidation should not recreate the surface until the next frame");
@@ -542,8 +542,8 @@ int main()
             statsAfterRetry.totalFrames == 1,
             "The next frame should present successfully after recreating the invalidated surface");
         expect(
-            statsAfterRetry.skippedFrames == 1,
-            "Successful retry after flush invalidation should preserve the earlier skipped-frame accounting");
+            statsAfterRetry.deferredFrames == 1,
+            "Successful retry after flush invalidation should preserve the earlier deferred-frame accounting");
         expect(
             gSurfaceCreateCalls == 2,
             "Retry after flush-stage surface invalidation should recreate the surface exactly once");

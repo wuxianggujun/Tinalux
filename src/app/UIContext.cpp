@@ -415,11 +415,11 @@ void UIContext::shutdown()
     if (frameStats_.totalFrames > 0) {
         core::logInfoCat(
             "app",
-            "Frame stats: total={} full={} partial={} skipped={} wait_loops={} poll_loops={} avg_ms={:.3f} max_ms={:.3f}",
+            "Frame stats: total={} full={} partial={} deferred={} wait_loops={} poll_loops={} avg_ms={:.3f} max_ms={:.3f}",
             frameStats_.totalFrames,
             frameStats_.fullRedrawFrames,
             frameStats_.partialRedrawFrames,
-            frameStats_.skippedFrames,
+            frameStats_.deferredFrames,
             frameStats_.waitEventLoops,
             frameStats_.pollEventLoops,
             frameStats_.averageFrameMs,
@@ -732,10 +732,10 @@ void UIContext::noteFrameRendered(bool fullRedraw, double frameMs)
     maybeLogPeriodicPerfSummary();
 }
 
-void UIContext::noteFrameSkipped()
+void UIContext::noteFrameDeferred()
 {
-    ++frameStats_.skippedFrames;
-    ++perfLogIntervalStats_.skippedFrames;
+    ++frameStats_.deferredFrames;
+    ++perfLogIntervalStats_.deferredFrames;
 }
 
 bool UIContext::tickAnimations(double nowSeconds)
@@ -1204,12 +1204,12 @@ void UIContext::logPeriodicPerfSummary(const char* reason)
         / static_cast<double>(perfLogIntervalStats_.renderedFrames);
     core::logInfoCat(
         "perf",
-        "Frame summary [{}]: frames={} full={} partial={} skipped={} wait_loops={} poll_loops={} avg_ms={:.3f} max_ms={:.3f} last_ms={:.3f}",
+        "Frame summary [{}]: frames={} full={} partial={} deferred={} wait_loops={} poll_loops={} avg_ms={:.3f} max_ms={:.3f} last_ms={:.3f}",
         reason,
         perfLogIntervalStats_.renderedFrames,
         perfLogIntervalStats_.fullRedrawFrames,
         perfLogIntervalStats_.partialRedrawFrames,
-        perfLogIntervalStats_.skippedFrames,
+        perfLogIntervalStats_.deferredFrames,
         perfLogIntervalStats_.waitEventLoops,
         perfLogIntervalStats_.pollEventLoops,
         averageFrameMs,
@@ -1350,7 +1350,7 @@ void UIContext::drawDebugHud(
         fmt::format("mode: {}", redrawMode),
         fmt::format("last / avg / max: {:.2f} / {:.2f} / {:.2f} ms", frameStats_.lastFrameMs, frameStats_.averageFrameMs, frameStats_.maxFrameMs),
         fmt::format("avg fps: {:.1f}", avgFps),
-        fmt::format("frames f/p/s: {} / {} / {}", frameStats_.fullRedrawFrames, frameStats_.partialRedrawFrames, frameStats_.skippedFrames),
+        fmt::format("frames f/p/d: {} / {} / {}", frameStats_.fullRedrawFrames, frameStats_.partialRedrawFrames, frameStats_.deferredFrames),
         fmt::format("loops wait/poll: {} / {}", frameStats_.waitEventLoops, frameStats_.pollEventLoops),
         fmt::format("dirty: {}", dirtyInfo),
     };

@@ -61,7 +61,7 @@ public:
     void notePollLoop();
     void noteAnimationTickUpdated();
     void noteFrameRendered(bool fullRedraw, double frameMs);
-    void noteFrameSkipped();
+    void noteFrameDeferred();
     bool tickAnimations(double nowSeconds);
     bool tickAsyncResources();
     bool hasActiveAnimations() const;
@@ -83,7 +83,7 @@ private:
         std::uint64_t renderedFrames = 0;
         std::uint64_t fullRedrawFrames = 0;
         std::uint64_t partialRedrawFrames = 0;
-        std::uint64_t skippedFrames = 0;
+        std::uint64_t deferredFrames = 0;
         std::uint64_t waitEventLoops = 0;
         std::uint64_t pollEventLoops = 0;
         double totalFrameMs = 0.0;
