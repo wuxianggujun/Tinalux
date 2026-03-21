@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <new>
 #include <string>
 
 #include <android/input.h>
@@ -7,7 +8,6 @@
 #include <android/native_window_jni.h>
 #include <jni.h>
 
-#include "tinalux/app/android/AndroidNativeBridge.h"
 #include "tinalux/app/android/AndroidRuntime.h"
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/Log.h"
@@ -55,6 +55,18 @@ void* fromJLong(jlong value)
 tinalux::app::android::AndroidRuntime* runtimeFromJLong(jlong value)
 {
     return static_cast<tinalux::app::android::AndroidRuntime*>(fromJLong(value));
+}
+
+tinalux::rendering::Backend backendFromCode(jint backendCode)
+{
+    switch (backendCode) {
+    case 1:
+        return tinalux::rendering::Backend::OpenGL;
+    case 2:
+        return tinalux::rendering::Backend::Vulkan;
+    default:
+        return tinalux::rendering::Backend::Auto;
+    }
 }
 
 int mapAndroidModifiers(jint metaState)
@@ -142,13 +154,19 @@ extern "C" {
 JNIEXPORT jlong JNICALL
 Java_com_tinalux_runtime_TinaluxNativeBridge_nativeCreateRuntime(JNIEnv*, jclass)
 {
-    return toJLong(tinaluxAndroidCreateRuntime());
+    auto* runtime = new (std::nothrow) tinalux::app::android::AndroidRuntime();
+    if (runtime == nullptr) {
+        tinalux::core::logErrorCat(
+            "app.android",
+            "Failed to allocate Android runtime instance");
+    }
+    return toJLong(runtime);
 }
 
 JNIEXPORT void JNICALL
 Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDestroyRuntime(JNIEnv*, jclass, jlong runtimeHandle)
 {
-    tinaluxAndroidDestroyRuntime(fromJLong(runtimeHandle));
+    delete runtimeFromJLong(runtimeHandle);
 }
 
 JNIEXPORT jboolean JNICALL
@@ -158,7 +176,13 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeSetPreferredBackend(
     jlong runtimeHandle,
     jint backendCode)
 {
-    return tinaluxAndroidSetPreferredBackend(fromJLong(runtimeHandle), backendCode) ? JNI_TRUE : JNI_FALSE;
+    auto* runtime = runtimeFromJLong(runtimeHandle);
+    if (runtime == nullptr) {
+        return JNI_FALSE;
+    }
+
+    runtime->setPreferredBackend(backendFromCode(backendCode));
+    return JNI_TRUE;
 }
 
 JNIEXPORT jboolean JNICALL
@@ -179,7 +203,9 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeAttachSurface(
         tinalux::core::logWarnCat(
             "app.android",
             "nativeAttachSurface received a null Surface; detaching current window instead");
-        tinaluxAndroidDetachWindow(fromJLong(runtimeHandle));
+        if (auto* runtime = runtimeFromJLong(runtimeHandle); runtime != nullptr) {
+            runtime->detachWindow();
+        }
         return JNI_FALSE;
     }
 
@@ -191,30 +217,37 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeAttachSurface(
         return JNI_FALSE;
     }
 
-    return tinaluxAndroidAttachWindow(
-               fromJLong(runtimeHandle),
-               nativeWindow.get(),
-               static_cast<float>(dpiScale))
-        ? JNI_TRUE
-        : JNI_FALSE;
+    auto* runtime = runtimeFromJLong(runtimeHandle);
+    if (runtime == nullptr) {
+        tinalux::core::logErrorCat(
+            "app.android",
+            "nativeAttachSurface ignored because runtime handle is null");
+        return JNI_FALSE;
+    }
+
+    return runtime->attachWindow(nativeWindow.get(), static_cast<float>(dpiScale)) ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT void JNICALL
 Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDetachSurface(JNIEnv*, jclass, jlong runtimeHandle)
 {
-    tinaluxAndroidDetachWindow(fromJLong(runtimeHandle));
+    if (auto* runtime = runtimeFromJLong(runtimeHandle); runtime != nullptr) {
+        runtime->detachWindow();
+    }
 }
 
 JNIEXPORT jboolean JNICALL
 Java_com_tinalux_runtime_TinaluxNativeBridge_nativeRenderOnce(JNIEnv*, jclass, jlong runtimeHandle)
 {
-    return tinaluxAndroidRenderOnce(fromJLong(runtimeHandle)) ? JNI_TRUE : JNI_FALSE;
+    auto* runtime = runtimeFromJLong(runtimeHandle);
+    return runtime != nullptr && runtime->renderOnce() ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jboolean JNICALL
 Java_com_tinalux_runtime_TinaluxNativeBridge_nativeInstallDemoScene(JNIEnv*, jclass, jlong runtimeHandle)
 {
-    return tinaluxAndroidInstallDemoScene(fromJLong(runtimeHandle)) ? JNI_TRUE : JNI_FALSE;
+    auto* runtime = runtimeFromJLong(runtimeHandle);
+    return runtime != nullptr && runtime->installDemoScene() ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jint JNICALL
@@ -273,11 +306,7 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchKeyDown(
         return nullptr;
     }
 
-    if (!tinaluxAndroidDispatchKeyDown(
-            fromJLong(runtimeHandle),
-            mappedKey,
-            mapAndroidModifiers(metaState),
-            repeatCount > 0)) {
+    if (!runtime->dispatchKeyDown(mappedKey, mapAndroidModifiers(metaState), repeatCount > 0)) {
         return nullptr;
     }
 
@@ -307,10 +336,7 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchKeyUp(
         return nullptr;
     }
 
-    if (!tinaluxAndroidDispatchKeyUp(
-            fromJLong(runtimeHandle),
-            mappedKey,
-            mapAndroidModifiers(metaState))) {
+    if (!runtime->dispatchKeyUp(mappedKey, mapAndroidModifiers(metaState))) {
         return nullptr;
     }
 
@@ -326,9 +352,8 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeCommitText(
     jstring text)
 {
     const std::string utf8Text = utf8FromJString(env, text);
-    return tinaluxAndroidDispatchTextInputUtf8(fromJLong(runtimeHandle), utf8Text.c_str())
-        ? JNI_TRUE
-        : JNI_FALSE;
+    auto* runtime = runtimeFromJLong(runtimeHandle);
+    return runtime != nullptr && runtime->dispatchTextInput(utf8Text) ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jboolean JNICALL
@@ -340,10 +365,9 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeSetComposingText(
     jint caretUtf8Offset)
 {
     const std::string utf8Text = utf8FromJString(env, text);
-    return tinaluxAndroidDispatchCompositionUpdate(
-               fromJLong(runtimeHandle),
-               utf8Text.c_str(),
-               static_cast<int>(caretUtf8Offset))
+    auto* runtime = runtimeFromJLong(runtimeHandle);
+    return runtime != nullptr
+            && runtime->dispatchCompositionUpdate(utf8Text, static_cast<int>(caretUtf8Offset))
         ? JNI_TRUE
         : JNI_FALSE;
 }
@@ -351,7 +375,8 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeSetComposingText(
 JNIEXPORT jboolean JNICALL
 Java_com_tinalux_runtime_TinaluxNativeBridge_nativeFinishComposingText(JNIEnv*, jclass, jlong runtimeHandle)
 {
-    return tinaluxAndroidDispatchCompositionEnd(fromJLong(runtimeHandle)) ? JNI_TRUE : JNI_FALSE;
+    auto* runtime = runtimeFromJLong(runtimeHandle);
+    return runtime != nullptr && runtime->dispatchCompositionEnd() ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jboolean JNICALL
@@ -378,7 +403,9 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeSetSuspended(
     jlong runtimeHandle,
     jboolean suspended)
 {
-    tinaluxAndroidSetSuspended(fromJLong(runtimeHandle), suspended == JNI_TRUE);
+    if (auto* runtime = runtimeFromJLong(runtimeHandle); runtime != nullptr) {
+        runtime->setSuspended(suspended == JNI_TRUE);
+    }
 }
 
 JNIEXPORT jboolean JNICALL
@@ -389,10 +416,9 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchPointerMove(
     jfloat x,
     jfloat y)
 {
-    return tinaluxAndroidDispatchPointerMove(
-               fromJLong(runtimeHandle),
-               static_cast<double>(x),
-               static_cast<double>(y))
+    auto* runtime = runtimeFromJLong(runtimeHandle);
+    return runtime != nullptr
+            && runtime->dispatchPointerMove(static_cast<double>(x), static_cast<double>(y))
         ? JNI_TRUE
         : JNI_FALSE;
 }
@@ -405,10 +431,9 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchPointerDown(
     jfloat x,
     jfloat y)
 {
-    return tinaluxAndroidDispatchPointerDown(
-               fromJLong(runtimeHandle),
-               static_cast<double>(x),
-               static_cast<double>(y))
+    auto* runtime = runtimeFromJLong(runtimeHandle);
+    return runtime != nullptr
+            && runtime->dispatchPointerDown(static_cast<double>(x), static_cast<double>(y))
         ? JNI_TRUE
         : JNI_FALSE;
 }
@@ -421,10 +446,9 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchPointerUp(
     jfloat x,
     jfloat y)
 {
-    return tinaluxAndroidDispatchPointerUp(
-               fromJLong(runtimeHandle),
-               static_cast<double>(x),
-               static_cast<double>(y))
+    auto* runtime = runtimeFromJLong(runtimeHandle);
+    return runtime != nullptr
+            && runtime->dispatchPointerUp(static_cast<double>(x), static_cast<double>(y))
         ? JNI_TRUE
         : JNI_FALSE;
 }
