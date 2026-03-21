@@ -4,7 +4,7 @@ import android.graphics.Rect
 import android.view.Surface
 import java.io.Closeable
 
-data class TinaluxTextInputState(
+internal data class TinaluxTextInputState(
     val active: Boolean,
     val cursorRect: Rect?,
 )
@@ -124,7 +124,7 @@ class TinaluxRendererHost(
         }
     }
 
-    fun textInputState(): TinaluxTextInputState {
+    internal fun textInputState(): TinaluxTextInputState {
         if (runtimeHandle == 0L || !surfaceAttached) {
             return TinaluxTextInputState(active = false, cursorRect = null)
         }
@@ -197,7 +197,7 @@ class TinaluxRendererHost(
         return TinaluxNativeBridge.nativeSetClipboardText(runtimeHandle, text)
     }
 
-    fun clipboardText(): String = clipboardText
+    internal fun clipboardText(): String = clipboardText
 
     fun setSuspended(suspended: Boolean) {
         this.suspended = suspended
@@ -210,7 +210,7 @@ class TinaluxRendererHost(
         }
     }
 
-    fun isSuspended(): Boolean = suspended
+    internal fun isSuspended(): Boolean = suspended
 
     override fun close() {
         detachSurface()
