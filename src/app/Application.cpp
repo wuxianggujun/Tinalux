@@ -643,7 +643,7 @@ bool Application::pumpOnce()
             impl_->pendingSurfaceRecreate = true;
         }
         impl_->lastWindowMetricsChangeAt = metricsChangedAt;
-        impl_->uiContext.notifyWindowMetricsChanged();
+        impl_->uiContext.requestRedraw();
         impl_->lastObservedWindowMetrics = currentMetrics;
     }
 
@@ -654,7 +654,7 @@ bool Application::pumpOnce()
         impl_->uiContext.noteAnimationTickUpdated();
     }
 
-    if (impl_->uiContext.shouldRender()) {
+    if (impl_->uiContext.hasImmediateRenderWork() || impl_->uiContext.hasActiveAnimations()) {
         using clock = std::chrono::steady_clock;
         const auto frameStart = clock::now();
         const bool fullRedraw = renderFrame();
@@ -664,7 +664,6 @@ bool Application::pumpOnce()
 
         if (impl_->lastRenderFrameOutcome == RenderFrameOutcome::Presented) {
             impl_->uiContext.noteFrameRendered(fullRedraw, frameMs);
-            impl_->uiContext.clearNeedsRedraw();
         } else {
             impl_->uiContext.noteFrameDeferred();
         }

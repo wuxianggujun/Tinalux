@@ -67,16 +67,13 @@ public:
     bool hasActiveAnimations() const;
     std::optional<double> nextAnimationDelaySeconds(double nowSeconds) const;
 
-    bool shouldRender() const;
     bool hasImmediateRenderWork() const;
     void requestRedraw();
-    void notifyWindowMetricsChanged();
     bool render(
         rendering::Canvas& canvas,
         int framebufferWidth,
         int framebufferHeight,
         float dpiScale = 1.0f);
-    void clearNeedsRedraw();
 
 private:
     struct PerfLogIntervalStats {

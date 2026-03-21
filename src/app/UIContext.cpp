@@ -766,11 +766,6 @@ std::optional<double> UIContext::nextAnimationDelaySeconds(double nowSeconds) co
     return runtimeState_->animationScheduler.nextWakeDelaySeconds(nowSeconds);
 }
 
-bool UIContext::shouldRender() const
-{
-    return hasImmediateRenderWork() || hasActiveAnimations();
-}
-
 bool UIContext::hasImmediateRenderWork() const
 {
     return needsRedraw_
@@ -781,11 +776,6 @@ bool UIContext::hasImmediateRenderWork() const
 void UIContext::requestRedraw()
 {
     needsRedraw_ = true;
-}
-
-void UIContext::notifyWindowMetricsChanged()
-{
-    requestRedraw();
 }
 
 bool UIContext::render(
@@ -942,11 +932,6 @@ bool UIContext::render(
     canvas.restore();
 
     return fullRedraw;
-}
-
-void UIContext::clearNeedsRedraw()
-{
-    needsRedraw_ = false;
 }
 
 ui::Widget* UIContext::hitTestTopLevel(float x, float y) const
