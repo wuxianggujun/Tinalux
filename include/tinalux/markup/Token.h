@@ -12,6 +12,7 @@ enum class TokenType : std::uint8_t {
     IntLiteral,
     FloatLiteral,
     ColorLiteral,
+    BindingLiteral,
 
     LeftParen,
     RightParen,

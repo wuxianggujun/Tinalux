@@ -20,6 +20,7 @@ private:
     Token readNumber();
     Token readString();
     Token readColor();
+    Token readBinding();
     Token makeToken(TokenType type, std::string text) const;
     Token makeToken(TokenType type, char ch) const;
     char current() const;

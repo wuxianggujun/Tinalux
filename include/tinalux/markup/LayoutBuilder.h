@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "tinalux/markup/Ast.h"
+#include "tinalux/markup/ViewModel.h"
 
 namespace tinalux::ui {
 class Widget;
@@ -22,6 +23,7 @@ namespace tinalux::markup {
 struct BuildResult {
     std::shared_ptr<ui::Widget> root;
     std::unordered_map<std::string, std::shared_ptr<ui::Widget>> idMap;
+    std::vector<detail::BindingDescriptor> bindings;
     std::vector<std::string> warnings;
 };
 
@@ -44,28 +46,28 @@ private:
         const AstNode& instanceNode);
     AstNode resolveComponentTemplateNode(
         const AstNode& templateNode,
-        const std::unordered_map<std::string, core::Value>& parameterValues,
+        const std::unordered_map<std::string, AstProperty>& parameterValues,
         const std::unordered_map<std::string, std::vector<AstNode>>& slotChildren,
         std::unordered_set<std::string>& declaredSlots);
     AstProperty resolveComponentProperty(
         const AstProperty& property,
-        const std::unordered_map<std::string, core::Value>& parameterValues) const;
+        const std::unordered_map<std::string, AstProperty>& parameterValues) const;
     void appendResolvedComponentChild(
         const AstNode& templateNode,
-        const std::unordered_map<std::string, core::Value>& parameterValues,
+        const std::unordered_map<std::string, AstProperty>& parameterValues,
         const std::unordered_map<std::string, std::vector<AstNode>>& slotChildren,
         std::unordered_set<std::string>& declaredSlots,
         std::vector<AstNode>& outChildren);
     core::Value resolveComponentValue(
         const core::Value& value,
-        const std::unordered_map<std::string, core::Value>& parameterValues) const;
+        const std::unordered_map<std::string, AstProperty>& parameterValues) const;
     void applyNodePropertyOverrides(
         AstNode& node,
         const std::vector<AstProperty>& overrideProperties) const;
     bool containsSlotNode(const AstNode& node) const;
     std::string resolveSlotName(
         const AstNode& slotNode,
-        const std::unordered_map<std::string, core::Value>& parameterValues);
+        const std::unordered_map<std::string, AstProperty>& parameterValues);
     void applyInlineStyle(
         const std::shared_ptr<ui::Widget>& widget,
         const std::string& nodeType,
@@ -84,6 +86,12 @@ private:
         const core::TypeInfo& typeInfo,
         const std::string& nodeType,
         const AstProperty& prop);
+    void registerBinding(
+        const std::shared_ptr<ui::Widget>& widget,
+        std::string propertyName,
+        std::string path,
+        core::ValueType expectedType,
+        std::function<void(const core::Value&)> apply);
     bool applyStyleProperty(
         ui::Widget& widget,
         const std::string& nodeType,
@@ -99,6 +107,7 @@ private:
     std::unordered_map<std::string, AstComponentDefinition> componentMap_;
     std::vector<std::string> componentStack_;
     std::vector<std::string> styleStack_;
+    std::vector<detail::BindingDescriptor> bindings_;
     std::vector<std::string> warnings_;
 };
 

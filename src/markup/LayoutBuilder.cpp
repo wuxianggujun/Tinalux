@@ -44,6 +44,30 @@ void mutateWidgetStyle(WidgetT& widget, const Style& fallbackStyle, Mutator muta
     widget.setStyle(style);
 }
 
+core::ValueType stylePropertyBindingType(std::string_view propertyName)
+{
+    if (propertyName == "backgroundColor"
+        || propertyName == "textColor"
+        || propertyName == "borderColor"
+        || propertyName == "focusRingColor"
+        || propertyName == "placeholderColor"
+        || propertyName == "selectionColor"
+        || propertyName == "caretColor"
+        || propertyName == "backdropColor"
+        || propertyName == "titleColor"
+        || propertyName == "scrollbarThumbColor"
+        || propertyName == "scrollbarTrackColor"
+        || propertyName == "color") {
+        return core::ValueType::Color;
+    }
+
+    if (propertyName == "bold") {
+        return core::ValueType::Bool;
+    }
+
+    return core::ValueType::None;
+}
+
 } // namespace
 
 LayoutBuilder::LayoutBuilder(const ui::Theme& theme)
@@ -68,6 +92,7 @@ BuildResult LayoutBuilder::build(const AstDocument& document, const ui::Theme& t
         result.root = builder.buildNode(*document.root);
     }
     result.idMap = std::move(builder.idMap_);
+    result.bindings = std::move(builder.bindings_);
     result.warnings = std::move(builder.warnings_);
     return result;
 }
@@ -164,10 +189,10 @@ AstNode LayoutBuilder::mergeComponentNode(
     const AstComponentDefinition& component,
     const AstNode& instanceNode)
 {
-    std::unordered_map<std::string, core::Value> parameterValues;
+    std::unordered_map<std::string, AstProperty> parameterValues;
     parameterValues.reserve(component.parameters.size());
     for (const auto& parameter : component.parameters) {
-        parameterValues[parameter.name] = parameter.value;
+        parameterValues[parameter.name] = parameter;
     }
 
     std::vector<AstProperty> rootOverrides;
@@ -176,7 +201,7 @@ AstNode LayoutBuilder::mergeComponentNode(
         bool matchedParameter = false;
         for (const auto& parameter : component.parameters) {
             if (parameter.name == instanceProp.name) {
-                parameterValues[parameter.name] = instanceProp.value;
+                parameterValues[parameter.name] = instanceProp;
                 matchedParameter = true;
                 break;
             }
@@ -278,7 +303,7 @@ AstNode LayoutBuilder::mergeComponentNode(
 
 AstNode LayoutBuilder::resolveComponentTemplateNode(
     const AstNode& templateNode,
-    const std::unordered_map<std::string, core::Value>& parameterValues,
+    const std::unordered_map<std::string, AstProperty>& parameterValues,
     const std::unordered_map<std::string, std::vector<AstNode>>& slotChildren,
     std::unordered_set<std::string>& declaredSlots)
 {
@@ -304,7 +329,7 @@ AstNode LayoutBuilder::resolveComponentTemplateNode(
 
 AstProperty LayoutBuilder::resolveComponentProperty(
     const AstProperty& property,
-    const std::unordered_map<std::string, core::Value>& parameterValues) const
+    const std::unordered_map<std::string, AstProperty>& parameterValues) const
 {
     AstProperty resolved = property;
     if (property.hasObjectValue()) {
@@ -317,13 +342,24 @@ AstProperty LayoutBuilder::resolveComponentProperty(
         return resolved;
     }
 
+    if (property.value.type() == core::ValueType::Enum) {
+        const auto parameterIt = parameterValues.find(property.value.asString());
+        if (parameterIt != parameterValues.end()) {
+            AstProperty parameterProp = parameterIt->second;
+            parameterProp.name = property.name;
+            parameterProp.line = property.line;
+            parameterProp.column = property.column;
+            return parameterProp;
+        }
+    }
+
     resolved.value = resolveComponentValue(property.value, parameterValues);
     return resolved;
 }
 
 void LayoutBuilder::appendResolvedComponentChild(
     const AstNode& templateNode,
-    const std::unordered_map<std::string, core::Value>& parameterValues,
+    const std::unordered_map<std::string, AstProperty>& parameterValues,
     const std::unordered_map<std::string, std::vector<AstNode>>& slotChildren,
     std::unordered_set<std::string>& declaredSlots,
     std::vector<AstNode>& outChildren)
@@ -361,7 +397,7 @@ void LayoutBuilder::appendResolvedComponentChild(
 
 core::Value LayoutBuilder::resolveComponentValue(
     const core::Value& value,
-    const std::unordered_map<std::string, core::Value>& parameterValues) const
+    const std::unordered_map<std::string, AstProperty>& parameterValues) const
 {
     if (value.type() != core::ValueType::Enum) {
         return value;
@@ -372,7 +408,11 @@ core::Value LayoutBuilder::resolveComponentValue(
         return value;
     }
 
-    return parameterIt->second;
+    if (parameterIt->second.hasObjectValue() || parameterIt->second.hasBinding()) {
+        return value;
+    }
+
+    return parameterIt->second.value;
 }
 
 void LayoutBuilder::applyNodePropertyOverrides(
@@ -412,7 +452,7 @@ bool LayoutBuilder::containsSlotNode(const AstNode& node) const
 
 std::string LayoutBuilder::resolveSlotName(
     const AstNode& slotNode,
-    const std::unordered_map<std::string, core::Value>& parameterValues)
+    const std::unordered_map<std::string, AstProperty>& parameterValues)
 {
     std::string slotName;
 
@@ -468,6 +508,14 @@ void LayoutBuilder::applyStyleProperties(
 {
     for (const auto& styleProp : properties) {
         if (styleProp.name == "style") {
+            if (styleProp.hasBinding()) {
+                std::ostringstream oss;
+                oss << "dynamic style references are not supported in " << context
+                    << " at line " << styleProp.line;
+                warnings_.push_back(oss.str());
+                continue;
+            }
+
             if (styleProp.hasObjectValue()) {
                 applyStyleProperties(widget, nodeType, styleProp.objectProperties, context);
             } else {
@@ -481,6 +529,30 @@ void LayoutBuilder::applyStyleProperties(
             oss << "nested object style property '" << styleProp.name << "' in " << context
                 << " at line " << styleProp.line << " is not supported";
             warnings_.push_back(oss.str());
+            continue;
+        }
+
+        if (styleProp.hasBinding()) {
+            AstProperty boundStyleProp = styleProp;
+            boundStyleProp.bindingPath.reset();
+            registerBinding(
+                widget,
+                styleProp.name,
+                *styleProp.bindingPath,
+                stylePropertyBindingType(styleProp.name),
+                [weakWidget = std::weak_ptr<ui::Widget>(widget),
+                 theme = theme_,
+                 nodeType,
+                 boundStyleProp](const core::Value& value) mutable {
+                    auto lockedWidget = weakWidget.lock();
+                    if (!lockedWidget) {
+                        return;
+                    }
+
+                    boundStyleProp.value = value;
+                    LayoutBuilder builder(theme);
+                    builder.applyStyleProperty(*lockedWidget, nodeType, boundStyleProp);
+                });
             continue;
         }
 
@@ -501,6 +573,14 @@ void LayoutBuilder::applyNamedStyle(
     if (prop.hasObjectValue()) {
         std::ostringstream oss;
         oss << "style reference on '" << nodeType << "' must be a string or identifier at line "
+            << prop.line;
+        warnings_.push_back(oss.str());
+        return;
+    }
+
+    if (prop.hasBinding()) {
+        std::ostringstream oss;
+        oss << "dynamic style references on '" << nodeType << "' are not supported at line "
             << prop.line;
         warnings_.push_back(oss.str());
         return;
@@ -561,6 +641,14 @@ void LayoutBuilder::applyStandardProperty(
     }
 
     if (prop.name == "id") {
+        if (prop.hasBinding()) {
+            std::ostringstream oss;
+            oss << "property 'id' on '" << nodeType
+                << "' does not support data binding at line " << prop.line;
+            warnings_.push_back(oss.str());
+            return;
+        }
+
         if (prop.value.type() == core::ValueType::String) {
             widget->setId(prop.value.asString());
             if (idMap_.contains(prop.value.asString())) {
@@ -580,6 +668,23 @@ void LayoutBuilder::applyStandardProperty(
     }
 
     if (prop.name == "visible") {
+        if (prop.hasBinding()) {
+            registerBinding(
+                widget,
+                prop.name,
+                *prop.bindingPath,
+                core::ValueType::Bool,
+                [weakWidget = std::weak_ptr<ui::Widget>(widget)](const core::Value& value) {
+                    auto lockedWidget = weakWidget.lock();
+                    if (!lockedWidget) {
+                        return;
+                    }
+
+                    lockedWidget->setVisible(value.asBool());
+                });
+            return;
+        }
+
         if (prop.value.type() == core::ValueType::Bool) {
             widget->setVisible(prop.value.asBool());
         } else {
@@ -600,7 +705,41 @@ void LayoutBuilder::applyStandardProperty(
         return;
     }
 
+    if (prop.hasBinding()) {
+        registerBinding(
+            widget,
+            prop.name,
+            *prop.bindingPath,
+            propInfo->expectedType,
+            [weakWidget = std::weak_ptr<ui::Widget>(widget),
+             setter = propInfo->setter](const core::Value& value) {
+                auto lockedWidget = weakWidget.lock();
+                if (!lockedWidget) {
+                    return;
+                }
+
+                setter(*lockedWidget, value);
+            });
+        return;
+    }
+
     propInfo->setter(*widget, prop.value);
+}
+
+void LayoutBuilder::registerBinding(
+    const std::shared_ptr<ui::Widget>& widget,
+    std::string propertyName,
+    std::string path,
+    core::ValueType expectedType,
+    std::function<void(const core::Value&)> apply)
+{
+    bindings_.push_back(detail::BindingDescriptor {
+        .widget = widget,
+        .propertyName = std::move(propertyName),
+        .path = std::move(path),
+        .expectedType = expectedType,
+        .apply = std::move(apply),
+    });
 }
 
 bool LayoutBuilder::applyStyleProperty(

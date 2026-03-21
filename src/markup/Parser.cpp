@@ -290,6 +290,7 @@ AstProperty Parser::parseProperty()
     expect(TokenType::Colon, "property");
 
     if (current_.type == TokenType::LeftBrace) {
+        prop.objectValue = true;
         current_ = lexer_.next();
 
         while (current_.type != TokenType::RightBrace
@@ -302,6 +303,12 @@ AstProperty Parser::parseProperty()
         }
 
         expect(TokenType::RightBrace, "object property value");
+        return prop;
+    }
+
+    if (current_.type == TokenType::BindingLiteral) {
+        prop.bindingPath = current_.text;
+        current_ = lexer_.next();
         return prop;
     }
 

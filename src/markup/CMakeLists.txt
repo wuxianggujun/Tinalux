@@ -1,6 +1,7 @@
 add_library(TinaluxMarkup STATIC
     Lexer.cpp
     Parser.cpp
+    ViewModel.cpp
     LayoutBuilder.cpp
     BuiltinRegistrations.cpp
     LayoutLoader.cpp

@@ -36,6 +36,10 @@ Token Lexer::next()
         return readColor();
     }
 
+    if (ch == '$' && pos_ + 1 < source_.size() && source_[pos_ + 1] == '{') {
+        return readBinding();
+    }
+
     if (ch == '"') {
         return readString();
     }
@@ -197,6 +201,37 @@ Token Lexer::readColor()
     Token tok;
     tok.type = TokenType::ColorLiteral;
     tok.text = hex;
+    tok.line = startLine;
+    tok.column = startCol;
+    return tok;
+}
+
+Token Lexer::readBinding()
+{
+    int startLine = line_;
+    int startCol = column_;
+    advance(); // skip '$'
+    advance(); // skip '{'
+
+    std::string text;
+    while (!atEnd() && current() != '}') {
+        text += advance();
+    }
+
+    if (atEnd()) {
+        Token tok;
+        tok.type = TokenType::Error;
+        tok.text = "${" + text;
+        tok.line = startLine;
+        tok.column = startCol;
+        return tok;
+    }
+
+    advance(); // skip '}'
+
+    Token tok;
+    tok.type = TokenType::BindingLiteral;
+    tok.text = std::move(text);
     tok.line = startLine;
     tok.column = startCol;
     return tok;
