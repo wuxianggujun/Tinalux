@@ -20,34 +20,39 @@ object TinaluxNativeBridge {
         runtimeHandle: Long,
         surface: Surface,
         dpiScale: Float,
-    ): Boolean
+        outRect: FloatArray,
+    ): Int
 
     @JvmStatic external fun nativeDetachSurface(runtimeHandle: Long)
 
-    @JvmStatic external fun nativeRenderOnce(runtimeHandle: Long): Boolean
+    @JvmStatic external fun nativeRenderOnce(
+        runtimeHandle: Long,
+        outRect: FloatArray,
+    ): Int
 
-    @JvmStatic external fun nativeInstallDemoScene(runtimeHandle: Long): Boolean
+    @JvmStatic external fun nativeInstallDemoScene(
+        runtimeHandle: Long,
+        outRect: FloatArray,
+    ): Int
 
     @JvmStatic external fun nativeDispatchPointerMove(
         runtimeHandle: Long,
         x: Float,
         y: Float,
-    ): Boolean
+        outRect: FloatArray,
+    ): Int
 
     @JvmStatic external fun nativeDispatchPointerDown(
         runtimeHandle: Long,
         x: Float,
         y: Float,
-    ): Boolean
+        outRect: FloatArray,
+    ): Int
 
     @JvmStatic external fun nativeDispatchPointerUp(
         runtimeHandle: Long,
         x: Float,
         y: Float,
-    ): Boolean
-
-    @JvmStatic external fun nativeGetTextInputState(
-        runtimeHandle: Long,
         outRect: FloatArray,
     ): Int
 

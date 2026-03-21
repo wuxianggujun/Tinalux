@@ -57,6 +57,39 @@ tinalux::app::android::AndroidRuntime* runtimeFromJLong(jlong value)
     return static_cast<tinalux::app::android::AndroidRuntime*>(fromJLong(value));
 }
 
+constexpr jint kTextInputStateFailed = -1;
+constexpr jint kTextInputStateInactive = 0;
+constexpr jint kTextInputStateActive = 1;
+constexpr jint kTextInputStateActiveWithCursor = 2;
+
+jint writeTextInputState(
+    JNIEnv* env,
+    tinalux::app::android::AndroidRuntime* runtime,
+    jfloatArray outRect)
+{
+    if (env == nullptr || runtime == nullptr || outRect == nullptr
+        || env->GetArrayLength(outRect) < 4) {
+        return kTextInputStateFailed;
+    }
+
+    const auto state = runtime->textInputState();
+    if (!state.active) {
+        return kTextInputStateInactive;
+    }
+    if (!state.cursorRect.has_value()) {
+        return kTextInputStateActive;
+    }
+
+    const jfloat values[4] = {
+        static_cast<jfloat>(state.cursorRect->left()),
+        static_cast<jfloat>(state.cursorRect->top()),
+        static_cast<jfloat>(state.cursorRect->right()),
+        static_cast<jfloat>(state.cursorRect->bottom()),
+    };
+    env->SetFloatArrayRegion(outRect, 0, 4, values);
+    return kTextInputStateActiveWithCursor;
+}
+
 tinalux::rendering::Backend backendFromCode(jint backendCode)
 {
     switch (backendCode) {
@@ -185,19 +218,20 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeSetPreferredBackend(
     return JNI_TRUE;
 }
 
-JNIEXPORT jboolean JNICALL
+JNIEXPORT jint JNICALL
 Java_com_tinalux_runtime_TinaluxNativeBridge_nativeAttachSurface(
     JNIEnv* env,
     jclass,
     jlong runtimeHandle,
     jobject surface,
-    jfloat dpiScale)
+    jfloat dpiScale,
+    jfloatArray outRect)
 {
     if (env == nullptr) {
         tinalux::core::logErrorCat(
             "app.android",
             "nativeAttachSurface failed because JNIEnv is null");
-        return JNI_FALSE;
+        return kTextInputStateFailed;
     }
     if (surface == nullptr) {
         tinalux::core::logWarnCat(
@@ -206,7 +240,7 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeAttachSurface(
         if (auto* runtime = runtimeFromJLong(runtimeHandle); runtime != nullptr) {
             runtime->detachWindow();
         }
-        return JNI_FALSE;
+        return kTextInputStateFailed;
     }
 
     ScopedNativeWindowFromSurface nativeWindow(env, surface);
@@ -214,7 +248,7 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeAttachSurface(
         tinalux::core::logErrorCat(
             "app.android",
             "ANativeWindow_fromSurface returned null");
-        return JNI_FALSE;
+        return kTextInputStateFailed;
     }
 
     auto* runtime = runtimeFromJLong(runtimeHandle);
@@ -222,10 +256,13 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeAttachSurface(
         tinalux::core::logErrorCat(
             "app.android",
             "nativeAttachSurface ignored because runtime handle is null");
-        return JNI_FALSE;
+        return kTextInputStateFailed;
     }
 
-    return runtime->attachWindow(nativeWindow.get(), static_cast<float>(dpiScale)) ? JNI_TRUE : JNI_FALSE;
+    if (!runtime->attachWindow(nativeWindow.get(), static_cast<float>(dpiScale))) {
+        return kTextInputStateFailed;
+    }
+    return writeTextInputState(env, runtime, outRect);
 }
 
 JNIEXPORT void JNICALL
@@ -236,51 +273,32 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDetachSurface(JNIEnv*, jclass
     }
 }
 
-JNIEXPORT jboolean JNICALL
-Java_com_tinalux_runtime_TinaluxNativeBridge_nativeRenderOnce(JNIEnv*, jclass, jlong runtimeHandle)
-{
-    auto* runtime = runtimeFromJLong(runtimeHandle);
-    return runtime != nullptr && runtime->renderOnce() ? JNI_TRUE : JNI_FALSE;
-}
-
-JNIEXPORT jboolean JNICALL
-Java_com_tinalux_runtime_TinaluxNativeBridge_nativeInstallDemoScene(JNIEnv*, jclass, jlong runtimeHandle)
-{
-    auto* runtime = runtimeFromJLong(runtimeHandle);
-    return runtime != nullptr && runtime->installDemoScene() ? JNI_TRUE : JNI_FALSE;
-}
-
 JNIEXPORT jint JNICALL
-Java_com_tinalux_runtime_TinaluxNativeBridge_nativeGetTextInputState(
+Java_com_tinalux_runtime_TinaluxNativeBridge_nativeRenderOnce(
     JNIEnv* env,
     jclass,
     jlong runtimeHandle,
     jfloatArray outRect)
 {
-    if (env == nullptr || outRect == nullptr || env->GetArrayLength(outRect) < 4) {
-        return 0;
-    }
-
     auto* runtime = runtimeFromJLong(runtimeHandle);
-    if (runtime == nullptr) {
-        return 0;
+    if (runtime == nullptr || !runtime->renderOnce()) {
+        return kTextInputStateFailed;
     }
+    return writeTextInputState(env, runtime, outRect);
+}
 
-    const auto state = runtime->textInputState();
-    if (!state.active) {
-        return 0;
+JNIEXPORT jint JNICALL
+Java_com_tinalux_runtime_TinaluxNativeBridge_nativeInstallDemoScene(
+    JNIEnv* env,
+    jclass,
+    jlong runtimeHandle,
+    jfloatArray outRect)
+{
+    auto* runtime = runtimeFromJLong(runtimeHandle);
+    if (runtime == nullptr || !runtime->installDemoScene()) {
+        return kTextInputStateFailed;
     }
-    if (!state.cursorRect.has_value()) {
-        return 1;
-    }
-
-    float values[4] = {};
-    values[0] = state.cursorRect->left();
-    values[1] = state.cursorRect->top();
-    values[2] = state.cursorRect->right();
-    values[3] = state.cursorRect->bottom();
-    env->SetFloatArrayRegion(outRect, 0, 4, values);
-    return 2;
+    return writeTextInputState(env, runtime, outRect);
 }
 
 JNIEXPORT jstring JNICALL
@@ -408,49 +426,55 @@ Java_com_tinalux_runtime_TinaluxNativeBridge_nativeSetSuspended(
     }
 }
 
-JNIEXPORT jboolean JNICALL
+JNIEXPORT jint JNICALL
 Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchPointerMove(
-    JNIEnv*,
+    JNIEnv* env,
     jclass,
     jlong runtimeHandle,
     jfloat x,
-    jfloat y)
+    jfloat y,
+    jfloatArray outRect)
 {
     auto* runtime = runtimeFromJLong(runtimeHandle);
-    return runtime != nullptr
-            && runtime->dispatchPointerMove(static_cast<double>(x), static_cast<double>(y))
-        ? JNI_TRUE
-        : JNI_FALSE;
+    if (runtime == nullptr
+        || !runtime->dispatchPointerMove(static_cast<double>(x), static_cast<double>(y))) {
+        return kTextInputStateFailed;
+    }
+    return writeTextInputState(env, runtime, outRect);
 }
 
-JNIEXPORT jboolean JNICALL
+JNIEXPORT jint JNICALL
 Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchPointerDown(
-    JNIEnv*,
+    JNIEnv* env,
     jclass,
     jlong runtimeHandle,
     jfloat x,
-    jfloat y)
+    jfloat y,
+    jfloatArray outRect)
 {
     auto* runtime = runtimeFromJLong(runtimeHandle);
-    return runtime != nullptr
-            && runtime->dispatchPointerDown(static_cast<double>(x), static_cast<double>(y))
-        ? JNI_TRUE
-        : JNI_FALSE;
+    if (runtime == nullptr
+        || !runtime->dispatchPointerDown(static_cast<double>(x), static_cast<double>(y))) {
+        return kTextInputStateFailed;
+    }
+    return writeTextInputState(env, runtime, outRect);
 }
 
-JNIEXPORT jboolean JNICALL
+JNIEXPORT jint JNICALL
 Java_com_tinalux_runtime_TinaluxNativeBridge_nativeDispatchPointerUp(
-    JNIEnv*,
+    JNIEnv* env,
     jclass,
     jlong runtimeHandle,
     jfloat x,
-    jfloat y)
+    jfloat y,
+    jfloatArray outRect)
 {
     auto* runtime = runtimeFromJLong(runtimeHandle);
-    return runtime != nullptr
-            && runtime->dispatchPointerUp(static_cast<double>(x), static_cast<double>(y))
-        ? JNI_TRUE
-        : JNI_FALSE;
+    if (runtime == nullptr
+        || !runtime->dispatchPointerUp(static_cast<double>(x), static_cast<double>(y))) {
+        return kTextInputStateFailed;
+    }
+    return writeTextInputState(env, runtime, outRect);
 }
 
 }  // extern "C"

@@ -13,6 +13,13 @@ class TinaluxRendererHost(
     private val dpiScaleProvider: () -> Float,
     preferredBackend: TinaluxBackend = TinaluxBackend.OpenGL,
 ) : Closeable {
+    private companion object {
+        const val TEXT_INPUT_STATE_FAILED = -1
+        const val TEXT_INPUT_STATE_INACTIVE = 0
+        const val TEXT_INPUT_STATE_ACTIVE = 1
+        const val TEXT_INPUT_STATE_ACTIVE_WITH_CURSOR = 2
+    }
+
     private var runtimeHandle: Long = 0L
     private var surfaceAttached = false
     private var suspended = false
@@ -49,11 +56,18 @@ class TinaluxRendererHost(
 
     fun attachSurface(surface: Surface) {
         val handle = ensureRuntime()
-        check(TinaluxNativeBridge.nativeAttachSurface(handle, surface, dpiScaleProvider())) {
+        val attached = withTextInputStateUpdate { values ->
+            TinaluxNativeBridge.nativeAttachSurface(
+                handle,
+                surface,
+                dpiScaleProvider(),
+                values,
+            )
+        }
+        check(attached) {
             "Failed to attach Android Surface to the Tinalux runtime"
         }
         surfaceAttached = true
-        refreshTextInputStateFromRuntime()
     }
 
     fun detachSurface() {
@@ -69,55 +83,45 @@ class TinaluxRendererHost(
         if (runtimeHandle == 0L || !surfaceAttached) {
             return false
         }
-        val installed = TinaluxNativeBridge.nativeInstallDemoScene(runtimeHandle)
-        if (installed) {
-            refreshTextInputStateFromRuntime()
+        return withTextInputStateUpdate { values ->
+            TinaluxNativeBridge.nativeInstallDemoScene(runtimeHandle, values)
         }
-        return installed
     }
 
     fun renderOnce(): Boolean {
         if (runtimeHandle == 0L || !surfaceAttached) {
             return false
         }
-        val rendered = TinaluxNativeBridge.nativeRenderOnce(runtimeHandle)
-        if (rendered) {
-            refreshTextInputStateFromRuntime()
+        return withTextInputStateUpdate { values ->
+            TinaluxNativeBridge.nativeRenderOnce(runtimeHandle, values)
         }
-        return rendered
     }
 
     fun dispatchPointerMove(x: Float, y: Float): Boolean {
         if (runtimeHandle == 0L || !surfaceAttached) {
             return false
         }
-        val handled = TinaluxNativeBridge.nativeDispatchPointerMove(runtimeHandle, x, y)
-        if (handled) {
-            refreshTextInputStateFromRuntime()
+        return withTextInputStateUpdate { values ->
+            TinaluxNativeBridge.nativeDispatchPointerMove(runtimeHandle, x, y, values)
         }
-        return handled
     }
 
     fun dispatchPointerDown(x: Float, y: Float): Boolean {
         if (runtimeHandle == 0L || !surfaceAttached) {
             return false
         }
-        val handled = TinaluxNativeBridge.nativeDispatchPointerDown(runtimeHandle, x, y)
-        if (handled) {
-            refreshTextInputStateFromRuntime()
+        return withTextInputStateUpdate { values ->
+            TinaluxNativeBridge.nativeDispatchPointerDown(runtimeHandle, x, y, values)
         }
-        return handled
     }
 
     fun dispatchPointerUp(x: Float, y: Float): Boolean {
         if (runtimeHandle == 0L || !surfaceAttached) {
             return false
         }
-        val handled = TinaluxNativeBridge.nativeDispatchPointerUp(runtimeHandle, x, y)
-        if (handled) {
-            refreshTextInputStateFromRuntime()
+        return withTextInputStateUpdate { values ->
+            TinaluxNativeBridge.nativeDispatchPointerUp(runtimeHandle, x, y, values)
         }
-        return handled
     }
 
     fun textInputState(): TinaluxTextInputState {
@@ -141,7 +145,6 @@ class TinaluxRendererHost(
             return false
         }
         clipboardText = nextClipboardText
-        refreshTextInputStateFromRuntime()
         return true
     }
 
@@ -158,7 +161,6 @@ class TinaluxRendererHost(
             return false
         }
         clipboardText = nextClipboardText
-        refreshTextInputStateFromRuntime()
         return true
     }
 
@@ -166,37 +168,25 @@ class TinaluxRendererHost(
         if (runtimeHandle == 0L || !surfaceAttached) {
             return false
         }
-        val handled = TinaluxNativeBridge.nativeCommitText(runtimeHandle, text)
-        if (handled) {
-            refreshTextInputStateFromRuntime()
-        }
-        return handled
+        return TinaluxNativeBridge.nativeCommitText(runtimeHandle, text)
     }
 
     fun setComposingText(text: String, caretUtf8Offset: Int): Boolean {
         if (runtimeHandle == 0L || !surfaceAttached) {
             return false
         }
-        val handled = TinaluxNativeBridge.nativeSetComposingText(
+        return TinaluxNativeBridge.nativeSetComposingText(
             runtimeHandle,
             text,
             caretUtf8Offset,
         )
-        if (handled) {
-            refreshTextInputStateFromRuntime()
-        }
-        return handled
     }
 
     fun finishComposingText(): Boolean {
         if (runtimeHandle == 0L || !surfaceAttached) {
             return false
         }
-        val handled = TinaluxNativeBridge.nativeFinishComposingText(runtimeHandle)
-        if (handled) {
-            refreshTextInputStateFromRuntime()
-        }
-        return handled
+        return TinaluxNativeBridge.nativeFinishComposingText(runtimeHandle)
     }
 
     fun setClipboardText(text: String): Boolean {
@@ -217,8 +207,6 @@ class TinaluxRendererHost(
         TinaluxNativeBridge.nativeSetSuspended(runtimeHandle, suspended)
         if (suspended) {
             textInputStateCache = TinaluxTextInputState(active = false, cursorRect = null)
-        } else if (surfaceAttached) {
-            refreshTextInputStateFromRuntime()
         }
     }
 
@@ -234,15 +222,18 @@ class TinaluxRendererHost(
         textInputStateCache = TinaluxTextInputState(active = false, cursorRect = null)
     }
 
-    private fun refreshTextInputStateFromRuntime(): TinaluxTextInputState {
-        if (runtimeHandle == 0L || !surfaceAttached) {
-            textInputStateCache = TinaluxTextInputState(active = false, cursorRect = null)
-            return textInputStateCache
+    private inline fun withTextInputStateUpdate(call: (FloatArray) -> Int): Boolean {
+        val values = FloatArray(4)
+        return applyTextInputState(call(values), values)
+    }
+
+    private fun applyTextInputState(stateCode: Int, values: FloatArray): Boolean {
+        if (stateCode == TEXT_INPUT_STATE_FAILED) {
+            return false
         }
 
-        val values = FloatArray(4)
-        textInputStateCache = when (TinaluxNativeBridge.nativeGetTextInputState(runtimeHandle, values)) {
-            2 -> TinaluxTextInputState(
+        textInputStateCache = when (stateCode) {
+            TEXT_INPUT_STATE_ACTIVE_WITH_CURSOR -> TinaluxTextInputState(
                 active = true,
                 cursorRect = Rect(
                     values[0].toInt(),
@@ -251,9 +242,9 @@ class TinaluxRendererHost(
                     values[3].toInt(),
                 ),
             )
-            1 -> TinaluxTextInputState(active = true, cursorRect = null)
+            TEXT_INPUT_STATE_ACTIVE -> TinaluxTextInputState(active = true, cursorRect = null)
             else -> TinaluxTextInputState(active = false, cursorRect = null)
         }
-        return textInputStateCache
+        return true
     }
 }
