@@ -5,6 +5,11 @@
 namespace tinalux::app::detail {
 
 struct UIContextTestAccess {
+    static ui::AnimationSink& animationSink(UIContext& context)
+    {
+        return context.animationSink();
+    }
+
     static bool textInputActive(UIContext& context)
     {
         return context.textInputActive();

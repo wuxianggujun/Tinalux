@@ -45,7 +45,6 @@ public:
         const std::function<std::shared_ptr<ui::Widget>()>& builder);
     void setRootWidget(std::shared_ptr<ui::Widget> root);
     void setOverlayWidget(std::shared_ptr<ui::Widget> overlay);
-    ui::AnimationSink& animationSink();
 
     FrameStats frameStats() const;
 
@@ -98,6 +97,7 @@ private:
     void unbindThemeRuntime();
     void resetForStartup();
     void configurePartialRedraw(bool enabled);
+    ui::AnimationSink& animationSink();
     bool textInputActive();
     std::optional<core::Rect> imeCursorRect();
     ui::Theme theme() const;

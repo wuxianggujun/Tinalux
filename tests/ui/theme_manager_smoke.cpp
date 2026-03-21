@@ -149,7 +149,8 @@ int main()
             sameColor(UIContextTestAccess::theme(context).colors.primary, light.colors.primary),
             "UIContext should receive ThemeManager theme updates");
 
-        auto& scheduler = static_cast<AnimationScheduler&>(context.animationSink());
+        auto& scheduler = static_cast<AnimationScheduler&>(
+            tinalux::app::detail::UIContextTestAccess::animationSink(context));
         const std::uint64_t versionBeforeAnimation = manager.version();
 
         Theme dark = Theme::dark();
@@ -256,7 +257,8 @@ int main()
         first.initializeFromEnvironment();
         second.initializeFromEnvironment();
 
-        auto& secondScheduler = static_cast<AnimationScheduler&>(second.animationSink());
+        auto& secondScheduler = static_cast<AnimationScheduler&>(
+            tinalux::app::detail::UIContextTestAccess::animationSink(second));
         first.shutdown();
 
         manager.setTheme(Theme::light(), false);
@@ -284,8 +286,10 @@ int main()
         first.initializeFromEnvironment();
         second.initializeFromEnvironment();
 
-        auto& firstScheduler = static_cast<AnimationScheduler&>(first.animationSink());
-        auto& secondScheduler = static_cast<AnimationScheduler&>(second.animationSink());
+        auto& firstScheduler = static_cast<AnimationScheduler&>(
+            tinalux::app::detail::UIContextTestAccess::animationSink(first));
+        auto& secondScheduler = static_cast<AnimationScheduler&>(
+            tinalux::app::detail::UIContextTestAccess::animationSink(second));
 
         manager.setTheme(Theme::light(), false);
         manager.setTheme(Theme::dark(), true);
@@ -322,7 +326,8 @@ int main()
         restarted.shutdown();
         restarted.initializeFromEnvironment();
 
-        auto& restartedScheduler = static_cast<AnimationScheduler&>(restarted.animationSink());
+        auto& restartedScheduler = static_cast<AnimationScheduler&>(
+            tinalux::app::detail::UIContextTestAccess::animationSink(restarted));
         manager.setTheme(Theme::light(), false);
         manager.setTheme(Theme::dark(), true);
         expect(

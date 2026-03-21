@@ -67,7 +67,7 @@ int main()
     context.setOverlayWidget(overlay);
 
     std::size_t staleAnimationCallbacks = 0;
-    context.animationSink().requestAnimationFrame(
+    tinalux::app::detail::UIContextTestAccess::animationSink(context).requestAnimationFrame(
         [&staleAnimationCallbacks](double) { ++staleAnimationCallbacks; });
 
     context.noteEventLoop(tinalux::app::detail::EventLoopMode::Wait);
@@ -96,7 +96,7 @@ int main()
     context.initializeFromEnvironment();
 
     expect(
-        !context.animationSink().hasActiveAnimations(),
+        !tinalux::app::detail::UIContextTestAccess::animationSink(context).hasActiveAnimations(),
         "reinitializing UIContext should clear pending animation work");
     expect(!context.tickAnimations(1.0), "reinitializing UIContext should drop stale animation callbacks");
     expect(staleAnimationCallbacks == 0, "reinitializing UIContext should not execute stale animation callbacks");
@@ -134,7 +134,7 @@ int main()
     context.shutdown();
 
     expect(
-        !context.animationSink().hasActiveAnimations(),
+        !tinalux::app::detail::UIContextTestAccess::animationSink(context).hasActiveAnimations(),
         "shutdown should leave no active animations behind");
     expect(
         !tinalux::app::detail::UIContextTestAccess::textInputActive(context),
