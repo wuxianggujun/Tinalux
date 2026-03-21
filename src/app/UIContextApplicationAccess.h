@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "UIContext.h"
 
 namespace tinalux::app::detail {
@@ -8,6 +10,21 @@ struct UIContextApplicationAccess {
     static ui::AnimationSink& animationSink(UIContext& context)
     {
         return context.animationSink();
+    }
+
+    static void setTheme(UIContext& context, ui::Theme theme)
+    {
+        context.setTheme(std::move(theme));
+    }
+
+    static void setPerfLogConfig(UIContext& context, PerfLogConfig config)
+    {
+        context.setPerfLogConfig(config);
+    }
+
+    static void setDebugHudConfig(UIContext& context, DebugHudConfig config)
+    {
+        context.setDebugHudConfig(config);
     }
 
     static void configurePartialRedraw(UIContext& context, bool enabled)

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "UIContext.h"
 
 namespace tinalux::app::detail {
@@ -8,6 +10,11 @@ struct UIContextTestAccess {
     static ui::AnimationSink& animationSink(UIContext& context)
     {
         return context.animationSink();
+    }
+
+    static void setTheme(UIContext& context, ui::Theme theme)
+    {
+        context.setTheme(std::move(theme));
     }
 
     static bool textInputActive(UIContext& context)

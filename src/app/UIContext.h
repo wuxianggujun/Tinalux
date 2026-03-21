@@ -44,9 +44,6 @@ public:
         const std::function<std::shared_ptr<ui::Widget>()>& builder);
     void setRootWidget(std::shared_ptr<ui::Widget> root);
     void setOverlayWidget(std::shared_ptr<ui::Widget> overlay);
-    void setTheme(ui::Theme theme);
-    void setPerfLogConfig(PerfLogConfig config);
-    void setDebugHudConfig(DebugHudConfig config);
 
     void noteEventLoop(detail::EventLoopMode mode);
     void noteFrameRendered(bool fullRedraw, double frameMs);
@@ -88,6 +85,9 @@ private:
     void resetForStartup();
     void configurePartialRedraw(bool enabled);
     ui::AnimationSink& animationSink();
+    void setTheme(ui::Theme theme);
+    void setPerfLogConfig(PerfLogConfig config);
+    void setDebugHudConfig(DebugHudConfig config);
     bool textInputActive();
     std::optional<core::Rect> imeCursorRect();
     FrameStats frameStats() const;

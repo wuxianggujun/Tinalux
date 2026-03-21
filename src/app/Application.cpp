@@ -824,7 +824,7 @@ void Application::setTheme(ui::Theme theme)
         return;
     }
 
-    impl_->uiContext.setTheme(theme);
+    detail::UIContextApplicationAccess::setTheme(impl_->uiContext, std::move(theme));
 }
 
 void Application::setPerfLogConfig(PerfLogConfig config)
@@ -833,7 +833,7 @@ void Application::setPerfLogConfig(PerfLogConfig config)
         return;
     }
 
-    impl_->uiContext.setPerfLogConfig(config);
+    detail::UIContextApplicationAccess::setPerfLogConfig(impl_->uiContext, config);
 }
 
 PerfLogConfig Application::currentPerfLogConfig() const
@@ -849,7 +849,7 @@ void Application::setDebugHudConfig(DebugHudConfig config)
         return;
     }
 
-    impl_->uiContext.setDebugHudConfig(config);
+    detail::UIContextApplicationAccess::setDebugHudConfig(impl_->uiContext, config);
 }
 
 DebugHudConfig Application::currentDebugHudConfig() const
