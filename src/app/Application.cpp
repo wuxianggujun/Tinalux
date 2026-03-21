@@ -309,7 +309,7 @@ Application::Application()
 {
     // Window-backed swapchains do not guarantee preserved pixels across swaps,
     // so live application rendering must redraw the full scene.
-    impl_->uiContext.setPartialRedrawEnabled(false);
+    impl_->uiContext.configurePartialRedraw(false);
 }
 
 Application::~Application()
@@ -768,15 +768,6 @@ void Application::requestClose()
 FrameStats Application::frameStats() const
 {
     return impl_ ? impl_->uiContext.frameStats() : FrameStats {};
-}
-
-void Application::resetFrameStats()
-{
-    if (!impl_) {
-        return;
-    }
-
-    impl_->uiContext.resetFrameStats();
 }
 
 void Application::setTheme(ui::Theme theme)

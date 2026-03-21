@@ -75,7 +75,6 @@ public:
     platform::Window* window() const;
     void requestClose();
     FrameStats frameStats() const;
-    void resetFrameStats();
     void setTheme(ui::Theme theme);
     ui::Theme theme() const;
     void setPerfLogConfig(PerfLogConfig config);

@@ -610,11 +610,6 @@ FrameStats UIContext::frameStats() const
     return frameStats_;
 }
 
-void UIContext::resetFrameStats()
-{
-    frameStats_ = {};
-}
-
 void UIContext::setTheme(ui::Theme theme)
 {
     ui::ThemeManager::instance().setTheme(theme, false);
@@ -632,7 +627,7 @@ ui::Theme UIContext::theme() const
         : ui::ThemeManager::instance().currentTheme();
 }
 
-void UIContext::setPartialRedrawEnabled(bool enabled)
+void UIContext::configurePartialRedraw(bool enabled)
 {
     if (partialRedrawEnabled_ == enabled) {
         return;
@@ -640,11 +635,6 @@ void UIContext::setPartialRedrawEnabled(bool enabled)
 
     partialRedrawEnabled_ = enabled;
     needsRedraw_ = true;
-}
-
-bool UIContext::partialRedrawEnabled() const
-{
-    return partialRedrawEnabled_;
 }
 
 void UIContext::setPerfLogConfig(PerfLogConfig config)

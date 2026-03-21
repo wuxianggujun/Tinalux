@@ -23,6 +23,8 @@ class Widget;
 
 namespace tinalux::app {
 
+class Application;
+
 class UIContext final {
 public:
     UIContext();
@@ -44,12 +46,9 @@ public:
     std::optional<core::Rect> imeCursorRect();
 
     FrameStats frameStats() const;
-    void resetFrameStats();
 
     void setTheme(ui::Theme theme);
     ui::Theme theme() const;
-    void setPartialRedrawEnabled(bool enabled);
-    bool partialRedrawEnabled() const;
 
     void setPerfLogConfig(PerfLogConfig config);
     PerfLogConfig perfLogConfig() const;
@@ -72,6 +71,8 @@ public:
         float dpiScale = 1.0f);
 
 private:
+    friend class Application;
+
     struct PerfLogIntervalStats {
         std::uint64_t renderedFrames = 0;
         std::uint64_t fullRedrawFrames = 0;
@@ -94,6 +95,7 @@ private:
     void bindThemeRuntime();
     void unbindThemeRuntime();
     void resetForStartup();
+    void configurePartialRedraw(bool enabled);
     core::Rect debugHudBounds(float logicalWidth, float logicalHeight) const;
     void drawDebugHud(
         rendering::Canvas& canvas,
