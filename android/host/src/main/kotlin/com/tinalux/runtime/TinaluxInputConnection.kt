@@ -10,7 +10,7 @@ import android.view.View
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 
-class TinaluxInputConnection(
+internal class TinaluxInputConnection(
     private val targetView: View,
     private val rendererHost: TinaluxRendererHost,
 ) : BaseInputConnection(targetView, true) {

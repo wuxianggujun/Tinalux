@@ -9,7 +9,7 @@ internal data class TinaluxTextInputState(
     val cursorRect: Rect?,
 )
 
-class TinaluxRendererHost(
+internal class TinaluxRendererHost(
     private val dpiScaleProvider: () -> Float,
     preferredBackend: TinaluxBackend = TinaluxBackend.OpenGL,
 ) : Closeable {

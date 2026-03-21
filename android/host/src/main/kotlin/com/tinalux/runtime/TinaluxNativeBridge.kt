@@ -2,7 +2,7 @@ package com.tinalux.runtime
 
 import android.view.Surface
 
-object TinaluxNativeBridge {
+internal object TinaluxNativeBridge {
     init {
         System.loadLibrary("tinalux_native")
     }
