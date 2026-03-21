@@ -15,6 +15,11 @@ struct UIContextTestAccess {
         return context.textInputActive();
     }
 
+    static FrameStats frameStats(const UIContext& context)
+    {
+        return context.frameStats();
+    }
+
     static std::optional<core::Rect> imeCursorRect(UIContext& context)
     {
         return context.imeCursorRect();

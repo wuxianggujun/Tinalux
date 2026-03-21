@@ -45,24 +45,15 @@ public:
         const std::function<std::shared_ptr<ui::Widget>()>& builder);
     void setRootWidget(std::shared_ptr<ui::Widget> root);
     void setOverlayWidget(std::shared_ptr<ui::Widget> overlay);
-
-    FrameStats frameStats() const;
-
     void setTheme(ui::Theme theme);
-
     void setPerfLogConfig(PerfLogConfig config);
-    PerfLogConfig perfLogConfig() const;
-
     void setDebugHudConfig(DebugHudConfig config);
-    DebugHudConfig debugHudConfig() const;
 
     void noteEventLoop(detail::EventLoopMode mode);
     void noteFrameRendered(bool fullRedraw, double frameMs);
     void noteFrameDeferred();
     bool tickAnimations(double nowSeconds);
     bool tickAsyncResources();
-
-    bool hasImmediateRenderWork() const;
     void requestRedraw();
     bool render(
         rendering::Canvas& canvas,
@@ -100,7 +91,11 @@ private:
     ui::AnimationSink& animationSink();
     bool textInputActive();
     std::optional<core::Rect> imeCursorRect();
+    FrameStats frameStats() const;
+    PerfLogConfig perfLogConfig() const;
+    DebugHudConfig debugHudConfig() const;
     ui::Theme theme() const;
+    bool hasImmediateRenderWork() const;
     core::Rect debugHudBounds(float logicalWidth, float logicalHeight) const;
     void drawDebugHud(
         rendering::Canvas& canvas,

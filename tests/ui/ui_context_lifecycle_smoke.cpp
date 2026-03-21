@@ -108,7 +108,7 @@ int main()
         "reinitializing UIContext should clear retained IME rect state");
     expect(!overlayInput->focused(), "reinitializing UIContext should clear focus on detached overlay widgets");
 
-    const FrameStats resetStats = context.frameStats();
+    const FrameStats resetStats = tinalux::app::detail::UIContextTestAccess::frameStats(context);
     expect(resetStats.totalFrames == 0, "reinitializing UIContext should reset total frame count");
     expect(resetStats.deferredFrames == 0, "reinitializing UIContext should reset deferred frame count");
     expect(resetStats.waitEventLoops == 0, "reinitializing UIContext should reset wait loop count");
