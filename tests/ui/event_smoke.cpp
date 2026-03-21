@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "include/core/SkColor.h"
+#include "../../src/app/ApplicationTestAccess.h"
 #include "../../src/app/UIContext.h"
 #include "../../src/ui/RuntimeState.h"
 #include "tinalux/app/Application.h"
@@ -189,7 +190,7 @@ int main()
             .frameInterval = 0,
         };
         app.setPerfLogConfig(perfConfig);
-        const auto currentConfig = app.perfLogConfig();
+        const auto currentConfig = tinalux::app::detail::ApplicationTestAccess::perfLogConfig(app);
         expect(currentConfig.enabled, "perf log config should preserve enabled flag");
         expect(currentConfig.frameInterval == 1, "perf log frame interval should clamp to at least 1");
     }
@@ -202,7 +203,7 @@ int main()
             .scale = 0.1f,
         };
         app.setDebugHudConfig(hudConfig);
-        const auto currentConfig = app.debugHudConfig();
+        const auto currentConfig = tinalux::app::detail::ApplicationTestAccess::debugHudConfig(app);
         expect(currentConfig.enabled, "debug hud config should preserve enabled flag");
         expect(currentConfig.highlightDirtyRegion, "debug hud config should preserve dirty region flag");
         expect(std::abs(currentConfig.scale - 0.5f) <= 0.001f, "debug hud scale should clamp to minimum");

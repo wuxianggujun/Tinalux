@@ -747,11 +747,6 @@ void Application::setOverlayWidget(std::shared_ptr<ui::Widget> overlay)
     syncTextInputState();
 }
 
-platform::Window* Application::window() const
-{
-    return impl_ ? impl_->window.get() : nullptr;
-}
-
 void Application::requestClose()
 {
     if (impl_ && impl_->window != nullptr) {
@@ -760,7 +755,53 @@ void Application::requestClose()
     }
 }
 
-FrameStats Application::frameStats() const
+bool Application::hasActiveRenderState() const
+{
+    return impl_ != nullptr && impl_->window != nullptr && impl_->context;
+}
+
+platform::Window* Application::platformWindow() const
+{
+    return impl_ ? impl_->window.get() : nullptr;
+}
+
+void Application::setRenderBackendPreference(rendering::Backend backend)
+{
+    if (!impl_) {
+        return;
+    }
+
+    impl_->config.backend = backend;
+    impl_->backendPlan.reset(backend);
+}
+
+void Application::setPlatformClipboardText(const std::string& text)
+{
+    if (impl_ && impl_->window != nullptr) {
+        impl_->window->setClipboardText(text);
+    }
+}
+
+std::string Application::platformClipboardText() const
+{
+    return impl_ != nullptr && impl_->window != nullptr
+        ? impl_->window->clipboardText()
+        : std::string {};
+}
+
+bool Application::platformTextInputActive() const
+{
+    return impl_ != nullptr && impl_->window != nullptr && impl_->window->textInputActive();
+}
+
+std::optional<core::Rect> Application::platformTextInputCursorRect() const
+{
+    return impl_ != nullptr && impl_->window != nullptr
+        ? impl_->window->textInputCursorRect()
+        : std::nullopt;
+}
+
+FrameStats Application::currentFrameStats() const
 {
     return impl_ ? impl_->uiContext.frameStats() : FrameStats {};
 }
@@ -788,7 +829,7 @@ void Application::setPerfLogConfig(PerfLogConfig config)
     impl_->uiContext.setPerfLogConfig(config);
 }
 
-PerfLogConfig Application::perfLogConfig() const
+PerfLogConfig Application::currentPerfLogConfig() const
 {
     return impl_ ? impl_->uiContext.perfLogConfig() : PerfLogConfig {};
 }
@@ -802,7 +843,7 @@ void Application::setDebugHudConfig(DebugHudConfig config)
     impl_->uiContext.setDebugHudConfig(config);
 }
 
-DebugHudConfig Application::debugHudConfig() const
+DebugHudConfig Application::currentDebugHudConfig() const
 {
     return impl_ ? impl_->uiContext.debugHudConfig() : DebugHudConfig {};
 }

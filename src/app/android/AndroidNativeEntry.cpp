@@ -9,8 +9,6 @@
 
 #include "tinalux/app/android/AndroidRuntime.h"
 #include "tinalux/core/Log.h"
-#include "tinalux/ui/DemoScene.h"
-#include "tinalux/ui/Theme.h"
 
 namespace {
 
@@ -130,28 +128,7 @@ bool tinaluxAndroidInstallDemoScene(void* runtimeHandle)
         return false;
     }
 
-    auto* application = runtime->application();
-    if (application == nullptr) {
-        tinalux::core::logErrorCat(
-            "app.android",
-            "InstallDemoScene requires an attached Android window");
-        return false;
-    }
-
-    const tinalux::ui::Theme theme = tinalux::ui::Theme::mobile();
-    tinalux::core::logInfoCat(
-        "app.android",
-        "Installing Android demo scene with theme background=#{:08x} primary=#{:08x}",
-        static_cast<unsigned int>(theme.colors.background),
-        static_cast<unsigned int>(theme.colors.primary));
-    application->setTheme(theme);
-    application->setRootWidget(application->buildWidgetTree([application] {
-        return tinalux::ui::createDemoScene(application->theme());
-    }));
-    tinalux::core::logInfoCat(
-        "app.android",
-        "Android demo scene installation finished");
-    return true;
+    return runtime->installDemoScene();
 }
 
 bool tinaluxAndroidDispatchPointerMove(void* runtimeHandle, double x, double y)

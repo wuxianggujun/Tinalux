@@ -34,6 +34,7 @@ public:
     bool attachWindow(void* nativeWindow, float dpiScale = 1.0f);
     void detachWindow();
     bool renderOnce();
+    bool installDemoScene();
     bool dispatchPointerMove(double x, double y);
     bool dispatchPointerDown(double x, double y);
     bool dispatchPointerUp(double x, double y);
@@ -50,10 +51,9 @@ public:
     void setSuspended(bool suspended);
     bool suspended() const;
     bool sessionActive() const;
+    void requestClose();
     void shutdown();
 
-    Application* application();
-    const Application* application() const;
     bool ready() const;
 
 private:

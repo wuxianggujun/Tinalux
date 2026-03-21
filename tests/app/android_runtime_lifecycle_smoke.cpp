@@ -191,14 +191,17 @@ int main()
                 .backend = Backend::Vulkan,
             }),
             "Application init should succeed for render suspend smoke");
-        expect(app.renderingReady(), "Application should have an active render state after init");
+        expect(
+            app.renderBackend() == Backend::Vulkan,
+            "Application should activate the requested Vulkan backend after init");
         expect(gWindowCreates.size() == 1, "Init should create exactly one window");
         expect(gContextCreates == 1, "Init should create exactly one render context");
         expect(gSurfaceCreates == 1, "Init should create exactly one render surface");
 
         app.suspendRendering();
-        expect(!app.renderingReady(), "suspendRendering should release the active render state");
-        expect(app.window() == nullptr, "suspendRendering should clear the active window");
+        expect(
+            app.renderBackend() == Backend::Auto,
+            "suspendRendering should release the active render backend");
 
         platform::WindowConfig resumedWindowConfig = initialWindowConfig;
         resumedWindowConfig.width = 1280;
@@ -206,7 +209,9 @@ int main()
         expect(
             app.resumeRendering(resumedWindowConfig),
             "resumeRendering should rebuild the render state");
-        expect(app.renderingReady(), "resumeRendering should restore the active render state");
+        expect(
+            app.renderBackend() == Backend::Vulkan,
+            "resumeRendering should restore the Vulkan render backend");
         expect(gWindowCreates.size() == 2, "resumeRendering should create a second window");
         expect(gContextCreates == 2, "resumeRendering should create a second render context");
         expect(gSurfaceCreates == 2, "resumeRendering should create a second render surface");
@@ -349,9 +354,7 @@ int main()
             "Android runtime should attach before close lifecycle smoke");
         expect(runtime.ready(), "Runtime should be ready before requestClose");
 
-        app::Application* application = runtime.application();
-        expect(application != nullptr, "Runtime should expose the active application");
-        application->requestClose();
+        runtime.requestClose();
 
         expect(
             !runtime.renderOnce(),

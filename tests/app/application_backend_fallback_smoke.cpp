@@ -273,7 +273,7 @@ int main()
         expect(gContextRequests.size() == 2, "Runtime fallback should create a second context");
         expect(gContextRequests[1] == Backend::OpenGL, "Runtime fallback should try the OpenGL backend next");
         expect(gSurfaceCreateCalls == 3, "Runtime fallback should retry surface creation on the fallback backend");
-        auto* finalWindow = dynamic_cast<FakeWindow*>(app.window());
+        auto* finalWindow = dynamic_cast<FakeWindow*>(app::detail::ApplicationTestAccess::window(app));
         expect(finalWindow != nullptr, "Runtime fallback should leave a fake window instance active");
         expect(finalWindow->graphicsApi() == GraphicsAPI::OpenGL, "Runtime fallback should leave the OpenGL window active");
     }
@@ -404,7 +404,7 @@ int main()
         expect(
             app.init(app::ApplicationConfig { .backend = Backend::Auto }),
             "Auto backend init should succeed for deferred frame stats smoke");
-        const app::FrameStats statsBeforeFallback = app.frameStats();
+        const app::FrameStats statsBeforeFallback = app::detail::ApplicationTestAccess::frameStats(app);
         expect(
             statsBeforeFallback.totalFrames == 0,
             "Fallback smoke should start with zero recorded rendered frames");
@@ -418,7 +418,7 @@ int main()
         app.handleEvent(resizeEvent);
 
         expect(app.pumpOnce(), "Runtime fallback frame should keep the application alive");
-        const app::FrameStats statsAfterFallback = app.frameStats();
+        const app::FrameStats statsAfterFallback = app::detail::ApplicationTestAccess::frameStats(app);
         expect(
             statsAfterFallback.totalFrames == statsBeforeFallback.totalFrames,
             "Backend recovery without a presented frame should not increment rendered frame count");
@@ -438,7 +438,7 @@ int main()
         expect(
             app.pumpOnce(),
             "First pumpOnce should render the initial frame for idle frame stats smoke");
-        const app::FrameStats statsAfterInitialFrame = app.frameStats();
+        const app::FrameStats statsAfterInitialFrame = app::detail::ApplicationTestAccess::frameStats(app);
         expect(
             statsAfterInitialFrame.totalFrames == 1,
             "Initial idle frame stats smoke pass should record one presented frame");
@@ -449,7 +449,7 @@ int main()
         expect(
             app.pumpOnce(),
             "Second pumpOnce should keep the app alive while idling");
-        const app::FrameStats statsAfterIdleLoop = app.frameStats();
+        const app::FrameStats statsAfterIdleLoop = app::detail::ApplicationTestAccess::frameStats(app);
         expect(
             statsAfterIdleLoop.totalFrames == statsAfterInitialFrame.totalFrames,
             "Idle loops without render attempts should not change rendered frame count");
@@ -520,7 +520,7 @@ int main()
         expect(
             app.pumpOnce(),
             "Pump loop should stay alive when flush invalidates the surface after a prepared frame");
-        const app::FrameStats statsAfterPresentLoss = app.frameStats();
+        const app::FrameStats statsAfterPresentLoss = app::detail::ApplicationTestAccess::frameStats(app);
         expect(
             statsAfterPresentLoss.totalFrames == 0,
             "A frame invalidated during flush should not be counted as presented");
@@ -537,7 +537,7 @@ int main()
         expect(
             app.pumpOnce(),
             "Pump loop should retry rendering on the next frame after flush invalidates the surface");
-        const app::FrameStats statsAfterRetry = app.frameStats();
+        const app::FrameStats statsAfterRetry = app::detail::ApplicationTestAccess::frameStats(app);
         expect(
             statsAfterRetry.totalFrames == 1,
             "The next frame should present successfully after recreating the invalidated surface");

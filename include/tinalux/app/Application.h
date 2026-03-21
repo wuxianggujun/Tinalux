@@ -4,12 +4,19 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
+#include <string>
+#include "tinalux/core/Geometry.h"
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Theme.h"
 #include "tinalux/platform/Window.h"
 
 namespace tinalux::core {
 class Event;
+}
+
+namespace tinalux::app::android {
+class AndroidRuntime;
 }
 
 namespace tinalux::ui {
@@ -71,21 +78,28 @@ public:
         const std::function<std::shared_ptr<ui::Widget>()>& builder);
     void setRootWidget(std::shared_ptr<ui::Widget> root);
     void setOverlayWidget(std::shared_ptr<ui::Widget> overlay);
-    platform::Window* window() const;
     void requestClose();
-    FrameStats frameStats() const;
     void setTheme(ui::Theme theme);
     ui::Theme theme() const;
     void setPerfLogConfig(PerfLogConfig config);
-    PerfLogConfig perfLogConfig() const;
     void setDebugHudConfig(DebugHudConfig config);
-    DebugHudConfig debugHudConfig() const;
     rendering::Backend renderBackend() const;
 
 private:
     friend struct detail::ApplicationTestAccess;
+    friend class android::AndroidRuntime;
 
     struct Impl;
+    bool hasActiveRenderState() const;
+    platform::Window* platformWindow() const;
+    FrameStats currentFrameStats() const;
+    PerfLogConfig currentPerfLogConfig() const;
+    DebugHudConfig currentDebugHudConfig() const;
+    void setRenderBackendPreference(rendering::Backend backend);
+    void setPlatformClipboardText(const std::string& text);
+    std::string platformClipboardText() const;
+    bool platformTextInputActive() const;
+    std::optional<core::Rect> platformTextInputCursorRect() const;
     bool renderFrame();
     bool tryInitializeBackend(
         const platform::WindowConfig& windowConfig,

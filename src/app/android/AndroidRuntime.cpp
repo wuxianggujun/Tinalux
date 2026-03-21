@@ -7,6 +7,7 @@
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/Log.h"
 #include "tinalux/core/events/Event.h"
+#include "tinalux/ui/DemoScene.h"
 
 namespace tinalux::app::android {
 
@@ -91,13 +92,13 @@ void AndroidRuntime::setPreferredBackend(rendering::Backend backend)
     }
 
     impl_->config.application.backend = backend;
-    impl_->application.setPreferredRenderBackend(backend);
+    impl_->application.setRenderBackendPreference(backend);
     if (!impl_->sessionActive || impl_->attachedNativeWindow == nullptr) {
         return;
     }
 
     impl_->clipboardText = clipboardText();
-    if (impl_->application.renderingReady()) {
+    if (ready()) {
         impl_->application.suspendRendering();
     }
     if (!impl_->suspended) {
@@ -113,9 +114,7 @@ void AndroidRuntime::setPreferredBackend(rendering::Backend backend)
                 rendering::backendName(backend));
             return;
         }
-        if (impl_->application.window() != nullptr) {
-            impl_->application.window()->setClipboardText(impl_->clipboardText);
-        }
+        impl_->application.setPlatformClipboardText(impl_->clipboardText);
     }
 }
 
@@ -156,19 +155,17 @@ bool AndroidRuntime::attachWindow(void* nativeWindow, float dpiScale)
             return false;
         }
         impl_->sessionActive = true;
-    } else if (!impl_->application.renderingReady()) {
+    } else if (!impl_->application.hasActiveRenderState()) {
         if (!impl_->application.resumeRendering(launchConfig.window)) {
             core::logErrorCat(
                 "app.android",
                 "Android runtime failed to resume rendering after attaching a window");
             return false;
         }
-    } else if (impl_->application.window() == nullptr) {
-        return false;
     }
 
-    if (impl_->application.window() != nullptr) {
-        impl_->application.window()->setClipboardText(impl_->clipboardText);
+    if (ready()) {
+        impl_->application.setPlatformClipboardText(impl_->clipboardText);
     }
 
     core::logInfoCat(
@@ -187,7 +184,7 @@ void AndroidRuntime::detachWindow()
     impl_->attachedNativeWindow = nullptr;
     impl_->clipboardText = clipboardText();
 
-    if (impl_->application.renderingReady()) {
+    if (ready()) {
         core::logInfoCat("app.android", "Android runtime detaching native window");
         impl_->application.suspendRendering();
     }
@@ -208,6 +205,31 @@ bool AndroidRuntime::renderOnce()
         impl_->sessionActive = false;
     }
     return keepRunning;
+}
+
+bool AndroidRuntime::installDemoScene()
+{
+    if (!impl_ || !ready()) {
+        core::logErrorCat(
+            "app.android",
+            "InstallDemoScene requires an attached Android window");
+        return false;
+    }
+
+    const ui::Theme theme = ui::Theme::mobile();
+    core::logInfoCat(
+        "app.android",
+        "Installing Android demo scene with theme background=#{:08x} primary=#{:08x}",
+        static_cast<unsigned int>(theme.colors.background),
+        static_cast<unsigned int>(theme.colors.primary));
+    impl_->application.setTheme(theme);
+    impl_->application.setRootWidget(impl_->application.buildWidgetTree([theme] {
+        return ui::createDemoScene(theme);
+    }));
+    core::logInfoCat(
+        "app.android",
+        "Android demo scene installation finished");
+    return true;
 }
 
 bool AndroidRuntime::dispatchPointerMove(double x, double y)
@@ -271,32 +293,20 @@ void AndroidRuntime::shutdown()
     impl_->application.shutdown();
 }
 
-Application* AndroidRuntime::application()
-{
-    return ready() ? &impl_->application : nullptr;
-}
-
-const Application* AndroidRuntime::application() const
-{
-    return ready() ? &impl_->application : nullptr;
-}
-
 bool AndroidRuntime::ready() const
 {
-    return impl_ != nullptr && impl_->application.window() != nullptr;
+    return impl_ != nullptr && impl_->sessionActive && impl_->application.hasActiveRenderState();
 }
 
 bool AndroidRuntime::textInputActive() const
 {
-    return impl_ != nullptr
-        && impl_->application.window() != nullptr
-        && impl_->application.window()->textInputActive();
+    return impl_ != nullptr && ready() && impl_->application.platformTextInputActive();
 }
 
 std::optional<core::Rect> AndroidRuntime::textInputCursorRect() const
 {
-    return impl_ != nullptr && impl_->application.window() != nullptr
-        ? impl_->application.window()->textInputCursorRect()
+    return impl_ != nullptr && ready()
+        ? impl_->application.platformTextInputCursorRect()
         : std::nullopt;
 }
 
@@ -397,8 +407,8 @@ void AndroidRuntime::setClipboardText(std::string text)
     }
 
     impl_->clipboardText = std::move(text);
-    if (impl_->application.window() != nullptr) {
-        impl_->application.window()->setClipboardText(impl_->clipboardText);
+    if (ready()) {
+        impl_->application.setPlatformClipboardText(impl_->clipboardText);
     }
 }
 
@@ -408,8 +418,8 @@ std::string AndroidRuntime::clipboardText() const
         return {};
     }
 
-    return impl_->application.window() != nullptr
-        ? impl_->application.window()->clipboardText()
+    return ready()
+        ? impl_->application.platformClipboardText()
         : impl_->clipboardText;
 }
 
@@ -425,13 +435,13 @@ void AndroidRuntime::setSuspended(bool suspended)
 
     if (suspended) {
         impl_->clipboardText = clipboardText();
-        if (impl_->application.renderingReady()) {
+        if (ready()) {
             impl_->application.suspendRendering();
         }
         impl_->suspended = true;
     } else {
         if (impl_->sessionActive
-            && !impl_->application.renderingReady()
+            && !impl_->application.hasActiveRenderState()
             && impl_->attachedNativeWindow != nullptr) {
             platform::WindowConfig windowConfig = makeWindowConfig(
                 impl_->config.application.window,
@@ -445,9 +455,7 @@ void AndroidRuntime::setSuspended(bool suspended)
                 impl_->suspended = true;
                 return;
             }
-            if (impl_->application.window() != nullptr) {
-                impl_->application.window()->setClipboardText(impl_->clipboardText);
-            }
+            impl_->application.setPlatformClipboardText(impl_->clipboardText);
         }
         impl_->suspended = false;
     }
@@ -466,6 +474,13 @@ bool AndroidRuntime::suspended() const
 bool AndroidRuntime::sessionActive() const
 {
     return impl_ != nullptr && impl_->sessionActive;
+}
+
+void AndroidRuntime::requestClose()
+{
+    if (impl_ != nullptr && ready()) {
+        impl_->application.requestClose();
+    }
 }
 
 }  // namespace tinalux::app::android
