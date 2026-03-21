@@ -31,9 +31,17 @@ struct AstStyleDefinition {
     int column = 0;
 };
 
+struct AstComponentDefinition {
+    std::string name;
+    AstNode root;
+    int line = 0;
+    int column = 0;
+};
+
 struct AstDocument {
     std::vector<std::string> imports;
     std::vector<AstStyleDefinition> styles;
+    std::vector<AstComponentDefinition> components;
     std::optional<AstNode> root;
 };
 

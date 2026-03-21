@@ -67,12 +67,18 @@ AstDocument Parser::parseDocumentInternal()
 {
     AstDocument document;
 
-    while (current_.type == TokenType::At) {
-        parseDirective(document);
-    }
+    while (current_.type != TokenType::EndOfFile) {
+        if (current_.type == TokenType::At) {
+            parseDirective(document);
+            continue;
+        }
 
-    if (current_.type != TokenType::EndOfFile) {
-        document.root = parseNode();
+        if (!document.root) {
+            document.root = parseNode();
+            continue;
+        }
+
+        break;
     }
 
     return document;
@@ -102,6 +108,11 @@ void Parser::parseDirective(AstDocument& document)
 
     if (directive == "style") {
         document.styles.push_back(parseStyleDefinition());
+        return;
+    }
+
+    if (directive == "component") {
+        document.components.push_back(parseComponentDefinition());
         return;
     }
 
@@ -150,6 +161,26 @@ AstStyleDefinition Parser::parseStyleDefinition()
     }
 
     return style;
+}
+
+AstComponentDefinition Parser::parseComponentDefinition()
+{
+    AstComponentDefinition component;
+    component.line = current_.line;
+    component.column = current_.column;
+
+    if (current_.type != TokenType::Identifier) {
+        error("expected component name after '@component'");
+        return component;
+    }
+
+    component.name = current_.text;
+    current_ = lexer_.next();
+
+    expect(TokenType::Colon, "component definition");
+
+    component.root = parseNode();
+    return component;
 }
 
 AstNode Parser::parseNode()

@@ -52,6 +52,7 @@ BuildResult LayoutBuilder::build(const AstDocument& document, const ui::Theme& t
 {
     LayoutBuilder builder(theme);
     builder.registerStyles(document.styles);
+    builder.registerComponents(document.components);
     BuildResult result;
     if (document.root) {
         result.root = builder.buildNode(*document.root);
@@ -68,8 +69,20 @@ void LayoutBuilder::registerStyles(const std::vector<AstStyleDefinition>& styles
     }
 }
 
+void LayoutBuilder::registerComponents(const std::vector<AstComponentDefinition>& components)
+{
+    for (const auto& component : components) {
+        componentMap_[component.name] = component;
+    }
+}
+
 std::shared_ptr<ui::Widget> LayoutBuilder::buildNode(const AstNode& node)
 {
+    const auto componentIt = componentMap_.find(node.typeName);
+    if (componentIt != componentMap_.end()) {
+        return buildComponentNode(componentIt->second, node);
+    }
+
     auto& registry = core::TypeRegistry::instance();
     const core::TypeInfo* typeInfo = registry.findType(node.typeName);
 
@@ -107,6 +120,59 @@ std::shared_ptr<ui::Widget> LayoutBuilder::buildNode(const AstNode& node)
     }
 
     return widget;
+}
+
+std::shared_ptr<ui::Widget> LayoutBuilder::buildComponentNode(
+    const AstComponentDefinition& component,
+    const AstNode& instanceNode)
+{
+    for (const auto& activeComponent : componentStack_) {
+        if (activeComponent == component.name) {
+            std::ostringstream oss;
+            oss << "cyclic component reference '" << component.name << "' at line "
+                << instanceNode.line;
+            warnings_.push_back(oss.str());
+            return nullptr;
+        }
+    }
+
+    componentStack_.push_back(component.name);
+    AstNode mergedNode = mergeComponentNode(component.root, instanceNode);
+    auto widget = buildNode(mergedNode);
+    componentStack_.pop_back();
+    return widget;
+}
+
+AstNode LayoutBuilder::mergeComponentNode(
+    const AstNode& templateNode,
+    const AstNode& instanceNode) const
+{
+    AstNode merged = templateNode;
+    merged.line = instanceNode.line;
+    merged.column = instanceNode.column;
+
+    for (const auto& instanceProp : instanceNode.properties) {
+        bool replaced = false;
+        for (auto& mergedProp : merged.properties) {
+            if (mergedProp.name == instanceProp.name) {
+                mergedProp = instanceProp;
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced) {
+            merged.properties.push_back(instanceProp);
+        }
+    }
+
+    if (!instanceNode.children.empty()) {
+        merged.children.insert(
+            merged.children.end(),
+            instanceNode.children.begin(),
+            instanceNode.children.end());
+    }
+
+    return merged;
 }
 
 void LayoutBuilder::applyNamedStyle(
@@ -160,6 +226,12 @@ void LayoutBuilder::applyStandardProperty(
     if (prop.name == "id") {
         if (prop.value.type() == core::ValueType::String) {
             widget->setId(prop.value.asString());
+            if (idMap_.contains(prop.value.asString())) {
+                std::ostringstream oss;
+                oss << "duplicate id '" << prop.value.asString() << "' on '" << nodeType
+                    << "' at line " << prop.line;
+                warnings_.push_back(oss.str());
+            }
             idMap_[prop.value.asString()] = widget;
         } else {
             std::ostringstream oss;

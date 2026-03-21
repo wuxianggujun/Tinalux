@@ -137,6 +137,10 @@ VBox(id: "root") {
     backgroundColor: #FF102030,
     cornerRadius: 14
 )
+@component SearchCard: Panel(style: importedPanel) {
+    Label(text: "Shared title")
+}
+@component SharedPicker: Dropdown(placeholder: "Shared choice", maxVisibleItems: 4, selectedIndex: -1)
 )";
         }
 
@@ -146,6 +150,9 @@ VBox(id: "root") {
 @import "shared.tui"
 VBox(id: "root") {
     Panel(id: "card", style: importedPanel),
+    SearchCard(id: "searchCard"),
+    SharedPicker(id: "sharedPicker"),
+    SharedPicker(id: "sharedPickerOverride", placeholder: "Overridden choice", maxVisibleItems: 9),
     Dialog(id: "dialog", title: "Hello", padding: 18) {
         Panel(id: "dialogBody")
     },
@@ -170,6 +177,35 @@ VBox(id: "root") {
             nearlyEqual(panel->style()->cornerRadius, 14.0f),
             "imported Panel style should override cornerRadius");
 
+        const ui::Panel* importedCard = result.handle.findById<ui::Panel>("searchCard");
+        expect(importedCard != nullptr, "imported component instance should resolve to Panel root");
+        expect(importedCard->style() != nullptr, "imported component should carry imported named style");
+        expect(
+            importedCard->children().size() == 1,
+            "component template children should be attached to imported component instance");
+
+        const ui::Dropdown* importedPicker = result.handle.findById<ui::Dropdown>("sharedPicker");
+        expect(
+            importedPicker != nullptr,
+            "imported component instance should resolve to Dropdown root");
+        expect(
+            importedPicker->placeholder() == "Shared choice",
+            "imported component should preserve template placeholder");
+        expect(
+            importedPicker->maxVisibleItems() == 4,
+            "imported component should preserve template maxVisibleItems");
+
+        const ui::Dropdown* importedPickerOverride = result.handle.findById<ui::Dropdown>("sharedPickerOverride");
+        expect(
+            importedPickerOverride != nullptr,
+            "component instance with override should resolve to Dropdown root");
+        expect(
+            importedPickerOverride->placeholder() == "Overridden choice",
+            "component instance property should override imported template placeholder");
+        expect(
+            importedPickerOverride->maxVisibleItems() == 9,
+            "component instance property should override imported template maxVisibleItems");
+
         const ui::Dialog* dialog = result.handle.findById<ui::Dialog>("dialog");
         expect(dialog != nullptr, "Dialog should be constructible from markup");
         expect(dialog->content() != nullptr, "Dialog child should be attached via setContent");
@@ -184,6 +220,38 @@ VBox(id: "root") {
             "ScrollView preferredHeight should be parsed");
 
         fs::remove_all(tempRoot);
+    }
+
+    {
+        const std::string source = R"(
+@component FormField: Dropdown(placeholder: "Base placeholder", maxVisibleItems: 5, selectedIndex: -1)
+VBox(id: "root") {
+    FormField(id: "username"),
+    FormField(id: "email", placeholder: "Email address", maxVisibleItems: 8)
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "inline component definitions should load");
+        expect(result.warnings.empty(), "component inline smoke should not emit warnings");
+
+        const ui::Dropdown* username = result.handle.findById<ui::Dropdown>("username");
+        expect(username != nullptr, "component instance should materialize as Dropdown");
+        expect(
+            username->placeholder() == "Base placeholder",
+            "component materialization should preserve template placeholder");
+        expect(
+            username->maxVisibleItems() == 5,
+            "component materialization should preserve template maxVisibleItems");
+
+        const ui::Dropdown* email = result.handle.findById<ui::Dropdown>("email");
+        expect(email != nullptr, "component override instance should materialize as Dropdown");
+        expect(
+            email->placeholder() == "Email address",
+            "component instance should override template placeholder");
+        expect(
+            email->maxVisibleItems() == 8,
+            "component instance should override template maxVisibleItems");
     }
 
     return 0;

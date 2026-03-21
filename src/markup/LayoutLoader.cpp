@@ -85,10 +85,16 @@ LoadedDocumentResult loadDocumentFileRecursive(
         for (auto& style : imported.document.styles) {
             result.document.styles.push_back(std::move(style));
         }
+        for (auto& component : imported.document.components) {
+            result.document.components.push_back(std::move(component));
+        }
     }
 
     for (auto& style : parseResult.document.styles) {
         result.document.styles.push_back(std::move(style));
+    }
+    for (auto& component : parseResult.document.components) {
+        result.document.components.push_back(std::move(component));
     }
     result.document.root = std::move(parseResult.document.root);
 

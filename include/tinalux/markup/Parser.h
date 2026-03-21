@@ -31,6 +31,7 @@ private:
     AstDocument parseDocumentInternal();
     void parseDirective(AstDocument& document);
     AstStyleDefinition parseStyleDefinition();
+    AstComponentDefinition parseComponentDefinition();
     AstNode parseNode();
     AstProperty parseProperty();
     core::Value parseValue();

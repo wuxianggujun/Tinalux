@@ -33,7 +33,14 @@ private:
     explicit LayoutBuilder(const ui::Theme& theme);
 
     void registerStyles(const std::vector<AstStyleDefinition>& styles);
+    void registerComponents(const std::vector<AstComponentDefinition>& components);
     std::shared_ptr<ui::Widget> buildNode(const AstNode& node);
+    std::shared_ptr<ui::Widget> buildComponentNode(
+        const AstComponentDefinition& component,
+        const AstNode& instanceNode);
+    AstNode mergeComponentNode(
+        const AstNode& templateNode,
+        const AstNode& instanceNode) const;
     void applyNamedStyle(
         const std::shared_ptr<ui::Widget>& widget,
         const std::string& nodeType,
@@ -55,6 +62,8 @@ private:
     const ui::Theme& theme_;
     std::unordered_map<std::string, std::shared_ptr<ui::Widget>> idMap_;
     std::unordered_map<std::string, AstStyleDefinition> styleMap_;
+    std::unordered_map<std::string, AstComponentDefinition> componentMap_;
+    std::vector<std::string> componentStack_;
     std::vector<std::string> warnings_;
 };
 
