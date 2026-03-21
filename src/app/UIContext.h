@@ -46,8 +46,6 @@ public:
     void setRootWidget(std::shared_ptr<ui::Widget> root);
     void setOverlayWidget(std::shared_ptr<ui::Widget> overlay);
     ui::AnimationSink& animationSink();
-    bool textInputActive();
-    std::optional<core::Rect> imeCursorRect();
 
     FrameStats frameStats() const;
 
@@ -100,6 +98,8 @@ private:
     void unbindThemeRuntime();
     void resetForStartup();
     void configurePartialRedraw(bool enabled);
+    bool textInputActive();
+    std::optional<core::Rect> imeCursorRect();
     ui::Theme theme() const;
     core::Rect debugHudBounds(float logicalWidth, float logicalHeight) const;
     void drawDebugHud(

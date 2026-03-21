@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "../../src/app/UIContext.h"
+#include "../../src/app/UIContextTestAccess.h"
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
 #include "tinalux/ui/Panel.h"
@@ -85,8 +86,12 @@ int main()
     context.handleEvent(pressOverlay, [] {});
 
     expect(overlayInput->focused(), "overlay input should own focus before lifecycle reset");
-    expect(context.textInputActive(), "focused overlay input should activate text input before lifecycle reset");
-    expect(context.imeCursorRect().has_value(), "focused overlay input should expose IME rect before lifecycle reset");
+    expect(
+        tinalux::app::detail::UIContextTestAccess::textInputActive(context),
+        "focused overlay input should activate text input before lifecycle reset");
+    expect(
+        tinalux::app::detail::UIContextTestAccess::imeCursorRect(context).has_value(),
+        "focused overlay input should expose IME rect before lifecycle reset");
 
     context.initializeFromEnvironment();
 
@@ -95,8 +100,12 @@ int main()
         "reinitializing UIContext should clear pending animation work");
     expect(!context.tickAnimations(1.0), "reinitializing UIContext should drop stale animation callbacks");
     expect(staleAnimationCallbacks == 0, "reinitializing UIContext should not execute stale animation callbacks");
-    expect(!context.textInputActive(), "reinitializing UIContext should clear retained text input focus");
-    expect(!context.imeCursorRect().has_value(), "reinitializing UIContext should clear retained IME rect state");
+    expect(
+        !tinalux::app::detail::UIContextTestAccess::textInputActive(context),
+        "reinitializing UIContext should clear retained text input focus");
+    expect(
+        !tinalux::app::detail::UIContextTestAccess::imeCursorRect(context).has_value(),
+        "reinitializing UIContext should clear retained IME rect state");
     expect(!overlayInput->focused(), "reinitializing UIContext should clear focus on detached overlay widgets");
 
     const FrameStats resetStats = context.frameStats();
@@ -114,8 +123,12 @@ int main()
     focusWithTab(context);
 
     expect(restartedInput->focused(), "reinitialized UIContext should focus widgets from the new root tree");
-    expect(context.textInputActive(), "reinitialized UIContext should restore text input state for the new focused widget");
-    expect(context.imeCursorRect().has_value(), "reinitialized UIContext should expose IME rects for the new focused widget");
+    expect(
+        tinalux::app::detail::UIContextTestAccess::textInputActive(context),
+        "reinitialized UIContext should restore text input state for the new focused widget");
+    expect(
+        tinalux::app::detail::UIContextTestAccess::imeCursorRect(context).has_value(),
+        "reinitialized UIContext should expose IME rects for the new focused widget");
     expect(!rootInput->focused(), "old root widgets should stay unfocused after UIContext reinitialize");
 
     context.shutdown();
@@ -123,8 +136,12 @@ int main()
     expect(
         !context.animationSink().hasActiveAnimations(),
         "shutdown should leave no active animations behind");
-    expect(!context.textInputActive(), "shutdown should clear text input state");
-    expect(!context.imeCursorRect().has_value(), "shutdown should clear IME rect state");
+    expect(
+        !tinalux::app::detail::UIContextTestAccess::textInputActive(context),
+        "shutdown should clear text input state");
+    expect(
+        !tinalux::app::detail::UIContextTestAccess::imeCursorRect(context).has_value(),
+        "shutdown should clear IME rect state");
     expect(!restartedInput->focused(), "shutdown should clear focus on the active widget");
 
     context.initializeFromEnvironment();
@@ -137,6 +154,8 @@ int main()
     focusWithTab(context);
 
     expect(afterShutdownInput->focused(), "shutdown + reinitialize should restore focus traversal for a fresh tree");
-    expect(context.textInputActive(), "shutdown + reinitialize should restore text input activation");
+    expect(
+        tinalux::app::detail::UIContextTestAccess::textInputActive(context),
+        "shutdown + reinitialize should restore text input activation");
     return 0;
 }

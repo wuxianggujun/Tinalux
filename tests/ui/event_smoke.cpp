@@ -8,6 +8,7 @@
 #include "include/core/SkColor.h"
 #include "../../src/app/ApplicationTestAccess.h"
 #include "../../src/app/UIContext.h"
+#include "../../src/app/UIContextTestAccess.h"
 #include "../../src/ui/RuntimeState.h"
 #include "tinalux/app/Application.h"
 #include "tinalux/core/KeyCodes.h"
@@ -412,7 +413,9 @@ int main()
         root->arrange(tinalux::core::Rect::MakeXYWH(0.0f, 0.0f, 320.0f, 160.0f));
 
         context.setRootWidget(root);
-        expect(!context.textInputActive(), "text input should be inactive before focus");
+        expect(
+            !tinalux::app::detail::UIContextTestAccess::textInputActive(context),
+            "text input should be inactive before focus");
 
         tinalux::core::KeyEvent tabForward(
             tinalux::core::keys::kTab,
@@ -421,15 +424,21 @@ int main()
             tinalux::core::EventType::KeyPress);
         context.handleEvent(tabForward, [] {});
         expect(button->focused(), "first Tab should focus button");
-        expect(!context.textInputActive(), "button focus should not activate text input");
+        expect(
+            !tinalux::app::detail::UIContextTestAccess::textInputActive(context),
+            "button focus should not activate text input");
 
         context.handleEvent(tabForward, [] {});
         expect(input->focused(), "second Tab should focus text input");
-        expect(context.textInputActive(), "focused text input should activate text input state");
+        expect(
+            tinalux::app::detail::UIContextTestAccess::textInputActive(context),
+            "focused text input should activate text input state");
 
         tinalux::core::WindowFocusEvent blur(false);
         context.handleEvent(blur, [] {});
-        expect(!context.textInputActive(), "window blur should clear active text input state");
+        expect(
+            !tinalux::app::detail::UIContextTestAccess::textInputActive(context),
+            "window blur should clear active text input state");
     }
 
     {
@@ -570,12 +579,18 @@ int main()
             0,
             tinalux::core::EventType::KeyPress);
         context.handleEvent(tabForward, [] {});
-        expect(context.textInputActive(), "focused text input should activate text input state");
+        expect(
+            tinalux::app::detail::UIContextTestAccess::textInputActive(context),
+            "focused text input should activate text input state");
 
         root->removeChild(input.get());
 
-        expect(!context.textInputActive(), "detached focused widget should not stay active when still retained externally");
-        expect(!context.imeCursorRect().has_value(), "detached focused widget should not leave a retained IME pointer");
+        expect(
+            !tinalux::app::detail::UIContextTestAccess::textInputActive(context),
+            "detached focused widget should not stay active when still retained externally");
+        expect(
+            !tinalux::app::detail::UIContextTestAccess::imeCursorRect(context).has_value(),
+            "detached focused widget should not leave a retained IME pointer");
         expect(!retainedInput->focused(), "detached focused widget should clear its own focus state");
 
         input.reset();
@@ -598,13 +613,19 @@ int main()
             0,
             tinalux::core::EventType::KeyPress);
         context.handleEvent(tabForward, [] {});
-        expect(context.textInputActive(), "focused text input should activate text input state before clearChildren");
+        expect(
+            tinalux::app::detail::UIContextTestAccess::textInputActive(context),
+            "focused text input should activate text input state before clearChildren");
 
         root->clearChildren();
 
         expect(root->children().empty(), "clearChildren should empty the container");
-        expect(!context.textInputActive(), "clearChildren should drop focused detached widgets from UIContext");
-        expect(!context.imeCursorRect().has_value(), "clearChildren should clear retained IME state");
+        expect(
+            !tinalux::app::detail::UIContextTestAccess::textInputActive(context),
+            "clearChildren should drop focused detached widgets from UIContext");
+        expect(
+            !tinalux::app::detail::UIContextTestAccess::imeCursorRect(context).has_value(),
+            "clearChildren should clear retained IME state");
         expect(!retainedInput->focused(), "clearChildren should clear focus on detached widget");
         expect(retainedInput->parent() == nullptr, "clearChildren should detach retained widget parent");
 
