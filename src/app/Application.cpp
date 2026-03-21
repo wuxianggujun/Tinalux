@@ -668,8 +668,6 @@ bool Application::pumpOnce()
         } else {
             impl_->uiContext.noteFrameSkipped();
         }
-    } else {
-        impl_->uiContext.noteFrameSkipped();
     }
 
     return !impl_->window->shouldClose();

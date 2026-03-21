@@ -429,6 +429,41 @@ int main()
 
     {
         resetScenario();
+
+        app::Application app;
+        expect(
+            app.init(app::ApplicationConfig { .backend = Backend::Auto }),
+            "Auto backend init should succeed for idle frame stats smoke");
+
+        expect(
+            app.pumpOnce(),
+            "First pumpOnce should render the initial frame for idle frame stats smoke");
+        const app::FrameStats statsAfterInitialFrame = app.frameStats();
+        expect(
+            statsAfterInitialFrame.totalFrames == 1,
+            "Initial idle frame stats smoke pass should record one presented frame");
+        expect(
+            statsAfterInitialFrame.skippedFrames == 0,
+            "Initial idle frame stats smoke pass should not record skipped frames");
+
+        expect(
+            app.pumpOnce(),
+            "Second pumpOnce should keep the app alive while idling");
+        const app::FrameStats statsAfterIdleLoop = app.frameStats();
+        expect(
+            statsAfterIdleLoop.totalFrames == statsAfterInitialFrame.totalFrames,
+            "Idle loops without render attempts should not change rendered frame count");
+        expect(
+            statsAfterIdleLoop.skippedFrames == statsAfterInitialFrame.skippedFrames,
+            "Idle loops without render attempts should not be counted as skipped frames");
+        expect(
+            statsAfterIdleLoop.waitEventLoops + statsAfterIdleLoop.pollEventLoops
+                == statsAfterInitialFrame.waitEventLoops + statsAfterInitialFrame.pollEventLoops + 1,
+            "Idle loops should still be reflected in event loop stats");
+    }
+
+    {
+        resetScenario();
         gForceSurfaceLostOnPrepare = true;
         gForcedPrepareSurfaceLossReason = tinalux::rendering::SurfaceFailureReason::BackendStateMissing;
 
