@@ -583,6 +583,18 @@ void LayoutHandle::bindValueChanged(const std::string& id, std::function<void(fl
         });
 }
 
+void LayoutHandle::bindScrollChanged(const std::string& id, std::function<void(float)> handler)
+{
+    bindInteraction(
+        id,
+        "scrollChanged",
+        [handler = std::move(handler)](const core::Value& value) {
+            if (handler) {
+                handler(value.asFloat());
+            }
+        });
+}
+
 void LayoutHandle::bindSelectionChanged(const std::string& id, std::function<void(int)> handler)
 {
     bindInteraction(

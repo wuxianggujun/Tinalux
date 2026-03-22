@@ -63,6 +63,7 @@ public:
     void bindLeadingIconClick(const std::string& id, std::function<void()> handler);
     void bindTrailingIconClick(const std::string& id, std::function<void()> handler);
     void bindValueChanged(const std::string& id, std::function<void(float)> handler);
+    void bindScrollChanged(const std::string& id, std::function<void(float)> handler);
     void bindSelectionChanged(const std::string& id, std::function<void(int)> handler);
 
 private:

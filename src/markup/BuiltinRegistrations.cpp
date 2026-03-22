@@ -1,5 +1,8 @@
 #include "tinalux/markup/LayoutBuilder.h"
 
+#include <optional>
+#include <string_view>
+
 #include "tinalux/core/Reflect.h"
 #include "tinalux/ui/Button.h"
 #include "tinalux/ui/Checkbox.h"
@@ -111,6 +114,35 @@ core::ChildAttachmentInfo makeSingleContentChildAttachment(Setter setter)
         [setter](WidgetT& widget, std::shared_ptr<ui::Widget> child) {
             setter(widget, std::move(child));
         });
+}
+
+std::optional<ui::IconType> parseIconType(std::string_view name)
+{
+    if (name == "Check") {
+        return ui::IconType::Check;
+    }
+    if (name == "Close") {
+        return ui::IconType::Close;
+    }
+    if (name == "Search") {
+        return ui::IconType::Search;
+    }
+    if (name == "Clear") {
+        return ui::IconType::Clear;
+    }
+    if (name == "User") {
+        return ui::IconType::User;
+    }
+    if (name == "Lock") {
+        return ui::IconType::Lock;
+    }
+    if (name == "Refresh") {
+        return ui::IconType::Refresh;
+    }
+    if (name == "ArrowDown") {
+        return ui::IconType::ArrowDown;
+    }
+    return std::nullopt;
 }
 
 } // namespace
@@ -305,6 +337,13 @@ void registerBuiltinTypes()
                 [](const ui::Widget& w) -> std::optional<core::Value> {
                     return core::Value(static_cast<const ui::Dialog&>(w).showCloseButton());
                 }},
+            {"closeIcon", core::ValueType::Enum,
+                [](ui::Widget& w, const core::Value& v) {
+                    const std::optional<ui::IconType> iconType = parseIconType(v.asString());
+                    if (iconType.has_value()) {
+                        static_cast<ui::Dialog&>(w).setCloseIcon(*iconType, 0.0f);
+                    }
+                }},
             {"backdropColor", core::ValueType::Color,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Dialog&>(w).setBackdropColor(v.asColor());
@@ -439,6 +478,14 @@ void registerBuiltinTypes()
             {"preferredHeight", core::ValueType::Float,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::ScrollView&>(w).setPreferredHeight(v.asNumber());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ScrollView&>(w).preferredHeight());
+                }},
+            {"scrollOffset", core::ValueType::Float,
+                {},
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ScrollView&>(w).scrollOffset());
                 }},
         },
         .styleProperties = {
@@ -483,6 +530,20 @@ void registerBuiltinTypes()
                 &ui::Theme::scrollViewStyle,
                 [](ui::ScrollViewStyle& style, const core::Value& value) {
                     style.scrollStep = value.asNumber();
+                }),
+        },
+        .interactions = {
+            makeInteraction<ui::ScrollView>(
+                "scrollChanged",
+                "scrollOffset",
+                core::ValueType::Float,
+                [](ui::ScrollView& scrollView, core::InteractionHandler handler) {
+                    scrollView.onScrollChanged(
+                        [handler = std::move(handler)](float offset) {
+                            if (handler) {
+                                handler(core::Value(offset));
+                            }
+                        });
                 }),
         },
         .childAttachment = makeSingleContentChildAttachment<ui::ScrollView>(

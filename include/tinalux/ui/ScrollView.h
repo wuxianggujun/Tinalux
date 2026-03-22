@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <optional>
 
@@ -17,6 +18,7 @@ public:
     float preferredHeight() const;
 
     float scrollOffset() const;
+    void onScrollChanged(std::function<void(float)> handler);
     float maxScrollOffset() const;
     float contentHeight() const;
     void setStyle(const ScrollViewStyle& style);
@@ -35,8 +37,10 @@ protected:
     const ScrollViewStyle& resolvedStyle() const;
     core::Point childOffsetAdjustment(const Widget& child) const override;
     void clampScrollOffset();
+    bool updateScrollOffset(float offset, bool emitCallback = true);
 
     std::shared_ptr<Widget> content_;
+    std::function<void(float)> onScrollChanged_;
     float preferredHeight_ = 220.0f;
     float scrollOffset_ = 0.0f;
     float contentHeight_ = 0.0f;

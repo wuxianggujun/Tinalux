@@ -1,4 +1,5 @@
 #include <array>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -11,7 +12,9 @@
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Button.h"
 #include "tinalux/ui/Dialog.h"
+#include "tinalux/ui/Label.h"
 #include "tinalux/ui/Panel.h"
+#include "tinalux/ui/ScrollView.h"
 #include "tinalux/ui/TextInput.h"
 #include "tinalux/ui/Theme.h"
 #include "tinalux/ui/VBox.h"
@@ -24,6 +27,11 @@ void expect(bool condition, const char* message)
         std::cerr << message << '\n';
         std::exit(1);
     }
+}
+
+bool nearlyEqual(float lhs, float rhs)
+{
+    return std::abs(lhs - rhs) <= 0.001f;
 }
 
 void expectLoadOk(
@@ -186,6 +194,85 @@ VBox(id: root) {
     applyButton->setFocused(true);
     applyButton->onEvent(clickButtonOnce);
     expect(applyClicks == 3, "stored click handler should reattach after structural rebuild");
+
+    {
+        const std::string scrollSource = R"(
+VBox(id: root) {
+    if(${model.showScroller}) {
+        ScrollView(id: activity, preferredHeight: 72) {
+            VBox(id: feed, 6) {
+                Label("One"),
+                Label("Two"),
+                Label("Three"),
+                Label("Four"),
+                Label("Five"),
+                Label("Six"),
+                Label("Seven"),
+                Label("Eight"),
+                Label("Nine"),
+                Label("Ten")
+            }
+        }
+    }
+}
+)";
+
+        markup::LoadResult scrollResult = markup::LayoutLoader::load(scrollSource, theme);
+        expectLoadOk(scrollResult, "scroll interaction rebind markup should load");
+        expect(scrollResult.warnings.empty(), "scroll interaction rebind markup should not emit warnings");
+
+        int scrollEvents = 0;
+        float lastOffset = 0.0f;
+        scrollResult.handle.bindScrollChanged("activity", [&](float offset) {
+            ++scrollEvents;
+            lastOffset = offset;
+        });
+
+        auto firstScrollModel = markup::ViewModel::create();
+        firstScrollModel->setBool("showScroller", true);
+        scrollResult.handle.bindViewModel(firstScrollModel);
+
+        ui::VBox* root = dynamic_cast<ui::VBox*>(scrollResult.handle.root().get());
+        ui::ScrollView* activity = scrollResult.handle.findById<ui::ScrollView>("activity");
+        expect(root != nullptr, "scroll interaction root should materialize as VBox");
+        expect(activity != nullptr, "first scroll ViewModel should materialize ScrollView");
+
+        root->measure(ui::Constraints::tight(240.0f, 160.0f));
+        root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 240.0f, 160.0f));
+
+        core::MouseScrollEvent scrollDown(0.0, -2.0);
+        expect(activity->onEvent(scrollDown), "scroll interaction should handle mouse scroll after first bind");
+        expect(scrollEvents == 1, "stored scroll handler should attach when ScrollView first appears");
+        expect(nearlyEqual(lastOffset, activity->scrollOffset()), "scroll callback should mirror the live scrollOffset");
+
+        auto secondScrollModel = markup::ViewModel::create();
+        secondScrollModel->setBool("showScroller", true);
+        scrollResult.handle.bindViewModel(secondScrollModel);
+
+        root = dynamic_cast<ui::VBox*>(scrollResult.handle.root().get());
+        activity = scrollResult.handle.findById<ui::ScrollView>("activity");
+        expect(activity != nullptr, "rebinding should rematerialize ScrollView");
+        root->measure(ui::Constraints::tight(240.0f, 160.0f));
+        root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 240.0f, 160.0f));
+        activity->onEvent(scrollDown);
+        expect(scrollEvents == 2, "stored scroll handler should reattach after ViewModel rebinding");
+        expect(nearlyEqual(lastOffset, activity->scrollOffset()), "rebuilt ScrollView should report the active scrollOffset");
+
+        secondScrollModel->setBool("showScroller", false);
+        expect(
+            scrollResult.handle.findById<ui::ScrollView>("activity") == nullptr,
+            "ScrollView should disappear after structural rebuild");
+
+        secondScrollModel->setBool("showScroller", true);
+        root = dynamic_cast<ui::VBox*>(scrollResult.handle.root().get());
+        activity = scrollResult.handle.findById<ui::ScrollView>("activity");
+        expect(activity != nullptr, "ScrollView should rematerialize after structural rebuild");
+        root->measure(ui::Constraints::tight(240.0f, 160.0f));
+        root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 240.0f, 160.0f));
+        activity->onEvent(scrollDown);
+        expect(scrollEvents == 3, "stored scroll handler should reattach after structural rebuild");
+        expect(nearlyEqual(lastOffset, activity->scrollOffset()), "rematerialized ScrollView should keep scroll callback payloads in sync");
+    }
 
     {
         const std::string interactionSource = R"(

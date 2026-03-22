@@ -10,6 +10,17 @@
 
 namespace tinalux::ui {
 
+namespace {
+
+constexpr float kScrollOffsetTolerance = 0.001f;
+
+bool sameScrollOffset(float lhs, float rhs)
+{
+    return std::abs(lhs - rhs) <= kScrollOffsetTolerance;
+}
+
+}  // namespace
+
 void ScrollView::setContent(std::shared_ptr<Widget> content)
 {
     if (content_ == content) {
@@ -25,7 +36,7 @@ void ScrollView::setContent(std::shared_ptr<Widget> content)
         content_->setParent(this);
     }
 
-    scrollOffset_ = 0.0f;
+    updateScrollOffset(0.0f);
     contentHeight_ = 0.0f;
     cachedContentWidget_ = nullptr;
     cachedContentLayoutVersion_ = 0;
@@ -57,6 +68,26 @@ float ScrollView::preferredHeight() const
 float ScrollView::scrollOffset() const
 {
     return scrollOffset_;
+}
+
+void ScrollView::onScrollChanged(std::function<void(float)> handler)
+{
+    onScrollChanged_ = std::move(handler);
+}
+
+bool ScrollView::updateScrollOffset(float offset, bool emitCallback)
+{
+    const float nextOffset = std::clamp(offset, 0.0f, maxScrollOffset());
+    if (sameScrollOffset(scrollOffset_, nextOffset)) {
+        return false;
+    }
+
+    scrollOffset_ = nextOffset;
+    markPaintDirty();
+    if (emitCallback && onScrollChanged_) {
+        onScrollChanged_(scrollOffset_);
+    }
+    return true;
 }
 
 float ScrollView::maxScrollOffset() const
@@ -133,7 +164,7 @@ void ScrollView::arrange(const core::Rect& bounds)
 
     if (content_ == nullptr) {
         contentHeight_ = 0.0f;
-        scrollOffset_ = 0.0f;
+        updateScrollOffset(0.0f);
         return;
     }
 
@@ -371,22 +402,13 @@ bool ScrollView::onEvent(core::Event& event)
 
     const auto& scrollEvent = static_cast<const core::MouseScrollEvent&>(event);
     const ScrollViewStyle& style = resolvedStyle();
-    const float nextOffset = std::clamp(
-        scrollOffset_ - static_cast<float>(scrollEvent.yOffset) * style.scrollStep,
-        0.0f,
-        maxScrollOffset());
-    if (std::abs(nextOffset - scrollOffset_) <= 0.001f) {
-        return false;
-    }
-
-    scrollOffset_ = nextOffset;
-    markPaintDirty();
-    return true;
+    return updateScrollOffset(
+        scrollOffset_ - static_cast<float>(scrollEvent.yOffset) * style.scrollStep);
 }
 
 void ScrollView::clampScrollOffset()
 {
-    scrollOffset_ = std::clamp(scrollOffset_, 0.0f, maxScrollOffset());
+    updateScrollOffset(scrollOffset_);
 }
 
 core::Point ScrollView::childOffsetAdjustment(const Widget& child) const

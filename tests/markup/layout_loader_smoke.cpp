@@ -1,3 +1,4 @@
+#include <array>
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -9,11 +10,13 @@
 
 #include "tinalux/core/Geometry.h"
 #include "tinalux/markup/LayoutLoader.h"
+#include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Button.h"
 #include "tinalux/ui/Checkbox.h"
 #include "tinalux/ui/Dialog.h"
 #include "tinalux/ui/Dropdown.h"
 #include "tinalux/ui/ImageWidget.h"
+#include "tinalux/ui/IconRegistry.h"
 #include "tinalux/ui/Label.h"
 #include "tinalux/ui/ListView.h"
 #include "tinalux/ui/Panel.h"
@@ -295,6 +298,12 @@ VBox(id: root) {
     }
 
     {
+        ui::IconRegistry::instance().clear();
+        ui::IconRegistry::instance().registerIconFactory(ui::IconType::Close, [](float) {
+            const std::array<std::uint8_t, 4> rgba {255, 255, 255, 255};
+            return rendering::createImageFromRGBA(1, 1, rgba);
+        });
+
         const std::string source = R"(
 VBox(id: root) {
     Button(id: cta, "Ship", iconPlacement: End, iconWidth: 18, iconHeight: 12),
@@ -304,6 +313,7 @@ VBox(id: root) {
         dismissOnBackdrop: false,
         dismissOnEscape: false,
         showCloseButton: false,
+        closeIcon: Close,
         maxWidth: 360,
         maxHeight: 220
     ) {
@@ -341,6 +351,7 @@ VBox(id: root) {
         expect(!confirm->dismissOnBackdrop(), "Dialog dismissOnBackdrop should be parsed");
         expect(!confirm->dismissOnEscape(), "Dialog dismissOnEscape should be parsed");
         expect(!confirm->showCloseButton(), "Dialog showCloseButton should be parsed");
+        expect(static_cast<bool>(confirm->closeIcon()), "Dialog closeIcon should be parsed");
         expect(nearlyEqual(confirm->maxSize().width(), 360.0f), "Dialog maxWidth should be parsed");
         expect(nearlyEqual(confirm->maxSize().height(), 220.0f), "Dialog maxHeight should be parsed");
 

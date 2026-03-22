@@ -12,8 +12,10 @@
 #include "tinalux/ui/Button.h"
 #include "tinalux/ui/Checkbox.h"
 #include "tinalux/ui/Dropdown.h"
+#include "tinalux/ui/Label.h"
 #include "tinalux/ui/Panel.h"
 #include "tinalux/ui/ProgressBar.h"
+#include "tinalux/ui/ScrollView.h"
 #include "tinalux/ui/Slider.h"
 #include "tinalux/ui/TextInput.h"
 #include "tinalux/ui/Theme.h"
@@ -109,6 +111,58 @@ VBox(id: root, gap) {
         expect(ctaTextMirror->text() == "Submit now", "binding let should live-update from ViewModel");
         expect(cta->enabled(), "enabled binding should live-update from ViewModel");
         expect(enabledMirror->visible(), "widget id enabled binding should live-update from source widget");
+    }
+
+    {
+        const std::string source = R"(
+VBox(id: root, 8) {
+    ScrollView(id: activity, preferredHeight: 80) {
+        VBox(id: feed, 8) {
+            Label("One"),
+            Label("Two"),
+            Label("Three"),
+            Label("Four"),
+            Label("Five"),
+            Label("Six"),
+            Label("Seven"),
+            Label("Eight"),
+            Label("Nine"),
+            Label("Ten")
+        }
+    },
+    ProgressBar(id: offsetMirror, min: 0, max: 600, value: ${activity.scrollOffset})
+}
+)";
+
+        markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "scrollOffset binding markup should load");
+        expect(result.warnings.empty(), "scrollOffset binding markup should not emit warnings");
+
+        auto viewModel = markup::ViewModel::create();
+        result.handle.bindViewModel(viewModel);
+
+        ui::VBox* root = dynamic_cast<ui::VBox*>(result.handle.root().get());
+        ui::ScrollView* activity = result.handle.findById<ui::ScrollView>("activity");
+        ui::ProgressBar* offsetMirror = result.handle.findById<ui::ProgressBar>("offsetMirror");
+
+        expect(root != nullptr, "scrollOffset binding root should materialize as VBox");
+        expect(activity != nullptr, "scrollOffset binding source ScrollView should exist");
+        expect(offsetMirror != nullptr, "scrollOffset binding ProgressBar should exist");
+
+        ui::RuntimeState runtime;
+        ui::ScopedRuntimeState scopedRuntime(runtime);
+        root->measure(ui::Constraints::tight(360.0f, 220.0f));
+        root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 360.0f, 220.0f));
+
+        expect(nearlyEqual(activity->scrollOffset(), 0.0f), "ScrollView should start at zero scrollOffset");
+        expect(nearlyEqual(offsetMirror->value(), 0.0f), "ProgressBar mirror should start at zero");
+
+        core::MouseScrollEvent scrollDown(0.0, -2.0);
+        expect(activity->onEvent(scrollDown), "ScrollView should handle mouse scroll input");
+        expect(activity->scrollOffset() > 0.0f, "ScrollView scrollOffset should change after scrolling");
+        expect(
+            nearlyEqual(offsetMirror->value(), activity->scrollOffset()),
+            "widget-id binding should live-update from ScrollView scrollOffset");
     }
 
     {
