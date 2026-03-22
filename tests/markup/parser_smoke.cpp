@@ -140,10 +140,10 @@ VBox(id: root) {
         expectParseOk(result, "array literal document should parse");
         expect(result.document.lets.size() == 1, "array literal document should capture let definitions");
         expect(result.document.lets.front().hasArrayValue(), "let array literal should preserve array flag");
-        expect(result.document.lets.front().arrayValues.size() == 3, "let array literal should preserve element count");
+        expect(result.document.lets.front().arrayItems.size() == 3, "let array literal should preserve element count");
         expect(
-            result.document.lets.front().arrayValues[1].type() == core::ValueType::String
-                && result.document.lets.front().arrayValues[1].asString() == "One",
+            result.document.lets.front().arrayItems[1].value.type() == core::ValueType::String
+                && result.document.lets.front().arrayItems[1].value.asString() == "One",
             "let array literal should preserve string elements");
         expect(result.document.root.has_value(), "array literal document root should exist");
         const markup::AstProperty* itemsProp = findProperty(*result.document.root, "items");
@@ -152,11 +152,44 @@ VBox(id: root) {
         itemsProp = findProperty(result.document.root->children.front(), "items");
         expect(itemsProp != nullptr, "dropdown should preserve items property");
         expect(itemsProp->hasArrayValue(), "dropdown items should preserve array flag");
-        expect(itemsProp->arrayValues.size() == 3, "dropdown items should preserve element count");
+        expect(itemsProp->arrayItems.size() == 3, "dropdown items should preserve element count");
         expect(
-            itemsProp->arrayValues[2].type() == core::ValueType::String
-                && itemsProp->arrayValues[2].asString() == "East",
+            itemsProp->arrayItems[2].value.type() == core::ValueType::String
+                && itemsProp->arrayItems[2].value.asString() == "East",
             "dropdown items should preserve array element payloads");
+    }
+
+    {
+        const std::string mixedArraySource = R"(
+let mixedItems: ["North", ${model.dynamic}, { text: "Tail" }, ["Nested"]]
+VBox(id: root)
+)";
+
+        const markup::DocumentParseResult result = markup::Parser::parseDocument(mixedArraySource);
+        expectParseOk(result, "mixed array literal document should parse");
+        expect(result.document.lets.size() == 1, "mixed array literal document should capture let definitions");
+
+        const markup::AstProperty& mixedItems = result.document.lets.front();
+        expect(mixedItems.hasArrayValue(), "mixed array literal should preserve array flag");
+        expect(mixedItems.arrayItems.size() == 4, "mixed array literal should preserve all element kinds");
+        expect(
+            mixedItems.arrayItems[0].value.type() == core::ValueType::String
+                && mixedItems.arrayItems[0].value.asString() == "North",
+            "mixed array literal should preserve scalar entries");
+        expect(
+            mixedItems.arrayItems[1].hasBinding()
+                && *mixedItems.arrayItems[1].bindingPath == "model.dynamic",
+            "mixed array literal should preserve binding entries");
+        expect(mixedItems.arrayItems[2].hasObjectValue(), "mixed array literal should preserve object entries");
+        expect(
+            mixedItems.arrayItems[2].objectProperties.size() == 1
+                && mixedItems.arrayItems[2].objectProperties[0].name == "text",
+            "mixed array literal object entries should preserve child properties");
+        expect(mixedItems.arrayItems[3].hasArrayValue(), "mixed array literal should preserve nested arrays");
+        expect(
+            mixedItems.arrayItems[3].arrayItems.size() == 1
+                && mixedItems.arrayItems[3].arrayItems[0].value.asString() == "Nested",
+            "mixed array literal nested arrays should preserve their items");
     }
 
     {

@@ -34,22 +34,6 @@ std::optional<std::string> stringLikeValue(const core::Value& value)
     return std::nullopt;
 }
 
-std::optional<std::vector<std::string>> stringArrayValues(const std::vector<core::Value>& values)
-{
-    std::vector<std::string> items;
-    items.reserve(values.size());
-
-    for (const core::Value& value : values) {
-        const std::optional<std::string> item = stringLikeValue(value);
-        if (!item.has_value()) {
-            return std::nullopt;
-        }
-        items.push_back(*item);
-    }
-
-    return items;
-}
-
 std::optional<std::vector<std::string>> stringArrayNode(const ModelNode& node)
 {
     const ModelNode::Array* array = node.arrayValue();
@@ -1140,22 +1124,10 @@ AstProperty LayoutBuilder::resolveComponentProperty(
 {
     AstProperty resolved = property;
     if (property.hasArrayValue()) {
-        resolved.arrayValues.clear();
-        resolved.arrayValues.reserve(property.arrayValues.size());
-        for (const auto& entry : property.arrayValues) {
-            resolved.arrayValues.push_back(resolveComponentValue(entry, parameterValues));
-        }
-
-        resolved.arrayObjectValues.clear();
-        resolved.arrayObjectValues.reserve(property.arrayObjectValues.size());
-        for (const AstObjectValue& objectValue : property.arrayObjectValues) {
-            AstObjectValue resolvedObjectValue;
-            resolvedObjectValue.properties.reserve(objectValue.properties.size());
-            for (const AstProperty& childProperty : objectValue.properties) {
-                resolvedObjectValue.properties.push_back(
-                    resolveComponentProperty(childProperty, parameterValues));
-            }
-            resolved.arrayObjectValues.push_back(std::move(resolvedObjectValue));
+        resolved.arrayItems.clear();
+        resolved.arrayItems.reserve(property.arrayItems.size());
+        for (const AstProperty& entry : property.arrayItems) {
+            resolved.arrayItems.push_back(resolveComponentProperty(entry, parameterValues));
         }
         return resolved;
     }
@@ -1275,33 +1247,10 @@ AstProperty LayoutBuilder::resolveScopedProperty(
             std::unordered_set<std::string>& resolvingLets) -> AstProperty {
         AstProperty resolved = source;
         if (source.hasArrayValue()) {
-            resolved.arrayValues.clear();
-            resolved.arrayValues.reserve(source.arrayValues.size());
-            for (const core::Value& arrayValue : source.arrayValues) {
-                core::Value resolvedValue = arrayValue;
-                if (arrayValue.type() == core::ValueType::Enum) {
-                    const auto letIt = letMap_.find(arrayValue.asString());
-                    if (letIt != letMap_.end()
-                        && !letIt->second.hasBinding()
-                        && !letIt->second.hasObjectValue()
-                        && !letIt->second.hasArrayValue()) {
-                        resolvedValue = letIt->second.value;
-                    }
-                }
-
-                resolved.arrayValues.push_back(resolvedValue);
-            }
-
-            resolved.arrayObjectValues.clear();
-            resolved.arrayObjectValues.reserve(source.arrayObjectValues.size());
-            for (const AstObjectValue& objectValue : source.arrayObjectValues) {
-                AstObjectValue resolvedObjectValue;
-                resolvedObjectValue.properties.reserve(objectValue.properties.size());
-                for (const AstProperty& childProperty : objectValue.properties) {
-                    resolvedObjectValue.properties.push_back(
-                        resolveRecursive(childProperty, resolvingLets));
-                }
-                resolved.arrayObjectValues.push_back(std::move(resolvedObjectValue));
+            resolved.arrayItems.clear();
+            resolved.arrayItems.reserve(source.arrayItems.size());
+            for (const AstProperty& arrayItem : source.arrayItems) {
+                resolved.arrayItems.push_back(resolveRecursive(arrayItem, resolvingLets));
             }
             return resolved;
         }
@@ -1329,8 +1278,7 @@ AstProperty LayoutBuilder::resolveScopedProperty(
                 resolvingLets.erase(letName);
 
                 resolved.value = letValue.value;
-                resolved.arrayValues = letValue.arrayValues;
-                resolved.arrayObjectValues = letValue.arrayObjectValues;
+                resolved.arrayItems = letValue.arrayItems;
                 resolved.objectProperties = letValue.objectProperties;
                 resolved.bindingPath = letValue.bindingPath;
                 resolved.arrayValue = letValue.arrayValue;
@@ -1348,8 +1296,7 @@ AstProperty LayoutBuilder::resolveScopedProperty(
             resolved.bindingPath.reset();
             resolved.value = *constantValue;
             resolved.arrayValue = false;
-            resolved.arrayValues.clear();
-            resolved.arrayObjectValues.clear();
+            resolved.arrayItems.clear();
             resolved.objectValue = false;
             resolved.objectProperties.clear();
         }
@@ -1602,68 +1549,42 @@ std::optional<LayoutBuilder::PreparedPropertyNode> LayoutBuilder::preparePropert
         }
 
         if (source.hasArrayValue()) {
-            if (source.hasArrayObjectValues() && !source.arrayValues.empty()) {
-                return std::nullopt;
+            std::vector<PreparedPropertyNode> items;
+            items.reserve(source.arrayItems.size());
+            for (const AstProperty& arrayItem : source.arrayItems) {
+                std::optional<PreparedPropertyNode> itemPrepared =
+                    prepareRecursive(arrayItem, currentContext);
+                if (!itemPrepared.has_value()) {
+                    return std::nullopt;
+                }
+
+                for (const std::string& dependencyPath : itemPrepared->dependencyPaths) {
+                    appendUniquePath(prepared.dependencyPaths, dependencyPath);
+                }
+
+                items.push_back(std::move(*itemPrepared));
             }
 
-            if (source.hasArrayObjectValues()) {
-                std::vector<PreparedPropertyNode> items;
-                items.reserve(source.arrayObjectValues.size());
-                for (const AstObjectValue& objectValue : source.arrayObjectValues) {
-                    AstProperty objectProperty;
-                    objectProperty.objectValue = true;
-                    objectProperty.objectProperties = objectValue.properties;
-                    objectProperty.line = source.line;
-                    objectProperty.column = source.column;
-
-                    std::optional<PreparedPropertyNode> itemPrepared =
-                        prepareRecursive(objectProperty, currentContext);
-                    if (!itemPrepared.has_value()) {
+            prepared.evaluate = [items = std::move(items)](
+                                   const std::shared_ptr<ViewModel>& viewModel,
+                                   const std::function<const ModelNode*(std::string_view)>& externalResolver)
+                -> std::optional<ModelNode> {
+                ModelNode::Array array;
+                array.reserve(items.size());
+                for (const PreparedPropertyNode& itemPrepared : items) {
+                    if (!itemPrepared.evaluate) {
                         return std::nullopt;
                     }
 
-                    for (const std::string& dependencyPath : itemPrepared->dependencyPaths) {
-                        appendUniquePath(prepared.dependencyPaths, dependencyPath);
+                    const std::optional<ModelNode> itemNode =
+                        itemPrepared.evaluate(viewModel, externalResolver);
+                    if (!itemNode.has_value()) {
+                        return std::nullopt;
                     }
 
-                    items.push_back(std::move(*itemPrepared));
+                    array.push_back(*itemNode);
                 }
 
-                prepared.evaluate = [items = std::move(items)](
-                                       const std::shared_ptr<ViewModel>& viewModel,
-                                       const std::function<const ModelNode*(std::string_view)>& externalResolver)
-                    -> std::optional<ModelNode> {
-                    ModelNode::Array array;
-                    array.reserve(items.size());
-                    for (const PreparedPropertyNode& itemPrepared : items) {
-                        if (!itemPrepared.evaluate) {
-                            return std::nullopt;
-                        }
-
-                        const std::optional<ModelNode> itemNode =
-                            itemPrepared.evaluate(viewModel, externalResolver);
-                        if (!itemNode.has_value()) {
-                            return std::nullopt;
-                        }
-
-                        array.push_back(*itemNode);
-                    }
-
-                    return ModelNode::array(std::move(array));
-                };
-                return prepared;
-            }
-
-            const std::vector<core::Value> values = source.arrayValues;
-            prepared.evaluate = [values](
-                                   const std::shared_ptr<ViewModel>&,
-                                   const std::function<const ModelNode*(std::string_view)>&)
-                -> std::optional<ModelNode> {
-                ModelNode::Array array;
-                array.reserve(values.size());
-                for (const core::Value& value : values) {
-                    array.emplace_back(value);
-                }
                 return ModelNode::array(std::move(array));
             };
             return prepared;
@@ -2039,7 +1960,11 @@ void LayoutBuilder::applyStandardProperty(
             return;
         }
 
-        if (prop.hasArrayObjectValues()) {
+        auto preparedPropertyNode = preparePropertyNode(
+            prop,
+            scope,
+            "property '" + prop.name + "' on '" + nodeType + "'");
+        if (!preparedPropertyNode.has_value() || !preparedPropertyNode->evaluate) {
             std::ostringstream oss;
             oss << "property '" << prop.name << "' on '" << nodeType
                 << "' expects an array of string-like values at line " << prop.line;
@@ -2047,9 +1972,36 @@ void LayoutBuilder::applyStandardProperty(
             return;
         }
 
-        const std::optional<std::vector<std::string>> items =
-            stringArrayValues(prop.arrayValues);
-        if (!items.has_value()) {
+        const auto applyItems =
+            [weakWidget = std::weak_ptr<ui::Widget>(widget)](const ModelNode& node) {
+            auto lockedWidget = weakWidget.lock();
+            if (!lockedWidget) {
+                return;
+            }
+
+            const std::optional<std::vector<std::string>> items = stringArrayNode(node);
+            if (!items.has_value()) {
+                return;
+            }
+
+            installStringListViewSource(
+                static_cast<ui::ListView&>(*lockedWidget),
+                *items);
+        };
+
+        if (!preparedPropertyNode->dependencyPaths.empty()) {
+            registerComputedNodeBinding(
+                widget,
+                prop.name,
+                std::move(preparedPropertyNode->dependencyPaths),
+                std::move(preparedPropertyNode->evaluate),
+                applyItems);
+            return;
+        }
+
+        const std::optional<ModelNode> propertyNode =
+            preparedPropertyNode->evaluate(viewModel_, {});
+        if (!propertyNode.has_value() || !stringArrayNode(*propertyNode).has_value()) {
             std::ostringstream oss;
             oss << "property '" << prop.name << "' on '" << nodeType
                 << "' expects an array of string-like values at line " << prop.line;
@@ -2057,7 +2009,7 @@ void LayoutBuilder::applyStandardProperty(
             return;
         }
 
-        installStringListViewSource(static_cast<ui::ListView&>(*widget), *items);
+        applyItems(*propertyNode);
         return;
     }
 
@@ -2119,7 +2071,11 @@ void LayoutBuilder::applyStandardProperty(
             return;
         }
 
-        if (prop.hasArrayObjectValues()) {
+        auto preparedPropertyNode = preparePropertyNode(
+            prop,
+            scope,
+            "property '" + prop.name + "' on '" + nodeType + "'");
+        if (!preparedPropertyNode.has_value() || !preparedPropertyNode->evaluate) {
             std::ostringstream oss;
             oss << "property '" << prop.name << "' on '" << nodeType
                 << "' expects an array of string-like values at line " << prop.line;
@@ -2127,9 +2083,34 @@ void LayoutBuilder::applyStandardProperty(
             return;
         }
 
-        const std::optional<std::vector<std::string>> items =
-            stringArrayValues(prop.arrayValues);
-        if (!items.has_value()) {
+        const auto applyItems =
+            [weakWidget = std::weak_ptr<ui::Widget>(widget)](const ModelNode& node) {
+            auto lockedWidget = weakWidget.lock();
+            if (!lockedWidget) {
+                return;
+            }
+
+            const std::optional<std::vector<std::string>> items = stringArrayNode(node);
+            if (!items.has_value()) {
+                return;
+            }
+
+            static_cast<ui::Dropdown&>(*lockedWidget).setItems(*items);
+        };
+
+        if (!preparedPropertyNode->dependencyPaths.empty()) {
+            registerComputedNodeBinding(
+                widget,
+                prop.name,
+                std::move(preparedPropertyNode->dependencyPaths),
+                std::move(preparedPropertyNode->evaluate),
+                applyItems);
+            return;
+        }
+
+        const std::optional<ModelNode> propertyNode =
+            preparedPropertyNode->evaluate(viewModel_, {});
+        if (!propertyNode.has_value() || !stringArrayNode(*propertyNode).has_value()) {
             std::ostringstream oss;
             oss << "property '" << prop.name << "' on '" << nodeType
                 << "' expects an array of string-like values at line " << prop.line;
@@ -2137,7 +2118,7 @@ void LayoutBuilder::applyStandardProperty(
             return;
         }
 
-        static_cast<ui::Dropdown&>(*widget).setItems(*items);
+        applyItems(*propertyNode);
         return;
     }
 

@@ -71,7 +71,7 @@ private:
     AstNode parseElseIfBranch(int line, int column);
     AstNode parseElseBranch(int line, int column);
     AstProperty parseProperty(bool allowImplicitName = false);
-    AstObjectValue parseObjectValueLiteral();
+    std::vector<AstProperty> parseObjectValueLiteral();
     void parseArrayValue(AstProperty& prop);
     std::optional<std::string> parseSwitchCaseExpression();
     core::Value parseValue();

@@ -620,6 +620,12 @@ AstProperty Parser::parseProperty(bool allowImplicitName)
                 return prop;
             }
 
+            if (current_.type == TokenType::LeftBrace) {
+                prop.objectValue = true;
+                prop.objectProperties = parseObjectValueLiteral();
+                return prop;
+            }
+
             if (current_.type == TokenType::LeftBracket) {
                 parseArrayValue(prop);
                 return prop;
@@ -648,7 +654,7 @@ AstProperty Parser::parseProperty(bool allowImplicitName)
 
     if (current_.type == TokenType::LeftBrace) {
         prop.objectValue = true;
-        prop.objectProperties = parseObjectValueLiteral().properties;
+        prop.objectProperties = parseObjectValueLiteral();
         return prop;
     }
 
@@ -673,14 +679,14 @@ AstProperty Parser::parseProperty(bool allowImplicitName)
     return prop;
 }
 
-AstObjectValue Parser::parseObjectValueLiteral()
+std::vector<AstProperty> Parser::parseObjectValueLiteral()
 {
-    AstObjectValue objectValue;
+    std::vector<AstProperty> objectProperties;
     expect(TokenType::LeftBrace, "object property value");
 
     while (current_.type != TokenType::RightBrace
         && current_.type != TokenType::EndOfFile) {
-        objectValue.properties.push_back(parseProperty());
+        objectProperties.push_back(parseProperty());
 
         if (current_.type == TokenType::Comma) {
             current_ = lexer_.next();
@@ -688,39 +694,18 @@ AstObjectValue Parser::parseObjectValueLiteral()
     }
 
     expect(TokenType::RightBrace, "object property value");
-    return objectValue;
+    return objectProperties;
 }
 
 void Parser::parseArrayValue(AstProperty& prop)
 {
     prop.arrayValue = true;
-    prop.arrayValues.clear();
-    prop.arrayObjectValues.clear();
+    prop.arrayItems.clear();
     expect(TokenType::LeftBracket, "array property value");
 
     while (current_.type != TokenType::RightBracket
         && current_.type != TokenType::EndOfFile) {
-        if (current_.type == TokenType::BindingLiteral) {
-            error("binding expressions inside array literals are not supported");
-            current_ = lexer_.next();
-        } else if (current_.type == TokenType::LeftBrace) {
-            if (!prop.arrayValues.empty()) {
-                error("mixed scalar and object array literals are not supported");
-                parseObjectValueLiteral();
-            } else {
-                prop.arrayObjectValues.push_back(parseObjectValueLiteral());
-            }
-        } else if (current_.type == TokenType::LeftBracket) {
-            error("nested array literals are not supported");
-            current_ = lexer_.next();
-        } else {
-            if (prop.hasArrayObjectValues()) {
-                error("mixed scalar and object array literals are not supported");
-                parseValue();
-            } else {
-                prop.arrayValues.push_back(parseValue());
-            }
-        }
+        prop.arrayItems.push_back(parseProperty(true));
 
         if (current_.type == TokenType::Comma) {
             current_ = lexer_.next();

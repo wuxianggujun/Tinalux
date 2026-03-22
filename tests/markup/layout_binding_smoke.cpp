@@ -306,6 +306,64 @@ VBox(id: root) {
 
     {
         const std::string source = R"(
+VBox(id: root, 8) {
+    Dropdown(
+        id: mixedChoice,
+        items: ["North", ${model.middleChoice}, "East"],
+        selectedIndex: ${model.choiceIndex}),
+    ListView(
+        id: mixedList,
+        items: ["Start", ${model.middleItem}, "End"],
+        preferredHeight: 140,
+        selectedIndex: ${model.listIndex})
+}
+)";
+
+        markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "mixed array binding markup should load");
+        expect(result.warnings.empty(), "mixed array binding markup should not emit warnings");
+
+        auto viewModel = markup::ViewModel::create();
+        viewModel->setString("middleChoice", "South");
+        viewModel->setString("middleItem", "Middle");
+        viewModel->setInt("choiceIndex", 1);
+        viewModel->setInt("listIndex", 1);
+        result.handle.bindViewModel(viewModel);
+
+        ui::VBox* root = dynamic_cast<ui::VBox*>(result.handle.root().get());
+        ui::Dropdown* mixedChoice = result.handle.findById<ui::Dropdown>("mixedChoice");
+        ui::ListView* mixedList = result.handle.findById<ui::ListView>("mixedList");
+        expect(root != nullptr, "mixed array binding root should materialize as VBox");
+        expect(mixedChoice != nullptr, "mixed array binding Dropdown should exist");
+        expect(mixedList != nullptr, "mixed array binding ListView should exist");
+        expect(mixedChoice->items().size() == 3, "mixed array literal should materialize all Dropdown items");
+        expect(mixedChoice->selectedItem() == "South", "binding elements inside Dropdown arrays should resolve initial values");
+        expect(mixedList->selectedIndex() == 1, "binding elements inside ListView arrays should preserve initial selection");
+
+        ui::RuntimeState runtime;
+        ui::ScopedRuntimeState scopedRuntime(runtime);
+        root->measure(ui::Constraints::tight(420.0f, 220.0f));
+        root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 420.0f, 220.0f));
+        expect(mixedList->selectedItem() != nullptr, "mixed array binding ListView should realize a selected row");
+
+        viewModel->setString("middleChoice", "West");
+        viewModel->setString("middleItem", "Changed");
+        viewModel->setInt("choiceIndex", 2);
+        viewModel->setInt("listIndex", 2);
+
+        root->measure(ui::Constraints::tight(420.0f, 220.0f));
+        root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 420.0f, 220.0f));
+
+        expect(mixedChoice->items().size() == 3, "mixed array binding Dropdown should keep item count after updates");
+        expect(mixedChoice->items()[1] == "West", "binding elements inside Dropdown arrays should live-update");
+        expect(mixedChoice->selectedIndex() == 2, "mixed array binding Dropdown selection should live-update");
+        expect(mixedChoice->selectedItem() == "East", "mixed array binding Dropdown should stay in sync after updates");
+        expect(mixedList->selectedIndex() == 2, "mixed array binding ListView selection should live-update");
+        expect(mixedList->selectedItem() != nullptr, "mixed array binding ListView should keep a realized selection after updates");
+    }
+
+    {
+        const std::string source = R"(
 VBox(id: root) {
     TextInput(id: summary, text: "共 ${model.count} 条记录"),
     TextInput(id: detail, text: "启用=${model.enabled}, 比例=${model.scale}"),
