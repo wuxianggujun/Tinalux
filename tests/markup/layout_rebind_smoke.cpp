@@ -105,7 +105,7 @@ int main()
 VBox(id: root) {
     if(${model.showQuery}) {
         TextInput(id: queryInput, text: ${model.query}),
-        Button(id: applyButton, text: "Apply")
+        Button(id: applyButton, text: "Apply", onClick: ${model.onApply})
     }
 }
 )";
@@ -115,12 +115,16 @@ VBox(id: root) {
     expect(result.warnings.empty(), "rebind markup should not emit warnings");
     expect(dynamic_cast<ui::VBox*>(result.handle.root().get()) != nullptr, "root should be VBox");
 
-    int applyClicks = 0;
-    result.handle.bindClick("applyButton", [&] { ++applyClicks; });
-
     auto firstViewModel = markup::ViewModel::create();
     firstViewModel->setBool("showQuery", true);
     firstViewModel->setString("query", "first");
+    int applyClicks = 0;
+    firstViewModel->setAction(
+        "onApply",
+        [&](const core::Value& value) {
+            expect(value.isNone(), "button click action should receive an empty payload");
+            ++applyClicks;
+        });
     result.handle.bindViewModel(firstViewModel);
 
     ui::TextInput* queryInput = result.handle.findById<ui::TextInput>("queryInput");
@@ -131,11 +135,17 @@ VBox(id: root) {
     applyButton->setFocused(true);
     core::KeyEvent clickButtonOnce(core::keys::kSpace, 0, 0, core::EventType::KeyPress);
     applyButton->onEvent(clickButtonOnce);
-    expect(applyClicks == 1, "stored click handler should attach when button first appears");
+    expect(applyClicks == 1, "declarative click action should attach when button first appears");
 
     auto secondViewModel = markup::ViewModel::create();
     secondViewModel->setBool("showQuery", true);
     secondViewModel->setString("query", "second");
+    secondViewModel->setAction(
+        "onApply",
+        [&](const core::Value& value) {
+            expect(value.isNone(), "rebound button click action should receive an empty payload");
+            ++applyClicks;
+        });
     result.handle.bindViewModel(secondViewModel);
 
     queryInput = result.handle.findById<ui::TextInput>("queryInput");
@@ -145,7 +155,7 @@ VBox(id: root) {
     expect(applyButton != nullptr, "rebinding should keep apply button materialized");
     applyButton->setFocused(true);
     applyButton->onEvent(clickButtonOnce);
-    expect(applyClicks == 2, "stored click handler should reattach after ViewModel rebinding");
+    expect(applyClicks == 2, "declarative click action should reattach after ViewModel rebinding");
 
     firstViewModel->setString("query", "stale");
     queryInput = result.handle.findById<ui::TextInput>("queryInput");
@@ -199,80 +209,13 @@ VBox(id: root) {
     expect(applyButton != nullptr, "active ViewModel should rematerialize apply button");
     applyButton->setFocused(true);
     applyButton->onEvent(clickButtonOnce);
-    expect(applyClicks == 3, "stored click handler should reattach after structural rebuild");
-
-    {
-        const std::string declarativeInteractionSource = R"(
-VBox(id: root) {
-    if(${model.showAction}) {
-        Button(id: applyAction, text: "Apply", onClick: ${model.onApply})
-    }
-}
-)";
-
-        markup::LoadResult interactionResult = markup::LayoutLoader::load(declarativeInteractionSource, theme);
-        expectLoadOk(interactionResult, "declarative interaction rebind markup should load");
-        expect(interactionResult.warnings.empty(), "declarative interaction rebind markup should not emit warnings");
-
-        int firstActionCalls = 0;
-        int secondActionCalls = 0;
-
-        auto firstActionModel = markup::ViewModel::create();
-        firstActionModel->setBool("showAction", true);
-        firstActionModel->setAction(
-            "onApply",
-            [&](const core::Value& value) {
-                expect(value.isNone(), "declarative button action should receive empty payload");
-                ++firstActionCalls;
-            });
-        interactionResult.handle.bindViewModel(firstActionModel);
-
-        ui::Button* applyAction = interactionResult.handle.findById<ui::Button>("applyAction");
-        expect(applyAction != nullptr, "first declarative action ViewModel should materialize button");
-        applyAction->setFocused(true);
-        applyAction->onEvent(clickButtonOnce);
-        expect(firstActionCalls == 1, "first declarative action ViewModel should receive button click");
-
-        auto secondActionModel = markup::ViewModel::create();
-        secondActionModel->setBool("showAction", true);
-        secondActionModel->setAction(
-            "onApply",
-            [&](const core::Value& value) {
-                expect(value.isNone(), "rebound declarative button action should receive empty payload");
-                ++secondActionCalls;
-            });
-        interactionResult.handle.bindViewModel(secondActionModel);
-
-        applyAction = interactionResult.handle.findById<ui::Button>("applyAction");
-        expect(applyAction != nullptr, "rebinding should rematerialize declarative action button");
-        applyAction->setFocused(true);
-        applyAction->onEvent(clickButtonOnce);
-        expect(firstActionCalls == 1, "stale declarative action should detach after rebinding");
-        expect(secondActionCalls == 1, "active declarative action should attach after rebinding");
-
-        firstActionModel->setBool("showAction", false);
-        expect(
-            interactionResult.handle.findById<ui::Button>("applyAction") != nullptr,
-            "stale declarative action ViewModel should not remove active button");
-
-        secondActionModel->setBool("showAction", false);
-        expect(
-            interactionResult.handle.findById<ui::Button>("applyAction") == nullptr,
-            "active declarative action ViewModel should still control structural rebuilds");
-
-        secondActionModel->setBool("showAction", true);
-        applyAction = interactionResult.handle.findById<ui::Button>("applyAction");
-        expect(applyAction != nullptr, "active declarative action ViewModel should rematerialize button");
-        applyAction->setFocused(true);
-        applyAction->onEvent(clickButtonOnce);
-        expect(secondActionCalls == 2, "rematerialized declarative action button should keep active handler");
-    }
+    expect(applyClicks == 3, "declarative click action should reattach after structural rebuild");
 
     {
         const std::string scrollSource = R"(
 VBox(id: root) {
     if(${model.showScroller}) {
-        ScrollView(id: activity, preferredHeight: 72) {
+        ScrollView(id: activity, preferredHeight: 72, onScrollChanged: ${model.onScroll}) {
             VBox(id: feed, 6) {
                 Label("One"),
                 Label("Two"),
@@ -296,13 +239,15 @@ VBox(id: root) {
 
         int scrollEvents = 0;
         float lastOffset = 0.0f;
-        scrollResult.handle.bindScrollChanged("activity", [&](float offset) {
-            ++scrollEvents;
-            lastOffset = offset;
-        });
-
         auto firstScrollModel = markup::ViewModel::create();
         firstScrollModel->setBool("showScroller", true);
+        firstScrollModel->setAction(
+            "onScroll",
+            [&](const core::Value& value) {
+                expect(value.type() == core::ValueType::Float, "scroll action should receive a float payload");
+                ++scrollEvents;
+                lastOffset = value.asFloat();
+            });
         scrollResult.handle.bindViewModel(firstScrollModel);
 
         ui::VBox* root = dynamic_cast<ui::VBox*>(scrollResult.handle.root().get());
@@ -315,11 +260,18 @@ VBox(id: root) {
 
         core::MouseScrollEvent scrollDown(0.0, -2.0);
         expect(activity->onEvent(scrollDown), "scroll interaction should handle mouse scroll after first bind");
-        expect(scrollEvents == 1, "stored scroll handler should attach when ScrollView first appears");
-        expect(nearlyEqual(lastOffset, activity->scrollOffset()), "scroll callback should mirror the live scrollOffset");
+        expect(scrollEvents == 1, "declarative scroll action should attach when ScrollView first appears");
+        expect(nearlyEqual(lastOffset, activity->scrollOffset()), "scroll action should mirror the live scrollOffset");
 
         auto secondScrollModel = markup::ViewModel::create();
         secondScrollModel->setBool("showScroller", true);
+        secondScrollModel->setAction(
+            "onScroll",
+            [&](const core::Value& value) {
+                expect(value.type() == core::ValueType::Float, "rebound scroll action should receive a float payload");
+                ++scrollEvents;
+                lastOffset = value.asFloat();
+            });
         scrollResult.handle.bindViewModel(secondScrollModel);
 
         root = dynamic_cast<ui::VBox*>(scrollResult.handle.root().get());
@@ -328,7 +280,7 @@ VBox(id: root) {
         root->measure(ui::Constraints::tight(240.0f, 160.0f));
         root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 240.0f, 160.0f));
         activity->onEvent(scrollDown);
-        expect(scrollEvents == 2, "stored scroll handler should reattach after ViewModel rebinding");
+        expect(scrollEvents == 2, "declarative scroll action should reattach after ViewModel rebinding");
         expect(nearlyEqual(lastOffset, activity->scrollOffset()), "rebuilt ScrollView should report the active scrollOffset");
 
         secondScrollModel->setBool("showScroller", false);
@@ -343,15 +295,20 @@ VBox(id: root) {
         root->measure(ui::Constraints::tight(240.0f, 160.0f));
         root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 240.0f, 160.0f));
         activity->onEvent(scrollDown);
-        expect(scrollEvents == 3, "stored scroll handler should reattach after structural rebuild");
-        expect(nearlyEqual(lastOffset, activity->scrollOffset()), "rematerialized ScrollView should keep scroll callback payloads in sync");
+        expect(scrollEvents == 3, "declarative scroll action should reattach after structural rebuild");
+        expect(nearlyEqual(lastOffset, activity->scrollOffset()), "rematerialized ScrollView should keep scroll action payloads in sync");
     }
 
     {
         const std::string pickerSource = R"(
 VBox(id: root) {
     if(${model.showPicker}) {
-        Dropdown(id: choice, items: ${model.choices}, placeholder: "Pick", selectedIndex: ${model.choiceIndex})
+        Dropdown(
+            id: choice,
+            items: ${model.choices},
+            placeholder: "Pick",
+            selectedIndex: ${model.choiceIndex},
+            onSelectionChanged: ${model.onChoiceChanged})
     }
 }
 )";
@@ -364,12 +321,25 @@ VBox(id: root) {
         firstPickerModel->setBool("showPicker", true);
         firstPickerModel->setArray("choices", {stringNode("Zero"), stringNode("One"), stringNode("Two")});
         firstPickerModel->setInt("choiceIndex", 2);
+        int firstPickerEvents = 0;
+        int secondPickerEvents = 0;
+        int lastChoicePayload = -1;
+        firstPickerModel->setAction(
+            "onChoiceChanged",
+            [&](const core::Value& value) {
+                expect(value.type() == core::ValueType::Int, "dropdown action should receive an int payload");
+                ++firstPickerEvents;
+                lastChoicePayload = value.asInt();
+            });
         pickerResult.handle.bindViewModel(firstPickerModel);
 
         ui::Dropdown* choice = pickerResult.handle.findById<ui::Dropdown>("choice");
         expect(choice != nullptr, "first dropdown ViewModel should materialize Dropdown");
         expect(choice->items().size() == 3, "first dropdown ViewModel should seed items");
         expect(choice->selectedItem() == "Two", "first dropdown ViewModel should seed selected item");
+        choice->setSelectedIndex(0);
+        expect(firstPickerEvents == 1, "declarative dropdown action should attach when widget first appears");
+        expect(lastChoicePayload == 0, "dropdown action should forward the selected index payload");
 
         auto secondPickerModel = markup::ViewModel::create();
         secondPickerModel->setBool("showPicker", true);
@@ -377,12 +347,23 @@ VBox(id: root) {
             "choices",
             {stringNode("North"), stringNode("South"), stringNode("East"), stringNode("West")});
         secondPickerModel->setInt("choiceIndex", 1);
+        secondPickerModel->setAction(
+            "onChoiceChanged",
+            [&](const core::Value& value) {
+                expect(value.type() == core::ValueType::Int, "rebound dropdown action should receive an int payload");
+                ++secondPickerEvents;
+                lastChoicePayload = value.asInt();
+            });
         pickerResult.handle.bindViewModel(secondPickerModel);
 
         choice = pickerResult.handle.findById<ui::Dropdown>("choice");
         expect(choice != nullptr, "rebinding should keep dropdown materialized");
         expect(choice->items().size() == 4, "rebinding should refresh dropdown items from second ViewModel");
         expect(choice->selectedItem() == "South", "rebinding should refresh dropdown selection from second ViewModel");
+        choice->setSelectedIndex(3);
+        expect(firstPickerEvents == 1, "stale dropdown action should detach after rebinding");
+        expect(secondPickerEvents == 1, "active dropdown action should attach after rebinding");
+        expect(lastChoicePayload == 3, "rebound dropdown action should receive the new selected index");
 
         firstPickerModel->setArray("choices", {stringNode("Stale"), stringNode("Data")});
         firstPickerModel->setInt("choiceIndex", 0);
@@ -390,7 +371,7 @@ VBox(id: root) {
         choice = pickerResult.handle.findById<ui::Dropdown>("choice");
         expect(choice != nullptr, "stale ViewModel should not remove active dropdown");
         expect(choice->items().size() == 4, "stale ViewModel should not mutate active dropdown items");
-        expect(choice->selectedItem() == "South", "stale ViewModel should not mutate active dropdown selection");
+        expect(choice->selectedItem() == "West", "stale ViewModel should not mutate active dropdown selection");
 
         secondPickerModel->setArray("choices", {stringNode("Red"), stringNode("Green")});
         secondPickerModel->setInt("choiceIndex", 0);
@@ -416,14 +397,26 @@ VBox(id: root) {
         expect(choice != nullptr, "active ViewModel should rematerialize dropdown after structural rebuild");
         expect(choice->items().size() == 3, "rematerialized dropdown should receive latest items");
         expect(choice->selectedItem() == "Gamma", "rematerialized dropdown should receive latest selected item");
+        const int pickerEventsBeforeRematerializedSelection = secondPickerEvents;
+        choice->setSelectedIndex(1);
+        expect(
+            secondPickerEvents == pickerEventsBeforeRematerializedSelection + 1,
+            "rematerialized dropdown should keep the active declarative action");
+        expect(lastChoicePayload == 1, "rematerialized dropdown action should keep forwarding payloads");
     }
 
     {
         const std::string interactionSource = R"(
 VBox(id: root) {
     if(${model.showControls}) {
-        TextInput(id: searchInput, text: ${model.query}),
-        Dialog(id: confirmDialog, "Confirm") {
+        TextInput(
+            id: searchInput,
+            text: ${model.query},
+            leadingIcon: Search,
+            trailingIcon: Clear,
+            onLeadingIconClick: ${model.onLeadingIconClick},
+            onTrailingIconClick: ${model.onTrailingIconClick}),
+        Dialog(id: confirmDialog, "Confirm", onDismiss: ${model.onDismiss}) {
             Panel(id: dialogBody)
         }
     }
@@ -437,13 +430,27 @@ VBox(id: root) {
         int leadingClicks = 0;
         int trailingClicks = 0;
         int dismissCount = 0;
-        interactionResult.handle.bindLeadingIconClick("searchInput", [&] { ++leadingClicks; });
-        interactionResult.handle.bindTrailingIconClick("searchInput", [&] { ++trailingClicks; });
-        interactionResult.handle.bindDismiss("confirmDialog", [&] { ++dismissCount; });
-
         auto firstInteractionModel = markup::ViewModel::create();
         firstInteractionModel->setBool("showControls", true);
         firstInteractionModel->setString("query", "first");
+        firstInteractionModel->setAction(
+            "onLeadingIconClick",
+            [&](const core::Value& value) {
+                expect(value.isNone(), "leading icon action should receive an empty payload");
+                ++leadingClicks;
+            });
+        firstInteractionModel->setAction(
+            "onTrailingIconClick",
+            [&](const core::Value& value) {
+                expect(value.isNone(), "trailing icon action should receive an empty payload");
+                ++trailingClicks;
+            });
+        firstInteractionModel->setAction(
+            "onDismiss",
+            [&](const core::Value& value) {
+                expect(value.isNone(), "dismiss action should receive an empty payload");
+                ++dismissCount;
+            });
         interactionResult.handle.bindViewModel(firstInteractionModel);
 
         ui::TextInput* searchInput = interactionResult.handle.findById<ui::TextInput>("searchInput");
@@ -464,7 +471,7 @@ VBox(id: root) {
             core::EventType::MouseButtonRelease);
         expect(searchInput->onEvent(leadingPress), "leading icon press should be handled after first bind");
         expect(searchInput->onEvent(leadingRelease), "leading icon release should be handled after first bind");
-        expect(leadingClicks == 1, "stored leading icon handler should attach when widget first appears");
+        expect(leadingClicks == 1, "declarative leading icon action should attach when widget first appears");
 
         core::MouseButtonEvent trailingPress(
             core::mouse::kLeft,
@@ -480,17 +487,35 @@ VBox(id: root) {
             core::EventType::MouseButtonRelease);
         expect(searchInput->onEvent(trailingPress), "trailing icon press should be handled after first bind");
         expect(searchInput->onEvent(trailingRelease), "trailing icon release should be handled after first bind");
-        expect(trailingClicks == 1, "stored trailing icon handler should attach when widget first appears");
+        expect(trailingClicks == 1, "declarative trailing icon action should attach when widget first appears");
 
         ui::Dialog* confirmDialog = interactionResult.handle.findById<ui::Dialog>("confirmDialog");
         expect(confirmDialog != nullptr, "first interaction ViewModel should materialize dialog");
         core::KeyEvent escape(core::keys::kEscape, 0, 0, core::EventType::KeyPress);
         expect(confirmDialog->onEvent(escape), "dialog escape key should be handled after first bind");
-        expect(dismissCount == 1, "stored dismiss handler should attach when dialog first appears");
+        expect(dismissCount == 1, "declarative dismiss action should attach when dialog first appears");
 
         auto secondInteractionModel = markup::ViewModel::create();
         secondInteractionModel->setBool("showControls", true);
         secondInteractionModel->setString("query", "second");
+        secondInteractionModel->setAction(
+            "onLeadingIconClick",
+            [&](const core::Value& value) {
+                expect(value.isNone(), "rebound leading icon action should receive an empty payload");
+                ++leadingClicks;
+            });
+        secondInteractionModel->setAction(
+            "onTrailingIconClick",
+            [&](const core::Value& value) {
+                expect(value.isNone(), "rebound trailing icon action should receive an empty payload");
+                ++trailingClicks;
+            });
+        secondInteractionModel->setAction(
+            "onDismiss",
+            [&](const core::Value& value) {
+                expect(value.isNone(), "rebound dismiss action should receive an empty payload");
+                ++dismissCount;
+            });
         interactionResult.handle.bindViewModel(secondInteractionModel);
 
         searchInput = interactionResult.handle.findById<ui::TextInput>("searchInput");
@@ -500,13 +525,13 @@ VBox(id: root) {
         searchInput->onEvent(leadingRelease);
         searchInput->onEvent(trailingPress);
         searchInput->onEvent(trailingRelease);
-        expect(leadingClicks == 2, "stored leading icon handler should reattach after ViewModel rebinding");
-        expect(trailingClicks == 2, "stored trailing icon handler should reattach after ViewModel rebinding");
+        expect(leadingClicks == 2, "declarative leading icon action should reattach after ViewModel rebinding");
+        expect(trailingClicks == 2, "declarative trailing icon action should reattach after ViewModel rebinding");
 
         confirmDialog = interactionResult.handle.findById<ui::Dialog>("confirmDialog");
         expect(confirmDialog != nullptr, "rebinding should rematerialize dialog");
         confirmDialog->onEvent(escape);
-        expect(dismissCount == 2, "stored dismiss handler should reattach after ViewModel rebinding");
+        expect(dismissCount == 2, "declarative dismiss action should reattach after ViewModel rebinding");
 
         secondInteractionModel->setBool("showControls", false);
         expect(
@@ -528,9 +553,9 @@ VBox(id: root) {
         searchInput->onEvent(trailingPress);
         searchInput->onEvent(trailingRelease);
         confirmDialog->onEvent(escape);
-        expect(leadingClicks == 3, "stored leading icon handler should reattach after structural rebuild");
-        expect(trailingClicks == 3, "stored trailing icon handler should reattach after structural rebuild");
-        expect(dismissCount == 3, "stored dismiss handler should reattach after structural rebuild");
+        expect(leadingClicks == 3, "declarative leading icon action should reattach after structural rebuild");
+        expect(trailingClicks == 3, "declarative trailing icon action should reattach after structural rebuild");
+        expect(dismissCount == 3, "declarative dismiss action should reattach after structural rebuild");
     }
 
     return 0;

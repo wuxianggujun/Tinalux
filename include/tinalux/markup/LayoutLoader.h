@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -57,16 +56,6 @@ public:
         return dynamic_cast<W*>(it->second.get());
     }
 
-    void bindClick(const std::string& id, std::function<void()> handler);
-    void bindDismiss(const std::string& id, std::function<void()> handler);
-    void bindToggle(const std::string& id, std::function<void(bool)> handler);
-    void bindTextChanged(const std::string& id, std::function<void(const std::string&)> handler);
-    void bindLeadingIconClick(const std::string& id, std::function<void()> handler);
-    void bindTrailingIconClick(const std::string& id, std::function<void()> handler);
-    void bindValueChanged(const std::string& id, std::function<void(float)> handler);
-    void bindScrollChanged(const std::string& id, std::function<void(float)> handler);
-    void bindSelectionChanged(const std::string& id, std::function<void(int)> handler);
-
 private:
     bool applyBindingNow(const detail::BindingDescriptor& binding);
     void clearValueListeners();
@@ -82,10 +71,6 @@ private:
     void handleWidgetDependencyChange(std::string_view path);
     void rebuildBoundLayout();
     void flushDeferredRebuild();
-    void bindInteraction(
-        const std::string& id,
-        std::string_view interactionName,
-        core::InteractionHandler handler);
     void rebuildFromTemplate();
     void refreshInteractionBindings();
     void refreshWidgetInteractionBindings(ui::Widget& widget);
@@ -114,8 +99,6 @@ private:
     std::shared_ptr<std::uint64_t> bindingGeneration_ = std::make_shared<std::uint64_t>(0);
     std::shared_ptr<detail::LayoutHandleState> runtimeState_;
     std::vector<detail::InteractionBindingDescriptor> interactionBindings_;
-    std::unordered_map<std::string, std::unordered_map<std::string, core::InteractionHandler>>
-        interactionHandlers_;
 };
 
 struct LoadResult {

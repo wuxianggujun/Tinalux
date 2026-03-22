@@ -401,7 +401,6 @@ LayoutHandle::LayoutHandle(LayoutHandle&& other) noexcept
     , bindingGeneration_(std::move(other.bindingGeneration_))
     , runtimeState_(std::move(other.runtimeState_))
     , interactionBindings_(std::move(other.interactionBindings_))
-    , interactionHandlers_(std::move(other.interactionHandlers_))
 {
     if (!bindingGeneration_) {
         bindingGeneration_ = std::make_shared<std::uint64_t>(0);
@@ -442,7 +441,6 @@ LayoutHandle& LayoutHandle::operator=(LayoutHandle&& other) noexcept
     bindingGeneration_ = std::move(other.bindingGeneration_);
     runtimeState_ = std::move(other.runtimeState_);
     interactionBindings_ = std::move(other.interactionBindings_);
-    interactionHandlers_ = std::move(other.interactionHandlers_);
 
     if (!bindingGeneration_) {
         bindingGeneration_ = std::make_shared<std::uint64_t>(0);
@@ -502,127 +500,6 @@ void LayoutHandle::bindViewModel(const std::shared_ptr<ViewModel>& viewModel)
 std::shared_ptr<ViewModel> LayoutHandle::viewModel() const
 {
     return viewModel_;
-}
-
-void LayoutHandle::bindClick(const std::string& id, std::function<void()> handler)
-{
-    bindInteraction(
-        id,
-        "click",
-        [handler = std::move(handler)](const core::Value&) {
-            if (handler) {
-                handler();
-            }
-        });
-}
-
-void LayoutHandle::bindDismiss(const std::string& id, std::function<void()> handler)
-{
-    bindInteraction(
-        id,
-        "dismiss",
-        [handler = std::move(handler)](const core::Value&) {
-            if (handler) {
-                handler();
-            }
-        });
-}
-
-void LayoutHandle::bindToggle(const std::string& id, std::function<void(bool)> handler)
-{
-    bindInteraction(
-        id,
-        "toggle",
-        [handler = std::move(handler)](const core::Value& value) {
-            if (handler) {
-                handler(value.asBool());
-            }
-        });
-}
-
-void LayoutHandle::bindTextChanged(const std::string& id, std::function<void(const std::string&)> handler)
-{
-    bindInteraction(
-        id,
-        "textChanged",
-        [handler = std::move(handler)](const core::Value& value) {
-            if (handler) {
-                handler(value.asString());
-            }
-        });
-}
-
-void LayoutHandle::bindLeadingIconClick(const std::string& id, std::function<void()> handler)
-{
-    bindInteraction(
-        id,
-        "leadingIconClick",
-        [handler = std::move(handler)](const core::Value&) {
-            if (handler) {
-                handler();
-            }
-        });
-}
-
-void LayoutHandle::bindTrailingIconClick(const std::string& id, std::function<void()> handler)
-{
-    bindInteraction(
-        id,
-        "trailingIconClick",
-        [handler = std::move(handler)](const core::Value&) {
-            if (handler) {
-                handler();
-            }
-        });
-}
-
-void LayoutHandle::bindValueChanged(const std::string& id, std::function<void(float)> handler)
-{
-    bindInteraction(
-        id,
-        "valueChanged",
-        [handler = std::move(handler)](const core::Value& value) {
-            if (handler) {
-                handler(value.asFloat());
-            }
-        });
-}
-
-void LayoutHandle::bindScrollChanged(const std::string& id, std::function<void(float)> handler)
-{
-    bindInteraction(
-        id,
-        "scrollChanged",
-        [handler = std::move(handler)](const core::Value& value) {
-            if (handler) {
-                handler(value.asFloat());
-            }
-        });
-}
-
-void LayoutHandle::bindSelectionChanged(const std::string& id, std::function<void(int)> handler)
-{
-    bindInteraction(
-        id,
-        "selectionChanged",
-        [handler = std::move(handler)](const core::Value& value) {
-            if (handler) {
-                handler(value.asInt());
-            }
-        });
-}
-
-void LayoutHandle::bindInteraction(
-    const std::string& id,
-    std::string_view interactionName,
-    core::InteractionHandler handler)
-{
-    interactionHandlers_[id][std::string(interactionName)] = std::move(handler);
-
-    auto widgetIt = idMap_.find(id);
-    if (widgetIt != idMap_.end() && widgetIt->second != nullptr) {
-        refreshWidgetInteractionBindings(*widgetIt->second);
-    }
 }
 
 bool LayoutHandle::applyBindingNow(const detail::BindingDescriptor& binding)
@@ -936,15 +813,6 @@ void LayoutHandle::refreshInteractionBinding(
         ? nullptr
         : findBinding(&widget, interaction.boundProperty);
 
-    core::InteractionHandler userHandler;
-    const auto widgetHandlersIt = interactionHandlers_.find(widget.id());
-    if (widgetHandlersIt != interactionHandlers_.end()) {
-        const auto handlerIt = widgetHandlersIt->second.find(interaction.name);
-        if (handlerIt != widgetHandlersIt->second.end()) {
-            userHandler = handlerIt->second;
-        }
-    }
-
     const detail::InteractionBindingDescriptor* declarativeBinding =
         findInteractionBinding(&widget, interaction.name);
     const std::string path = binding ? binding->writeBackPath : std::string();
@@ -964,8 +832,7 @@ void LayoutHandle::refreshInteractionBinding(
 
     interaction.bind(
         widget,
-        [userHandler = std::move(userHandler),
-            path,
+        [path,
             changedPath,
             evaluateActionNode = std::move(evaluateActionNode),
             payloadType,
@@ -975,10 +842,6 @@ void LayoutHandle::refreshInteractionBinding(
             weakState](const core::Value& value) {
             if (payloadType != core::ValueType::None && value.type() != payloadType) {
                 return;
-            }
-
-            if (userHandler) {
-                userHandler(value);
             }
 
             if (!generationState || *generationState != generation) {

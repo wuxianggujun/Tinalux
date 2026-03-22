@@ -200,6 +200,50 @@ TextInput(text: "启用=${model.enabled}, 比例=${model.scale}")
 - 不能写成 `${model.prefix + model.suffix}` 这种普通表达式
 - `ViewModel` 侧需要提供 action 节点
 
+声明式事件绑定的写法就是：
+
+```tui
+Button(text: "登录", onClick: ${model.onLoginClicked})
+TextInput(
+    text: ${model.query},
+    onTextChanged: ${model.onQueryChanged},
+    onLeadingIconClick: ${model.onSearchClicked})
+```
+
+对应的 C++ `ViewModel` 写法：
+
+```cpp
+viewModel->setAction(
+    "onLoginClicked",
+    [](const core::Value& value) {
+        // Button / Dialog / 图标点击这类无 payload 事件会收到空值
+    });
+
+viewModel->setAction(
+    "onQueryChanged",
+    [](const core::Value& value) {
+        // TextInput.onTextChanged 会收到 string payload
+        const std::string text = value.asString();
+    });
+```
+
+当前已经接通的事件属性包括：
+
+- `Button.onClick`
+- `TextInput.onTextChanged`
+- `TextInput.onSelectedTextChanged`
+- `TextInput.onLeadingIconClick`
+- `TextInput.onTrailingIconClick`
+- `Dropdown.onSelectionChanged`
+- `Checkbox.onToggle`
+- `Toggle.onToggle`
+- `Radio.onChanged`
+- `Slider.onValueChanged`
+- `ScrollView.onScrollChanged`
+- `ListView.onSelectionChanged`
+- `Dialog.onDismiss`
+- `RichText` span 对象里的 `onClick`
+
 ## 8. `id.property` 引用
 
 当前普通属性绑定和样式绑定里，已经可以直接读取别的控件状态：

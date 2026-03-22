@@ -86,7 +86,10 @@ int main()
 component ActionField(value: ""): TextInput(text: value)
 VBox(id: root) {
     if(${model.showAdvanced}) {
-        TextInput(id: advancedQuery, text: ${model.advancedQuery})
+        TextInput(
+            id: advancedQuery,
+            text: ${model.advancedQuery},
+            onTextChanged: ${model.onAdvancedQueryChanged})
     },
     for(item in ${model.actions}) {
         if(${item.visible && model.showVisibleActions}) {
@@ -103,14 +106,16 @@ VBox(id: root) {
 
     int advancedTextEvents = 0;
     std::string lastAdvancedText;
-    result.handle.bindTextChanged(
-        "advancedQuery",
-        [&](const std::string& text) {
-            ++advancedTextEvents;
-            lastAdvancedText = text;
-        });
-
     auto viewModel = markup::ViewModel::create();
+    viewModel->setAction(
+        "onAdvancedQueryChanged",
+        [&](const core::Value& value) {
+            expect(
+                value.type() == core::ValueType::String,
+                "advanced input action should receive a string payload");
+            ++advancedTextEvents;
+            lastAdvancedText = value.asString();
+        });
     viewModel->setBool("showAdvanced", false);
     viewModel->setBool("showVisibleActions", true);
     viewModel->setString("advancedQuery", "hidden");

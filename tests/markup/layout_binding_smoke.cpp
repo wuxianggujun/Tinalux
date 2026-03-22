@@ -481,6 +481,174 @@ VBox(id: root) {
 
     {
         const std::string source = R"(
+VBox(id: root, 8) {
+    Checkbox(id: subscribe, label: "Subscribe", checked: ${model.subscribe}, onToggle: ${model.onSubscribeChanged}),
+    Toggle(id: syncToggle, label: "Sync", on: ${model.syncEnabled}, onToggle: ${model.onSyncChanged}),
+    Slider(id: volumeControl, min: 0, max: 10, step: 0.5, value: ${model.volume}, onValueChanged: ${model.onVolumeChanged}),
+    ListView(
+        id: inboxSelection,
+        items: ["One", "Two", "Three"],
+        selectedIndex: ${model.selectedRow},
+        preferredHeight: 120,
+        onSelectionChanged: ${model.onRowChanged}),
+    Radio(id: modeA, label: "Mode A", group: "mode", selected: ${model.modeASelected}, onChanged: ${model.onModeAChanged})
+}
+)";
+
+        markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "declarative selection control interaction markup should load");
+        expect(result.warnings.empty(), "declarative selection control interaction markup should not emit warnings");
+
+        auto viewModel = markup::ViewModel::create();
+        int subscribeEvents = 0;
+        int syncEvents = 0;
+        int volumeEvents = 0;
+        int rowEvents = 0;
+        int radioEvents = 0;
+        bool subscribePayload = false;
+        bool subscribeMirroredValue = false;
+        bool syncPayload = false;
+        bool syncMirroredValue = false;
+        float volumePayload = 0.0f;
+        float volumeMirroredValue = 0.0f;
+        int rowPayload = -1;
+        int rowMirroredValue = -1;
+        bool radioPayload = false;
+        bool radioMirroredValue = false;
+        viewModel->setBool("subscribe", false);
+        viewModel->setBool("syncEnabled", false);
+        viewModel->setFloat("volume", 2.0f);
+        viewModel->setInt("selectedRow", 0);
+        viewModel->setBool("modeASelected", false);
+        viewModel->setAction(
+            "onSubscribeChanged",
+            [viewModel,
+                &subscribeEvents,
+                &subscribePayload,
+                &subscribeMirroredValue](const core::Value& value) {
+                expect(value.type() == core::ValueType::Bool, "checkbox action should receive a bool payload");
+                ++subscribeEvents;
+                subscribePayload = value.asBool();
+                const core::Value* mirroredValue = viewModel->findValue("subscribe");
+                subscribeMirroredValue = mirroredValue != nullptr && mirroredValue->asBool();
+            });
+        viewModel->setAction(
+            "onSyncChanged",
+            [viewModel,
+                &syncEvents,
+                &syncPayload,
+                &syncMirroredValue](const core::Value& value) {
+                expect(value.type() == core::ValueType::Bool, "toggle action should receive a bool payload");
+                ++syncEvents;
+                syncPayload = value.asBool();
+                const core::Value* mirroredValue = viewModel->findValue("syncEnabled");
+                syncMirroredValue = mirroredValue != nullptr && mirroredValue->asBool();
+            });
+        viewModel->setAction(
+            "onVolumeChanged",
+            [viewModel,
+                &volumeEvents,
+                &volumePayload,
+                &volumeMirroredValue](const core::Value& value) {
+                expect(value.type() == core::ValueType::Float, "slider action should receive a float payload");
+                ++volumeEvents;
+                volumePayload = value.asFloat();
+                const core::Value* mirroredValue = viewModel->findValue("volume");
+                volumeMirroredValue = mirroredValue != nullptr ? mirroredValue->asFloat() : 0.0f;
+            });
+        viewModel->setAction(
+            "onRowChanged",
+            [viewModel,
+                &rowEvents,
+                &rowPayload,
+                &rowMirroredValue](const core::Value& value) {
+                expect(value.type() == core::ValueType::Int, "list selection action should receive an int payload");
+                ++rowEvents;
+                rowPayload = value.asInt();
+                const core::Value* mirroredValue = viewModel->findValue("selectedRow");
+                rowMirroredValue = mirroredValue != nullptr ? mirroredValue->asInt() : -1;
+            });
+        viewModel->setAction(
+            "onModeAChanged",
+            [viewModel,
+                &radioEvents,
+                &radioPayload,
+                &radioMirroredValue](const core::Value& value) {
+                expect(value.type() == core::ValueType::Bool, "radio action should receive a bool payload");
+                ++radioEvents;
+                radioPayload = value.asBool();
+                const core::Value* mirroredValue = viewModel->findValue("modeASelected");
+                radioMirroredValue = mirroredValue != nullptr && mirroredValue->asBool();
+            });
+        result.handle.bindViewModel(viewModel);
+
+        ui::VBox* root = dynamic_cast<ui::VBox*>(result.handle.root().get());
+        ui::Checkbox* subscribe = result.handle.findById<ui::Checkbox>("subscribe");
+        ui::Toggle* syncToggle = result.handle.findById<ui::Toggle>("syncToggle");
+        ui::Slider* volumeControl = result.handle.findById<ui::Slider>("volumeControl");
+        ui::ListView* inboxSelection = result.handle.findById<ui::ListView>("inboxSelection");
+        ui::Radio* modeA = result.handle.findById<ui::Radio>("modeA");
+
+        expect(root != nullptr, "declarative selection control root should materialize as VBox");
+        expect(subscribe != nullptr, "declarative checkbox should exist");
+        expect(syncToggle != nullptr, "declarative toggle should exist");
+        expect(volumeControl != nullptr, "declarative slider should exist");
+        expect(inboxSelection != nullptr, "declarative ListView should exist");
+        expect(modeA != nullptr, "declarative radio should exist");
+
+        ui::RuntimeState runtime;
+        ui::ScopedRuntimeState scopedRuntime(runtime);
+        root->measure(ui::Constraints::tight(320.0f, 320.0f));
+        root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 320.0f, 320.0f));
+
+        subscribeEvents = 0;
+        syncEvents = 0;
+        volumeEvents = 0;
+        rowEvents = 0;
+        radioEvents = 0;
+        subscribePayload = false;
+        subscribeMirroredValue = false;
+        syncPayload = false;
+        syncMirroredValue = false;
+        volumePayload = 0.0f;
+        volumeMirroredValue = 0.0f;
+        rowPayload = -1;
+        rowMirroredValue = -1;
+        radioPayload = false;
+        radioMirroredValue = false;
+
+        subscribe->setChecked(true);
+        expect(subscribeEvents == 1, "declarative checkbox action should fire once");
+        expect(subscribePayload, "declarative checkbox action should forward the checked payload");
+        expect(subscribeMirroredValue, "declarative checkbox action should observe the updated bound value");
+
+        syncToggle->setOn(true);
+        expect(syncEvents == 1, "declarative toggle action should fire once");
+        expect(syncPayload, "declarative toggle action should forward the on payload");
+        expect(syncMirroredValue, "declarative toggle action should observe the updated bound value");
+
+        volumeControl->setValue(7.5f);
+        expect(volumeEvents == 1, "declarative slider action should fire once");
+        expect(nearlyEqual(volumePayload, 7.5f), "declarative slider action should forward the slider value");
+        expect(
+            nearlyEqual(volumeMirroredValue, 7.5f),
+            "declarative slider action should observe the updated bound value");
+
+        inboxSelection->setSelectedIndex(2);
+        expect(rowEvents == 1, "declarative ListView action should fire once");
+        expect(rowPayload == 2, "declarative ListView action should forward the selected index");
+        expect(rowMirroredValue == 2, "declarative ListView action should observe the updated bound value");
+
+        modeA->setFocused(true);
+        core::KeyEvent selectRadio(core::keys::kSpace, 0, 0, core::EventType::KeyPress);
+        expect(modeA->onEvent(selectRadio), "declarative radio should handle keyboard selection");
+        expect(radioEvents == 1, "declarative radio action should fire once");
+        expect(radioPayload, "declarative radio action should forward the selected payload");
+        expect(radioMirroredValue, "declarative radio action should observe the updated bound value");
+    }
+
+    {
+        const std::string source = R"(
 VBox(id: root, 10) {
     ListView(id: inbox, items: ${model.entries}, selectedIndex: ${model.selected}, preferredHeight: 180),
     RichText(id: summary, spans: ${model.summarySpans})
