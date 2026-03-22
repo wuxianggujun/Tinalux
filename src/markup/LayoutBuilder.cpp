@@ -1757,14 +1757,6 @@ void LayoutBuilder::applyStyleProperties(
         const AstProperty resolvedStyleProp = resolveScopedProperty(styleProp, scope);
 
         if (resolvedStyleProp.name == "style") {
-            if (resolvedStyleProp.hasBinding()) {
-                std::ostringstream oss;
-                oss << "dynamic style references are not supported in " << context
-                    << " at line " << resolvedStyleProp.line;
-                warnings_.push_back(oss.str());
-                continue;
-            }
-
             if (resolvedStyleProp.hasObjectValue()) {
                 applyStyleProperties(
                     widget,
@@ -1837,6 +1829,39 @@ void LayoutBuilder::applyNamedStyle(
     const AstProperty& prop,
     const ScopeBindings& scope)
 {
+    const auto applyResolvedStyleName = [this, &widget, &nodeType, &prop, &scope](
+                                            const std::string& styleName) {
+        const auto it = styleMap_.find(styleName);
+        if (it == styleMap_.end()) {
+            std::ostringstream oss;
+            oss << "unknown style '" << styleName << "' on '" << nodeType
+                << "' at line " << prop.line;
+            warnings_.push_back(oss.str());
+            return;
+        }
+
+        const AstStyleDefinition& style = it->second;
+        if (style.targetType != nodeType) {
+            std::ostringstream oss;
+            oss << "style '" << style.name << "' targets '" << style.targetType
+                << "' but was applied to '" << nodeType << "' at line " << prop.line;
+            warnings_.push_back(oss.str());
+            return;
+        }
+
+        if (std::find(styleStack_.begin(), styleStack_.end(), style.name) != styleStack_.end()) {
+            std::ostringstream oss;
+            oss << "cyclic style reference '" << style.name << "' on '" << nodeType
+                << "' at line " << prop.line;
+            warnings_.push_back(oss.str());
+            return;
+        }
+
+        styleStack_.push_back(style.name);
+        applyStyleProperties(widget, nodeType, style.properties, "style '" + style.name + "'", scope);
+        styleStack_.pop_back();
+    };
+
     if (prop.hasObjectValue()) {
         std::ostringstream oss;
         oss << "style reference on '" << nodeType << "' must be a string or identifier at line "
@@ -1846,10 +1871,43 @@ void LayoutBuilder::applyNamedStyle(
     }
 
     if (prop.hasBinding()) {
-        std::ostringstream oss;
-        oss << "dynamic style references on '" << nodeType << "' are not supported at line "
-            << prop.line;
-        warnings_.push_back(oss.str());
+        auto preparedBinding = prepareBinding(
+            *prop.bindingPath,
+            scope,
+            prop.line,
+            "style reference on '" + nodeType + "'",
+            false);
+        if (!preparedBinding.has_value()) {
+            return;
+        }
+
+        for (const std::string& dependencyPath : preparedBinding->dependencyPaths) {
+            trackStructuralPath(dependencyPath);
+        }
+
+        std::unordered_map<std::string, ModelNode> widgetNodeCache;
+        const auto widgetResolver =
+            [this, &widgetNodeCache](std::string_view path) -> const ModelNode* {
+            const std::string normalizedPath = normalizeScopedPath(path);
+            return resolveWidgetSnapshotNode(idMap_, normalizedPath, widgetNodeCache);
+        };
+
+        std::optional<core::Value> resolvedStyleValue;
+        if (preparedBinding->evaluate) {
+            resolvedStyleValue = preparedBinding->evaluate(viewModel_, widgetResolver);
+        } else if (preparedBinding->evaluateNode) {
+            if (const ModelNode* styleNode =
+                    preparedBinding->evaluateNode(viewModel_, widgetResolver);
+                styleNode != nullptr && styleNode->scalar() != nullptr) {
+                resolvedStyleValue = *styleNode->scalar();
+            }
+        }
+
+        if (resolvedStyleValue.has_value()) {
+            if (const std::optional<std::string> styleName = stringLikeValue(*resolvedStyleValue)) {
+                applyResolvedStyleName(*styleName);
+            }
+        }
         return;
     }
 
@@ -1862,35 +1920,7 @@ void LayoutBuilder::applyNamedStyle(
         return;
     }
 
-    const auto it = styleMap_.find(*styleName);
-    if (it == styleMap_.end()) {
-        std::ostringstream oss;
-        oss << "unknown style '" << *styleName << "' on '" << nodeType
-            << "' at line " << prop.line;
-        warnings_.push_back(oss.str());
-        return;
-    }
-
-    const AstStyleDefinition& style = it->second;
-    if (style.targetType != nodeType) {
-        std::ostringstream oss;
-        oss << "style '" << style.name << "' targets '" << style.targetType
-            << "' but was applied to '" << nodeType << "' at line " << prop.line;
-        warnings_.push_back(oss.str());
-        return;
-    }
-
-    if (std::find(styleStack_.begin(), styleStack_.end(), style.name) != styleStack_.end()) {
-        std::ostringstream oss;
-        oss << "cyclic style reference '" << style.name << "' on '" << nodeType
-            << "' at line " << prop.line;
-        warnings_.push_back(oss.str());
-        return;
-    }
-
-    styleStack_.push_back(style.name);
-    applyStyleProperties(widget, nodeType, style.properties, "style '" + style.name + "'", scope);
-    styleStack_.pop_back();
+    applyResolvedStyleName(*styleName);
 }
 
 void LayoutBuilder::applyStandardProperty(

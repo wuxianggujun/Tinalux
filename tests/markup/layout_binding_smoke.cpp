@@ -853,6 +853,119 @@ VBox(id: root) {
 
     {
         const std::string source = R"(
+style primaryAction: Button(
+    backgroundColor: #FF336699,
+    textColor: #FFF5F7FA,
+    borderRadius: 12,
+    paddingHorizontal: 20
+)
+style dangerAction: Button(
+    backgroundColor: #FFC0392B,
+    textColor: #FFFFFFFF,
+    borderRadius: 24,
+    paddingHorizontal: 26
+)
+VBox(id: root) {
+    Button(id: cta, text: "Ship", style: ${model.buttonStyle}),
+    Button(id: emphasis, text: "Warn", style: {
+        style: ${model.emphasisStyle},
+        borderRadius: 30
+    }),
+    Toggle(id: switcher, label: "Primary", on: ${model.usePrimary}),
+    Button(id: toggleDriven, text: "Toggle", style: ${switcher.on ? "primaryAction" : "dangerAction"})
+}
+)";
+
+        markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "dynamic named style binding markup should load");
+        expect(result.warnings.empty(), "dynamic named style binding markup should not emit warnings");
+
+        auto viewModel = markup::ViewModel::create();
+        viewModel->setString("buttonStyle", "primaryAction");
+        viewModel->setString("emphasisStyle", "dangerAction");
+        viewModel->setBool("usePrimary", true);
+        result.handle.bindViewModel(viewModel);
+
+        ui::Button* cta = result.handle.findById<ui::Button>("cta");
+        ui::Button* emphasis = result.handle.findById<ui::Button>("emphasis");
+        ui::Toggle* switcher = result.handle.findById<ui::Toggle>("switcher");
+        ui::Button* toggleDriven = result.handle.findById<ui::Button>("toggleDriven");
+
+        expect(cta != nullptr, "top-level dynamic style Button should exist");
+        expect(emphasis != nullptr, "inline dynamic style Button should exist");
+        expect(switcher != nullptr, "widget-id dynamic style Toggle should exist");
+        expect(toggleDriven != nullptr, "widget-id dynamic style target Button should exist");
+        expect(cta->style() != nullptr, "top-level dynamic style should materialize a custom Button style");
+        expect(emphasis->style() != nullptr, "inline dynamic style should materialize a custom Button style");
+        expect(toggleDriven->style() != nullptr, "widget-id dynamic style should materialize a custom Button style");
+        expect(
+            cta->style()->backgroundColor.normal == core::Color(0xFF336699u),
+            "top-level dynamic style should resolve the initial named style");
+        expect(
+            nearlyEqual(cta->style()->borderRadius, 12.0f),
+            "top-level dynamic style should preserve the named style border radius");
+        expect(
+            emphasis->style()->backgroundColor.normal == core::Color(0xFFC0392Bu),
+            "inline dynamic style should resolve the nested named style");
+        expect(
+            nearlyEqual(emphasis->style()->borderRadius, 30.0f),
+            "inline dynamic style should keep inline overrides after applying the named style");
+        expect(
+            toggleDriven->style()->backgroundColor.normal == core::Color(0xFF336699u),
+            "widget-id dynamic style should resolve from the source widget state");
+
+        viewModel->setString("buttonStyle", "dangerAction");
+        viewModel->setString("emphasisStyle", "primaryAction");
+
+        cta = result.handle.findById<ui::Button>("cta");
+        emphasis = result.handle.findById<ui::Button>("emphasis");
+        switcher = result.handle.findById<ui::Toggle>("switcher");
+        toggleDriven = result.handle.findById<ui::Button>("toggleDriven");
+
+        expect(cta != nullptr, "top-level dynamic style Button should survive structural rebuild");
+        expect(emphasis != nullptr, "inline dynamic style Button should survive structural rebuild");
+        expect(switcher != nullptr, "widget-id dynamic style Toggle should survive structural rebuild");
+        expect(toggleDriven != nullptr, "widget-id dynamic style target Button should survive structural rebuild");
+        expect(
+            cta->style() != nullptr
+                && cta->style()->backgroundColor.normal == core::Color(0xFFC0392Bu),
+            "top-level dynamic style should rebuild when the ViewModel style name changes");
+        expect(
+            nearlyEqual(cta->style()->borderRadius, 24.0f),
+            "top-level dynamic style should switch to the rebuilt named style radius");
+        expect(
+            emphasis->style() != nullptr
+                && emphasis->style()->backgroundColor.normal == core::Color(0xFF336699u),
+            "inline dynamic style should rebuild when the nested style name changes");
+        expect(
+            nearlyEqual(emphasis->style()->borderRadius, 30.0f),
+            "inline dynamic style should preserve inline overrides after rebuild");
+        expect(switcher->on(), "switcher should still reflect the bound ViewModel value after rebuild");
+        expect(
+            toggleDriven->style() != nullptr
+                && toggleDriven->style()->backgroundColor.normal == core::Color(0xFF336699u),
+            "widget-id dynamic style should remain in sync after ViewModel-driven rebuilds");
+
+        switcher->setOn(false);
+
+        switcher = result.handle.findById<ui::Toggle>("switcher");
+        toggleDriven = result.handle.findById<ui::Button>("toggleDriven");
+        expect(switcher != nullptr, "switcher should rematerialize after widget-id structural rebuild");
+        expect(toggleDriven != nullptr, "widget-id dynamic style target should rematerialize after rebuild");
+        expect(!switcher->on(), "switcher should preserve the toggled state after rebuild");
+        expect(
+            toggleDriven->style() != nullptr
+                && toggleDriven->style()->backgroundColor.normal == core::Color(0xFFC0392Bu),
+            "widget-id dynamic style should rebuild when the source widget value changes");
+        const core::Value* usePrimaryValue = viewModel->findValue("usePrimary");
+        expect(usePrimaryValue != nullptr, "widget-id dynamic style source should still write back to ViewModel");
+        expect(
+            usePrimaryValue->type() == core::ValueType::Bool && !usePrimaryValue->asBool(),
+            "widget-id dynamic style source should preserve the toggled ViewModel value");
+    }
+
+    {
+        const std::string source = R"(
 VBox(id: root) {
     TextInput(id: queryInput, text: ${model.query}),
     TextInput(id: selectionEcho, text: ${queryInput.selectedText})
