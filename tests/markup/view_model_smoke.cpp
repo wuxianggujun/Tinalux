@@ -29,6 +29,8 @@ tinalux::markup::ModelNode boolNode(bool value)
 int main()
 {
     using namespace tinalux;
+    TINALUX_ACTION_SLOT_PATH(profileSaved, "profile.onSave", void());
+    TINALUX_ACTION_SLOT(onIndexChanged, void(int));
 
     auto viewModel = markup::ViewModel::create();
 
@@ -167,11 +169,11 @@ int main()
 
     int actionCalls = 0;
     bool actionPayloadWasNone = false;
-    const bool actionChanged = viewModel->setAction(
-        "profile.onSave",
-        [&](const core::Value& value) {
+    const bool actionChanged = profileSaved.connect(
+        *viewModel,
+        [&]() {
             ++actionCalls;
-            actionPayloadWasNone = value.isNone();
+            actionPayloadWasNone = true;
         });
     expect(actionChanged, "setting action node should report a change");
     const markup::ModelNode* actionNode = viewModel->findNode("profile.onSave");
@@ -181,6 +183,18 @@ int main()
     (*action)(core::Value());
     expect(actionCalls == 1, "resolved action should be invokable");
     expect(actionPayloadWasNone, "resolved action should preserve payload values");
+
+    int indexPayload = -1;
+    const bool typedActionChanged = viewModel->setActions({
+        onIndexChanged([&](int value) {
+            indexPayload = value;
+        }),
+    });
+    expect(typedActionChanged, "typed slot binding should report a change");
+    const markup::ModelNode::Action* typedAction = viewModel->findAction("onIndexChanged");
+    expect(typedAction != nullptr, "typed slot path should resolve to callable handler");
+    (*typedAction)(core::Value(7));
+    expect(indexPayload == 7, "typed slot binding should unwrap int payloads");
 
     return 0;
 }

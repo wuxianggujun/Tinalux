@@ -81,6 +81,13 @@ int main()
     using namespace tinalux;
 
     const ui::Theme theme = ui::Theme::light();
+    TINALUX_ACTION_SLOT(onSubmit, void());
+    TINALUX_ACTION_SLOT(onChoiceChanged, void(int));
+    TINALUX_ACTION_SLOT(onSubscribeChanged, void(bool));
+    TINALUX_ACTION_SLOT(onSyncChanged, void(bool));
+    TINALUX_ACTION_SLOT(onVolumeChanged, void(float));
+    TINALUX_ACTION_SLOT(onRowChanged, void(int));
+    TINALUX_ACTION_SLOT(onModeAChanged, void(bool));
 
     {
         const std::string source = R"(
@@ -446,18 +453,12 @@ VBox(id: root) {
         int choiceMirroredValue = -1;
         viewModel->setInt("choiceIndex", 0);
         viewModel->setActions({
-            markup::actions::bind(
-                "onSubmit",
-                [&]() {
-                ++submitClicks;
-                }),
-            markup::actions::bind(
-                "onChoiceChanged",
-                [viewModel, &choicePayload, &choiceMirroredValue](int value) {
-                    choicePayload = value;
-                    const core::Value* mirroredValue = viewModel->findValue("choiceIndex");
-                    choiceMirroredValue = mirroredValue != nullptr ? mirroredValue->asInt() : -1;
-                }),
+            onSubmit([&]() { ++submitClicks; }),
+            onChoiceChanged([viewModel, &choicePayload, &choiceMirroredValue](int value) {
+                choicePayload = value;
+                const core::Value* mirroredValue = viewModel->findValue("choiceIndex");
+                choiceMirroredValue = mirroredValue != nullptr ? mirroredValue->asInt() : -1;
+            }),
         });
         result.handle.bindViewModel(viewModel);
 
@@ -560,8 +561,7 @@ VBox(id: root, 8) {
         viewModel->setInt("selectedRow", 0);
         viewModel->setBool("modeASelected", false);
         viewModel->setActions({
-            markup::actions::bind(
-                "onSubscribeChanged",
+            onSubscribeChanged(
                 [viewModel,
                     &subscribeEvents,
                     &subscribePayload,
@@ -571,8 +571,7 @@ VBox(id: root, 8) {
                     const core::Value* mirroredValue = viewModel->findValue("subscribe");
                     subscribeMirroredValue = mirroredValue != nullptr && mirroredValue->asBool();
                 }),
-            markup::actions::bind(
-                "onSyncChanged",
+            onSyncChanged(
                 [viewModel,
                     &syncEvents,
                     &syncPayload,
@@ -582,8 +581,7 @@ VBox(id: root, 8) {
                     const core::Value* mirroredValue = viewModel->findValue("syncEnabled");
                     syncMirroredValue = mirroredValue != nullptr && mirroredValue->asBool();
                 }),
-            markup::actions::bind(
-                "onVolumeChanged",
+            onVolumeChanged(
                 [viewModel,
                     &volumeEvents,
                     &volumePayload,
@@ -593,8 +591,7 @@ VBox(id: root, 8) {
                     const core::Value* mirroredValue = viewModel->findValue("volume");
                     volumeMirroredValue = mirroredValue != nullptr ? mirroredValue->asFloat() : 0.0f;
                 }),
-            markup::actions::bind(
-                "onRowChanged",
+            onRowChanged(
                 [viewModel,
                     &rowEvents,
                     &rowPayload,
@@ -604,8 +601,7 @@ VBox(id: root, 8) {
                     const core::Value* mirroredValue = viewModel->findValue("selectedRow");
                     rowMirroredValue = mirroredValue != nullptr ? mirroredValue->asInt() : -1;
                 }),
-            markup::actions::bind(
-                "onModeAChanged",
+            onModeAChanged(
                 [viewModel,
                     &radioEvents,
                     &radioPayload,

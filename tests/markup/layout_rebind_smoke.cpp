@@ -418,9 +418,9 @@ VBox(id: root) {
         firstInteractionModel->setBool("showControls", true);
         firstInteractionModel->setString("query", "first");
         firstInteractionModel->setActions({
-            markup::actions::bind(onLeadingIconClick.path(), [&]() { ++leadingClicks; }),
-            markup::actions::bind(onTrailingIconClick.path(), [&]() { ++trailingClicks; }),
-            markup::actions::bind(onDismiss.path(), [&]() { ++dismissCount; }),
+            onLeadingIconClick([&]() { ++leadingClicks; }),
+            onTrailingIconClick([&]() { ++trailingClicks; }),
+            onDismiss([&]() { ++dismissCount; }),
         });
         interactionResult.handle.bindViewModel(firstInteractionModel);
 
@@ -470,9 +470,9 @@ VBox(id: root) {
         secondInteractionModel->setBool("showControls", true);
         secondInteractionModel->setString("query", "second");
         secondInteractionModel->setActions({
-            markup::actions::bind(onLeadingIconClick.path(), [&]() { ++leadingClicks; }),
-            markup::actions::bind(onTrailingIconClick.path(), [&]() { ++trailingClicks; }),
-            markup::actions::bind(onDismiss.path(), [&]() { ++dismissCount; }),
+            onLeadingIconClick([&]() { ++leadingClicks; }),
+            onTrailingIconClick([&]() { ++trailingClicks; }),
+            onDismiss([&]() { ++dismissCount; }),
         });
         interactionResult.handle.bindViewModel(secondInteractionModel);
 

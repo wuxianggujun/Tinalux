@@ -217,9 +217,10 @@ TINALUX_ACTION_SLOT(onLoginClicked, void());
 TINALUX_ACTION_SLOT(onQueryChanged, void(std::string_view));
 TINALUX_ACTION_SLOT(onDismiss, void());
 TINALUX_ACTION_SLOT(onChoiceChanged, void(int));
+TINALUX_ACTION_SLOT_PATH(profileSaved, "profile.onSave", void());
 
 onLoginClicked.connect(*viewModel, []() {
-        // Button / Dialog / 图标点击这类无 payload 事件可以直接写成 void()
+    // Button / Dialog / 图标点击这类无 payload 事件可以直接写成 void()
     });
 
 onQueryChanged.connect(*viewModel, [](std::string_view text) {
@@ -227,10 +228,11 @@ onQueryChanged.connect(*viewModel, [](std::string_view text) {
 });
 
 viewModel->setActions({
-    markup::actions::bind(onDismiss.path(), []() {}),
-    markup::actions::bind(onChoiceChanged.path(), [](int index) {
+    onDismiss([]() {}),
+    onChoiceChanged([](int index) {
         // Dropdown / ListView 的选择事件会自动解包成 int
     }),
+    profileSaved([]() {}),
 });
 ```
 

@@ -268,6 +268,18 @@ public:
     [[nodiscard]] std::string_view path() const { return path_; }
 
     template <typename Handler>
+    [[nodiscard]] actions::Binding bind(Handler&& handler) const
+    {
+        return actions::bind(path_, std::forward<Handler>(handler));
+    }
+
+    template <typename Handler>
+    [[nodiscard]] actions::Binding operator()(Handler&& handler) const
+    {
+        return bind(std::forward<Handler>(handler));
+    }
+
+    template <typename Handler>
     bool connect(ViewModel& viewModel, Handler&& handler) const
     {
         return viewModel.setAction(path_, std::forward<Handler>(handler));
@@ -286,6 +298,9 @@ private:
 
 #define TINALUX_ACTION_SLOT(name, signature) \
     const ::tinalux::markup::ActionSlot<signature> name { #name }
+
+#define TINALUX_ACTION_SLOT_PATH(name, path, signature) \
+    const ::tinalux::markup::ActionSlot<signature> name { path }
 
 namespace detail {
 
