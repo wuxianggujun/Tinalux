@@ -151,7 +151,7 @@ struct TypeInfo {
     std::vector<StylePropertyInfo> styleProperties;
     std::vector<InteractionInfo> interactions;
     ChildAttachmentInfo childAttachment;
-    std::string markupPrimaryProperty;
+    std::vector<std::string> markupPositionalProperties;
 
     const PropertyInfo* findProperty(std::string_view propName) const
     {

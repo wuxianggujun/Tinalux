@@ -186,10 +186,12 @@ VBox(id: "root") {
 
     {
         const std::string shorthandSource = R"(
-VBox(id: "root") {
+component SearchField(placeholder: "Search", currentText: ""): TextInput(placeholder, currentText)
+VBox(id: "root", 12, 8) {
     Label("Dashboard"),
-    Button(${model.ctaText}),
-    Checkbox("Remember me", checked: true)
+    Button("Deploy", res("icons/deploy.png")),
+    Checkbox("Remember me", true),
+    SearchField("Filter", ${model.ctaText})
 }
 )";
 
@@ -198,7 +200,11 @@ VBox(id: "root") {
         expect(result.document.root.has_value(), "shorthand document root should exist");
 
         const markup::AstNode& root = *result.document.root;
-        expect(root.children.size() == 3, "shorthand document should keep three child widgets");
+        expect(root.properties.size() == 3, "VBox shorthand should preserve id and two positional args");
+        expect(
+            root.properties[1].hasImplicitName() && root.properties[2].hasImplicitName(),
+            "VBox shorthand should preserve multiple positional arguments");
+        expect(root.children.size() == 4, "shorthand document should keep four child widgets");
 
         const markup::AstNode& labelNode = root.children[0];
         expect(labelNode.properties.size() == 1, "Label shorthand should create one property");
@@ -214,20 +220,35 @@ VBox(id: "root") {
             "Label shorthand should preserve string literal value");
 
         const markup::AstNode& buttonNode = root.children[1];
-        expect(buttonNode.properties.size() == 1, "Button shorthand should create one property");
+        expect(buttonNode.properties.size() == 2, "Button shorthand should keep two positional properties");
         expect(
-            buttonNode.properties.front().hasBinding()
-                && *buttonNode.properties.front().bindingPath == "model.ctaText",
-            "Button shorthand should preserve binding expression");
+            buttonNode.properties.front().value.type() == core::ValueType::String
+                && buttonNode.properties.front().value.asString() == "Deploy",
+            "Button shorthand should preserve first positional string");
+        expect(
+            buttonNode.properties.back().hasImplicitName(),
+            "Button shorthand should preserve second positional property");
 
         const markup::AstNode& checkboxNode = root.children[2];
-        expect(checkboxNode.properties.size() == 2, "Checkbox shorthand should mix anonymous and named properties");
+        expect(checkboxNode.properties.size() == 2, "Checkbox shorthand should preserve two positional properties");
         expect(
             checkboxNode.properties.front().hasImplicitName(),
             "Checkbox shorthand should preserve leading anonymous property");
         expect(
-            checkboxNode.properties.back().name == "checked",
-            "Checkbox shorthand should keep named properties intact");
+            checkboxNode.properties.back().hasImplicitName()
+                && checkboxNode.properties.back().value.type() == core::ValueType::Bool
+                && checkboxNode.properties.back().value.asBool(),
+            "Checkbox shorthand should preserve trailing bool positional argument");
+
+        const markup::AstNode& componentNode = root.children[3];
+        expect(componentNode.properties.size() == 2, "component shorthand should preserve two positional arguments");
+        expect(
+            componentNode.properties.front().hasImplicitName(),
+            "component shorthand should preserve first positional component argument");
+        expect(
+            componentNode.properties.back().hasBinding()
+                && *componentNode.properties.back().bindingPath == "model.ctaText",
+            "component shorthand should preserve bound positional component argument");
     }
 
     {

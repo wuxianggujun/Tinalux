@@ -133,6 +133,7 @@ void registerBuiltinTypes()
                 }},
         },
         .childAttachment = makeContainerChildAttachment<ui::VBox>(),
+        .markupPositionalProperties = {"spacing", "padding"},
     });
 
     reg.registerType(core::TypeInfo {
@@ -149,6 +150,7 @@ void registerBuiltinTypes()
                 }},
         },
         .childAttachment = makeContainerChildAttachment<ui::HBox>(),
+        .markupPositionalProperties = {"spacing", "padding"},
     });
 
     reg.registerType(core::TypeInfo {
@@ -200,6 +202,7 @@ void registerBuiltinTypes()
                 }},
         },
         .childAttachment = makeContainerChildAttachment<ui::Flex>(),
+        .markupPositionalProperties = {"direction", "spacing", "padding"},
     });
 
     reg.registerType(core::TypeInfo {
@@ -228,6 +231,7 @@ void registerBuiltinTypes()
                 }},
         },
         .childAttachment = makeContainerChildAttachment<ui::Grid>(),
+        .markupPositionalProperties = {"columns", "rows", "columnGap", "rowGap", "padding"},
     });
 
     reg.registerType(core::TypeInfo {
@@ -382,6 +386,7 @@ void registerBuiltinTypes()
             [](ui::Dialog& dialog, std::shared_ptr<ui::Widget> child) {
                 dialog.setContent(std::move(child));
             }),
+        .markupPositionalProperties = {"title", "padding"},
     });
 
     reg.registerType(core::TypeInfo {
@@ -441,6 +446,7 @@ void registerBuiltinTypes()
             [](ui::ScrollView& scrollView, std::shared_ptr<ui::Widget> child) {
                 scrollView.setContent(std::move(child));
             }),
+        .markupPositionalProperties = {"preferredHeight"},
     });
 
     // ---- Leaf widgets ----
@@ -462,7 +468,7 @@ void registerBuiltinTypes()
                     static_cast<ui::Label&>(w).setColor(v.asColor());
                 }},
         },
-        .markupPrimaryProperty = "text",
+        .markupPositionalProperties = {"text"},
     });
 
     reg.registerType(core::TypeInfo {
@@ -487,7 +493,7 @@ void registerBuiltinTypes()
                         static_cast<std::size_t>(v.asInt()));
                 }},
         },
-        .markupPrimaryProperty = "text",
+        .markupPositionalProperties = {"text"},
     });
 
     reg.registerType(core::TypeInfo {
@@ -630,7 +636,7 @@ void registerBuiltinTypes()
                     });
                 }),
         },
-        .markupPrimaryProperty = "text",
+        .markupPositionalProperties = {"text", "icon"},
     });
 
     reg.registerType(core::TypeInfo {
@@ -793,6 +799,7 @@ void registerBuiltinTypes()
                         });
                 }),
         },
+        .markupPositionalProperties = {"placeholder", "text", "obscured", "leadingIcon", "trailingIcon"},
     });
 
     reg.registerType(core::TypeInfo {
@@ -830,6 +837,7 @@ void registerBuiltinTypes()
                         });
                 }),
         },
+        .markupPositionalProperties = {"placeholder", "maxVisibleItems", "selectedIndex", "indicatorIcon"},
     });
 
     reg.registerType(core::TypeInfo {
@@ -863,7 +871,7 @@ void registerBuiltinTypes()
                         });
                 }),
         },
-        .markupPrimaryProperty = "label",
+        .markupPositionalProperties = {"label", "checked", "checkmarkIcon"},
     });
 
     reg.registerType(core::TypeInfo {
@@ -901,7 +909,7 @@ void registerBuiltinTypes()
                         });
                 }),
         },
-        .markupPrimaryProperty = "label",
+        .markupPositionalProperties = {"label", "group", "selected", "selectionIcon"},
     });
 
     reg.registerType(core::TypeInfo {
@@ -926,6 +934,7 @@ void registerBuiltinTypes()
                     static_cast<ui::ImageWidget&>(w).setOpacity(v.asNumber());
                 }},
         },
+        .markupPositionalProperties = {"source", "fit", "opacity"},
     });
 
     reg.registerType(core::TypeInfo {
@@ -955,7 +964,7 @@ void registerBuiltinTypes()
                         });
                 }),
         },
-        .markupPrimaryProperty = "label",
+        .markupPositionalProperties = {"label", "on"},
     });
 
     reg.registerType(core::TypeInfo {
@@ -995,6 +1004,7 @@ void registerBuiltinTypes()
                         });
                 }),
         },
+        .markupPositionalProperties = {"value", "min", "max", "step"},
     });
 
     reg.registerType(core::TypeInfo {
@@ -1042,6 +1052,7 @@ void registerBuiltinTypes()
                     widget.setHeight(value.asNumber());
                 }),
         },
+        .markupPositionalProperties = {"value", "indeterminate", "color", "backgroundColor", "height"},
     });
 }
 

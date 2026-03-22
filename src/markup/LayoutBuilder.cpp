@@ -332,7 +332,7 @@ std::shared_ptr<ui::Widget> LayoutBuilder::buildNode(
     const std::vector<AstProperty> normalizedProperties = normalizeImplicitProperties(
         node.properties,
         node.typeName,
-        typeInfo->markupPrimaryProperty);
+        typeInfo->markupPositionalProperties);
 
     for (const auto& prop : normalizedProperties) {
         const AstProperty resolvedProp = resolveScopedProperty(prop, scope);
@@ -366,19 +366,19 @@ std::shared_ptr<ui::Widget> LayoutBuilder::buildNode(
 std::vector<AstProperty> LayoutBuilder::normalizeImplicitProperties(
     const std::vector<AstProperty>& properties,
     std::string_view ownerName,
-    std::string_view primaryPropertyName)
+    const std::vector<std::string>& positionalPropertyNames)
 {
     std::vector<AstProperty> normalized;
     normalized.reserve(properties.size());
 
-    bool consumedImplicitProperty = false;
+    std::size_t positionalIndex = 0;
     for (const auto& property : properties) {
         if (!property.hasImplicitName()) {
             normalized.push_back(property);
             continue;
         }
 
-        if (primaryPropertyName.empty()) {
+        if (positionalIndex >= positionalPropertyNames.size()) {
             std::ostringstream oss;
             oss << "anonymous value syntax is not supported on '" << ownerName
                 << "' at line " << property.line;
@@ -386,18 +386,11 @@ std::vector<AstProperty> LayoutBuilder::normalizeImplicitProperties(
             continue;
         }
 
-        if (consumedImplicitProperty) {
-            std::ostringstream oss;
-            oss << "only one anonymous value is supported on '" << ownerName
-                << "' at line " << property.line;
-            warnings_.push_back(oss.str());
-        }
-
         AstProperty resolved = property;
-        resolved.name = std::string(primaryPropertyName);
+        resolved.name = positionalPropertyNames[positionalIndex];
         resolved.implicitName = false;
         normalized.push_back(std::move(resolved));
-        consumedImplicitProperty = true;
+        ++positionalIndex;
     }
 
     return normalized;
@@ -432,12 +425,16 @@ AstNode LayoutBuilder::mergeComponentNode(
     const AstComponentDefinition& component,
     const AstNode& instanceNode)
 {
-    const std::string componentPrimaryProperty =
-        component.parameters.size() == 1 ? component.parameters.front().name : std::string();
+    std::vector<std::string> componentPositionalProperties;
+    componentPositionalProperties.reserve(component.parameters.size());
+    for (const auto& parameter : component.parameters) {
+        componentPositionalProperties.push_back(parameter.name);
+    }
+
     const std::vector<AstProperty> normalizedInstanceProperties = normalizeImplicitProperties(
         instanceNode.properties,
         component.name,
-        componentPrimaryProperty);
+        componentPositionalProperties);
 
     std::unordered_map<std::string, AstProperty> parameterValues;
     parameterValues.reserve(component.parameters.size());

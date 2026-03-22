@@ -60,11 +60,15 @@ int main()
 
     {
         const std::string source = R"(
-component PrimaryAction(label: "Default CTA"): Button(label)
-VBox(id: "root") {
-    Button(id: "cta", "Deploy"),
-    Checkbox(id: "remember", "Remember me", checked: true),
-    PrimaryAction(id: "componentCta", "Launch")
+component RememberOption(label: "", checked: false): Checkbox(label, checked)
+VBox(id: "root", 12, 8) {
+    Button(id: "cta", "Deploy", res("assets/icons/ship.png")),
+    Checkbox(id: "remember", "Remember me", true),
+    Dialog(id: "confirmDialog", "Confirm", 18) {
+        Panel(id: "confirmBody")
+    },
+    ImageWidget(id: "hero", res("assets/images/hero.png"), Cover, 0.75),
+    RememberOption(id: "componentRemember", "Use biometrics", true)
 }
 )";
 
@@ -72,16 +76,38 @@ VBox(id: "root") {
         expectLoadOk(result, "anonymous property syntax should load");
         expect(result.warnings.empty(), "anonymous property syntax should not emit warnings");
 
+        const ui::VBox* root = dynamic_cast<ui::VBox*>(result.handle.root().get());
+        expect(root != nullptr, "VBox shorthand should materialize VBox root");
+        expect(nearlyEqual(root->spacing(), 12.0f), "VBox first positional arg should map to spacing");
+        expect(nearlyEqual(root->padding(), 8.0f), "VBox second positional arg should map to padding");
+
         const ui::Button* cta = result.handle.findById<ui::Button>("cta");
         expect(cta != nullptr, "Button shorthand should materialize Button widget");
+        expect(
+            cta->iconPath() == "assets/icons/ship.png",
+            "Button second positional arg should map to icon");
 
         const ui::Checkbox* remember = result.handle.findById<ui::Checkbox>("remember");
         expect(remember != nullptr, "Checkbox shorthand should materialize Checkbox widget");
         expect(remember->label() == "Remember me", "Checkbox shorthand should map to label");
-        expect(remember->checked(), "Checkbox shorthand should preserve named properties");
+        expect(remember->checked(), "Checkbox shorthand should map trailing bool positional argument");
 
-        const ui::Button* componentCta = result.handle.findById<ui::Button>("componentCta");
-        expect(componentCta != nullptr, "single-parameter component shorthand should resolve");
+        const ui::Dialog* confirmDialog = result.handle.findById<ui::Dialog>("confirmDialog");
+        expect(confirmDialog != nullptr, "Dialog shorthand should materialize Dialog widget");
+        expect(confirmDialog->title() == "Confirm", "Dialog first positional arg should map to title");
+        expect(confirmDialog->content() != nullptr, "Dialog shorthand should keep child content");
+        expect(confirmDialog->content()->id() == "confirmBody", "Dialog shorthand should preserve content child");
+
+        const ui::ImageWidget* hero = result.handle.findById<ui::ImageWidget>("hero");
+        expect(hero != nullptr, "ImageWidget shorthand should materialize ImageWidget");
+        expect(hero->imagePath() == "assets/images/hero.png", "ImageWidget first positional arg should map to source");
+        expect(hero->fit() == ui::ImageFit::Cover, "ImageWidget second positional arg should map to fit");
+        expect(nearlyEqual(hero->opacity(), 0.75f), "ImageWidget third positional arg should map to opacity");
+
+        const ui::Checkbox* componentRemember = result.handle.findById<ui::Checkbox>("componentRemember");
+        expect(componentRemember != nullptr, "multi-parameter component shorthand should resolve");
+        expect(componentRemember->label() == "Use biometrics", "component first positional arg should map to first parameter");
+        expect(componentRemember->checked(), "component second positional arg should map to second parameter");
     }
 
     {

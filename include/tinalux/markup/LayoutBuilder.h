@@ -64,7 +64,7 @@ private:
     std::vector<AstProperty> normalizeImplicitProperties(
         const std::vector<AstProperty>& properties,
         std::string_view ownerName,
-        std::string_view primaryPropertyName);
+        const std::vector<std::string>& positionalPropertyNames);
     AstNode mergeComponentNode(
         const AstComponentDefinition& component,
         const AstNode& instanceNode);
