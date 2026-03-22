@@ -41,6 +41,7 @@ private:
     AstProperty parseProperty();
     core::Value parseValue();
     core::Value parseValueDirective();
+    void skipNodeBoundary();
     Token expect(TokenType type, const char* context);
     void error(const std::string& message);
 

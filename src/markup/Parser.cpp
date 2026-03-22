@@ -229,6 +229,7 @@ AstNode Parser::parseNode()
     // expect identifier (type name)
     if (current_.type != TokenType::Identifier) {
         error("expected widget type name, got '" + current_.text + "'");
+        skipNodeBoundary();
         return node;
     }
 
@@ -270,6 +271,15 @@ AstNode Parser::parseNode()
     }
 
     return node;
+}
+
+void Parser::skipNodeBoundary()
+{
+    while (current_.type != TokenType::Comma
+        && current_.type != TokenType::RightBrace
+        && current_.type != TokenType::EndOfFile) {
+        current_ = lexer_.next();
+    }
 }
 
 AstNode Parser::parseControlNode()

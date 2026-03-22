@@ -10,7 +10,7 @@
 - Android：不再只是方案稿，当前已有 `AndroidWindow`、`AndroidRuntime`、JNI/C ABI、`android/host` 宿主层、`android/tinalux-sdk` 和 `android/validation-app` 验证工程。
 - UI：约束布局、VBox/HBox/Flex/Grid/Responsive、三阶段事件、主题系统、富文本、文本输入、资源管理、异步图片加载、图标注册、组件级渲染缓存都已落地。
 - Markup：轻量声明式布局 DSL 已落地，当前支持 `@style`、样式继承、inline `style: { ... }`、`@import`、`@res("...")`、带参数的 `@component`、`Slot`、`${model.xxx}` 单向/双向属性绑定、树状 `ViewModel`、`@if / @for` 控制流，以及基于结构路径失效的整树重建，可构建 `Dialog` / `ScrollView` / `Dropdown` / `ImageWidget` 等节点。
-- 测试：源码中的 [`tests/CMakeLists.txt`](../tests/CMakeLists.txt) 当前包含 `63` 个 smoke 声明和 `2` 个脚本测试；当前工作区里的 `cmake-build-debug` 通过 `ctest -N -C Debug --test-dir cmake-build-debug` 可见 `65` 个测试。
+- 测试：源码中的 [`tests/CMakeLists.txt`](../tests/CMakeLists.txt) 当前包含 `66` 个 smoke 声明和 `2` 个脚本测试；当前工作区里的 `cmake-build-debug` 通过 `ctest -N -C Debug --test-dir cmake-build-debug` 可见 `68` 个测试。
 
 ## 优先阅读
 

@@ -90,6 +90,21 @@ tinalux_add_smoke_test(TinaluxMarkupLayoutControlFlowSmoke
     LINK_LIBS Tinalux::Markup
 )
 
+tinalux_add_smoke_test(TinaluxMarkupParserSmoke
+    SOURCE markup/parser_smoke.cpp
+    LINK_LIBS Tinalux::Markup
+)
+
+tinalux_add_smoke_test(TinaluxMarkupViewModelSmoke
+    SOURCE markup/view_model_smoke.cpp
+    LINK_LIBS Tinalux::Markup
+)
+
+tinalux_add_smoke_test(TinaluxMarkupLayoutRebindSmoke
+    SOURCE markup/layout_rebind_smoke.cpp
+    LINK_LIBS Tinalux::Markup
+)
+
 tinalux_add_smoke_test(TinaluxPlatformGLFWDpiScaleSmoke
     SOURCE platform/glfw_window_scale_smoke.cpp
     LINK_LIBS Tinalux::Platform

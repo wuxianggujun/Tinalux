@@ -137,9 +137,9 @@
 
 ### 测试
 
-- 源码中的 `tests/CMakeLists.txt` 当前包含 `63` 个 smoke 声明
+- 源码中的 `tests/CMakeLists.txt` 当前包含 `66` 个 smoke 声明
 - 另有 `2` 个 PowerShell 脚本测试
-- 当前工作区里的 `cmake-build-debug` 当前登记 `65` 个测试
+- 当前工作区里的 `cmake-build-debug` 当前登记 `68` 个测试
 - `TinaluxBuildSmokeTests` 已完成构建，`ctest --test-dir cmake-build-debug -C Debug --output-on-failure --timeout 60 -j 4` 全量通过
 
 ## 明确未完成
