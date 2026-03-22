@@ -99,6 +99,7 @@ int main()
     using namespace tinalux;
     ui::RuntimeState runtime;
     ui::ScopedRuntimeState bind(runtime);
+    TINALUX_ACTION_SLOT(onApply, void());
 
     const ui::Theme theme = ui::Theme::light();
     const std::string source = R"(
@@ -119,12 +120,7 @@ VBox(id: root) {
     firstViewModel->setBool("showQuery", true);
     firstViewModel->setString("query", "first");
     int applyClicks = 0;
-    firstViewModel->setAction(
-        "onApply",
-        [&](const core::Value& value) {
-            expect(value.isNone(), "button click action should receive an empty payload");
-            ++applyClicks;
-        });
+    onApply.connect(*firstViewModel, [&]() { ++applyClicks; });
     result.handle.bindViewModel(firstViewModel);
 
     ui::TextInput* queryInput = result.handle.findById<ui::TextInput>("queryInput");
@@ -140,12 +136,7 @@ VBox(id: root) {
     auto secondViewModel = markup::ViewModel::create();
     secondViewModel->setBool("showQuery", true);
     secondViewModel->setString("query", "second");
-    secondViewModel->setAction(
-        "onApply",
-        [&](const core::Value& value) {
-            expect(value.isNone(), "rebound button click action should receive an empty payload");
-            ++applyClicks;
-        });
+    onApply.connect(*secondViewModel, [&]() { ++applyClicks; });
     result.handle.bindViewModel(secondViewModel);
 
     queryInput = result.handle.findById<ui::TextInput>("queryInput");
@@ -212,6 +203,7 @@ VBox(id: root) {
     expect(applyClicks == 3, "declarative click action should reattach after structural rebuild");
 
     {
+        TINALUX_ACTION_SLOT(onScroll, void(float));
         const std::string scrollSource = R"(
 VBox(id: root) {
     if(${model.showScroller}) {
@@ -241,13 +233,10 @@ VBox(id: root) {
         float lastOffset = 0.0f;
         auto firstScrollModel = markup::ViewModel::create();
         firstScrollModel->setBool("showScroller", true);
-        firstScrollModel->setAction(
-            "onScroll",
-            [&](const core::Value& value) {
-                expect(value.type() == core::ValueType::Float, "scroll action should receive a float payload");
-                ++scrollEvents;
-                lastOffset = value.asFloat();
-            });
+        onScroll.connect(*firstScrollModel, [&](float value) {
+            ++scrollEvents;
+            lastOffset = value;
+        });
         scrollResult.handle.bindViewModel(firstScrollModel);
 
         ui::VBox* root = dynamic_cast<ui::VBox*>(scrollResult.handle.root().get());
@@ -265,13 +254,10 @@ VBox(id: root) {
 
         auto secondScrollModel = markup::ViewModel::create();
         secondScrollModel->setBool("showScroller", true);
-        secondScrollModel->setAction(
-            "onScroll",
-            [&](const core::Value& value) {
-                expect(value.type() == core::ValueType::Float, "rebound scroll action should receive a float payload");
-                ++scrollEvents;
-                lastOffset = value.asFloat();
-            });
+        onScroll.connect(*secondScrollModel, [&](float value) {
+            ++scrollEvents;
+            lastOffset = value;
+        });
         scrollResult.handle.bindViewModel(secondScrollModel);
 
         root = dynamic_cast<ui::VBox*>(scrollResult.handle.root().get());
@@ -300,6 +286,7 @@ VBox(id: root) {
     }
 
     {
+        TINALUX_ACTION_SLOT(onChoiceChanged, void(int));
         const std::string pickerSource = R"(
 VBox(id: root) {
     if(${model.showPicker}) {
@@ -324,13 +311,10 @@ VBox(id: root) {
         int firstPickerEvents = 0;
         int secondPickerEvents = 0;
         int lastChoicePayload = -1;
-        firstPickerModel->setAction(
-            "onChoiceChanged",
-            [&](const core::Value& value) {
-                expect(value.type() == core::ValueType::Int, "dropdown action should receive an int payload");
-                ++firstPickerEvents;
-                lastChoicePayload = value.asInt();
-            });
+        onChoiceChanged.connect(*firstPickerModel, [&](int value) {
+            ++firstPickerEvents;
+            lastChoicePayload = value;
+        });
         pickerResult.handle.bindViewModel(firstPickerModel);
 
         ui::Dropdown* choice = pickerResult.handle.findById<ui::Dropdown>("choice");
@@ -347,13 +331,10 @@ VBox(id: root) {
             "choices",
             {stringNode("North"), stringNode("South"), stringNode("East"), stringNode("West")});
         secondPickerModel->setInt("choiceIndex", 1);
-        secondPickerModel->setAction(
-            "onChoiceChanged",
-            [&](const core::Value& value) {
-                expect(value.type() == core::ValueType::Int, "rebound dropdown action should receive an int payload");
-                ++secondPickerEvents;
-                lastChoicePayload = value.asInt();
-            });
+        onChoiceChanged.connect(*secondPickerModel, [&](int value) {
+            ++secondPickerEvents;
+            lastChoicePayload = value;
+        });
         pickerResult.handle.bindViewModel(secondPickerModel);
 
         choice = pickerResult.handle.findById<ui::Dropdown>("choice");
@@ -406,6 +387,9 @@ VBox(id: root) {
     }
 
     {
+        TINALUX_ACTION_SLOT(onLeadingIconClick, void());
+        TINALUX_ACTION_SLOT(onTrailingIconClick, void());
+        TINALUX_ACTION_SLOT(onDismiss, void());
         const std::string interactionSource = R"(
 VBox(id: root) {
     if(${model.showControls}) {
@@ -433,24 +417,11 @@ VBox(id: root) {
         auto firstInteractionModel = markup::ViewModel::create();
         firstInteractionModel->setBool("showControls", true);
         firstInteractionModel->setString("query", "first");
-        firstInteractionModel->setAction(
-            "onLeadingIconClick",
-            [&](const core::Value& value) {
-                expect(value.isNone(), "leading icon action should receive an empty payload");
-                ++leadingClicks;
-            });
-        firstInteractionModel->setAction(
-            "onTrailingIconClick",
-            [&](const core::Value& value) {
-                expect(value.isNone(), "trailing icon action should receive an empty payload");
-                ++trailingClicks;
-            });
-        firstInteractionModel->setAction(
-            "onDismiss",
-            [&](const core::Value& value) {
-                expect(value.isNone(), "dismiss action should receive an empty payload");
-                ++dismissCount;
-            });
+        firstInteractionModel->setActions({
+            markup::actions::bind(onLeadingIconClick.path(), [&]() { ++leadingClicks; }),
+            markup::actions::bind(onTrailingIconClick.path(), [&]() { ++trailingClicks; }),
+            markup::actions::bind(onDismiss.path(), [&]() { ++dismissCount; }),
+        });
         interactionResult.handle.bindViewModel(firstInteractionModel);
 
         ui::TextInput* searchInput = interactionResult.handle.findById<ui::TextInput>("searchInput");
@@ -498,24 +469,11 @@ VBox(id: root) {
         auto secondInteractionModel = markup::ViewModel::create();
         secondInteractionModel->setBool("showControls", true);
         secondInteractionModel->setString("query", "second");
-        secondInteractionModel->setAction(
-            "onLeadingIconClick",
-            [&](const core::Value& value) {
-                expect(value.isNone(), "rebound leading icon action should receive an empty payload");
-                ++leadingClicks;
-            });
-        secondInteractionModel->setAction(
-            "onTrailingIconClick",
-            [&](const core::Value& value) {
-                expect(value.isNone(), "rebound trailing icon action should receive an empty payload");
-                ++trailingClicks;
-            });
-        secondInteractionModel->setAction(
-            "onDismiss",
-            [&](const core::Value& value) {
-                expect(value.isNone(), "rebound dismiss action should receive an empty payload");
-                ++dismissCount;
-            });
+        secondInteractionModel->setActions({
+            markup::actions::bind(onLeadingIconClick.path(), [&]() { ++leadingClicks; }),
+            markup::actions::bind(onTrailingIconClick.path(), [&]() { ++trailingClicks; }),
+            markup::actions::bind(onDismiss.path(), [&]() { ++dismissCount; }),
+        });
         interactionResult.handle.bindViewModel(secondInteractionModel);
 
         searchInput = interactionResult.handle.findById<ui::TextInput>("searchInput");

@@ -476,6 +476,15 @@ bool ViewModel::setAction(std::string_view path, ModelNode::Action action)
     return setNode(path, ModelNode(std::move(action)));
 }
 
+bool ViewModel::setActions(std::initializer_list<actions::Binding> bindings)
+{
+    bool changed = false;
+    for (const auto& binding : bindings) {
+        changed = setAction(binding.path, binding.action) || changed;
+    }
+    return changed;
+}
+
 const ModelNode::Action* ViewModel::findAction(std::string_view path) const
 {
     const ModelNode* node = findNode(path);

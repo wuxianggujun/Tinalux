@@ -213,18 +213,25 @@ TextInput(
 对应的 C++ `ViewModel` 写法：
 
 ```cpp
-viewModel->setAction(
-    "onLoginClicked",
-    [](const core::Value& value) {
-        // Button / Dialog / 图标点击这类无 payload 事件会收到空值
+TINALUX_ACTION_SLOT(onLoginClicked, void());
+TINALUX_ACTION_SLOT(onQueryChanged, void(std::string_view));
+TINALUX_ACTION_SLOT(onDismiss, void());
+TINALUX_ACTION_SLOT(onChoiceChanged, void(int));
+
+onLoginClicked.connect(*viewModel, []() {
+        // Button / Dialog / 图标点击这类无 payload 事件可以直接写成 void()
     });
 
-viewModel->setAction(
-    "onQueryChanged",
-    [](const core::Value& value) {
-        // TextInput.onTextChanged 会收到 string payload
-        const std::string text = value.asString();
-    });
+onQueryChanged.connect(*viewModel, [](std::string_view text) {
+    // TextInput.onTextChanged 会自动解包成 string_view
+});
+
+viewModel->setActions({
+    markup::actions::bind(onDismiss.path(), []() {}),
+    markup::actions::bind(onChoiceChanged.path(), [](int index) {
+        // Dropdown / ListView 的选择事件会自动解包成 int
+    }),
+});
 ```
 
 当前已经接通的事件属性包括：

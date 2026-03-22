@@ -109,12 +109,9 @@ VBox(id: root) {
     auto viewModel = markup::ViewModel::create();
     viewModel->setAction(
         "onAdvancedQueryChanged",
-        [&](const core::Value& value) {
-            expect(
-                value.type() == core::ValueType::String,
-                "advanced input action should receive a string payload");
+        [&](std::string_view text) {
             ++advancedTextEvents;
-            lastAdvancedText = value.asString();
+            lastAdvancedText = std::string(text);
         });
     viewModel->setBool("showAdvanced", false);
     viewModel->setBool("showVisibleActions", true);

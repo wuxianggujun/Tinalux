@@ -445,19 +445,20 @@ VBox(id: root) {
         int choicePayload = -1;
         int choiceMirroredValue = -1;
         viewModel->setInt("choiceIndex", 0);
-        viewModel->setAction(
-            "onSubmit",
-            [&](const core::Value& value) {
-                expect(value.isNone(), "button click action should receive an empty payload");
+        viewModel->setActions({
+            markup::actions::bind(
+                "onSubmit",
+                [&]() {
                 ++submitClicks;
-            });
-        viewModel->setAction(
-            "onChoiceChanged",
-            [viewModel, &choicePayload, &choiceMirroredValue](const core::Value& value) {
-                choicePayload = value.asInt();
-                const core::Value* mirroredValue = viewModel->findValue("choiceIndex");
-                choiceMirroredValue = mirroredValue != nullptr ? mirroredValue->asInt() : -1;
-            });
+                }),
+            markup::actions::bind(
+                "onChoiceChanged",
+                [viewModel, &choicePayload, &choiceMirroredValue](int value) {
+                    choicePayload = value;
+                    const core::Value* mirroredValue = viewModel->findValue("choiceIndex");
+                    choiceMirroredValue = mirroredValue != nullptr ? mirroredValue->asInt() : -1;
+                }),
+        });
         result.handle.bindViewModel(viewModel);
 
         ui::Button* submit = result.handle.findById<ui::Button>("submit");
@@ -558,66 +559,63 @@ VBox(id: root, 8) {
         viewModel->setFloat("volume", 2.0f);
         viewModel->setInt("selectedRow", 0);
         viewModel->setBool("modeASelected", false);
-        viewModel->setAction(
-            "onSubscribeChanged",
-            [viewModel,
-                &subscribeEvents,
-                &subscribePayload,
-                &subscribeMirroredValue](const core::Value& value) {
-                expect(value.type() == core::ValueType::Bool, "checkbox action should receive a bool payload");
-                ++subscribeEvents;
-                subscribePayload = value.asBool();
-                const core::Value* mirroredValue = viewModel->findValue("subscribe");
-                subscribeMirroredValue = mirroredValue != nullptr && mirroredValue->asBool();
-            });
-        viewModel->setAction(
-            "onSyncChanged",
-            [viewModel,
-                &syncEvents,
-                &syncPayload,
-                &syncMirroredValue](const core::Value& value) {
-                expect(value.type() == core::ValueType::Bool, "toggle action should receive a bool payload");
-                ++syncEvents;
-                syncPayload = value.asBool();
-                const core::Value* mirroredValue = viewModel->findValue("syncEnabled");
-                syncMirroredValue = mirroredValue != nullptr && mirroredValue->asBool();
-            });
-        viewModel->setAction(
-            "onVolumeChanged",
-            [viewModel,
-                &volumeEvents,
-                &volumePayload,
-                &volumeMirroredValue](const core::Value& value) {
-                expect(value.type() == core::ValueType::Float, "slider action should receive a float payload");
-                ++volumeEvents;
-                volumePayload = value.asFloat();
-                const core::Value* mirroredValue = viewModel->findValue("volume");
-                volumeMirroredValue = mirroredValue != nullptr ? mirroredValue->asFloat() : 0.0f;
-            });
-        viewModel->setAction(
-            "onRowChanged",
-            [viewModel,
-                &rowEvents,
-                &rowPayload,
-                &rowMirroredValue](const core::Value& value) {
-                expect(value.type() == core::ValueType::Int, "list selection action should receive an int payload");
-                ++rowEvents;
-                rowPayload = value.asInt();
-                const core::Value* mirroredValue = viewModel->findValue("selectedRow");
-                rowMirroredValue = mirroredValue != nullptr ? mirroredValue->asInt() : -1;
-            });
-        viewModel->setAction(
-            "onModeAChanged",
-            [viewModel,
-                &radioEvents,
-                &radioPayload,
-                &radioMirroredValue](const core::Value& value) {
-                expect(value.type() == core::ValueType::Bool, "radio action should receive a bool payload");
-                ++radioEvents;
-                radioPayload = value.asBool();
-                const core::Value* mirroredValue = viewModel->findValue("modeASelected");
-                radioMirroredValue = mirroredValue != nullptr && mirroredValue->asBool();
-            });
+        viewModel->setActions({
+            markup::actions::bind(
+                "onSubscribeChanged",
+                [viewModel,
+                    &subscribeEvents,
+                    &subscribePayload,
+                    &subscribeMirroredValue](bool value) {
+                    ++subscribeEvents;
+                    subscribePayload = value;
+                    const core::Value* mirroredValue = viewModel->findValue("subscribe");
+                    subscribeMirroredValue = mirroredValue != nullptr && mirroredValue->asBool();
+                }),
+            markup::actions::bind(
+                "onSyncChanged",
+                [viewModel,
+                    &syncEvents,
+                    &syncPayload,
+                    &syncMirroredValue](bool value) {
+                    ++syncEvents;
+                    syncPayload = value;
+                    const core::Value* mirroredValue = viewModel->findValue("syncEnabled");
+                    syncMirroredValue = mirroredValue != nullptr && mirroredValue->asBool();
+                }),
+            markup::actions::bind(
+                "onVolumeChanged",
+                [viewModel,
+                    &volumeEvents,
+                    &volumePayload,
+                    &volumeMirroredValue](float value) {
+                    ++volumeEvents;
+                    volumePayload = value;
+                    const core::Value* mirroredValue = viewModel->findValue("volume");
+                    volumeMirroredValue = mirroredValue != nullptr ? mirroredValue->asFloat() : 0.0f;
+                }),
+            markup::actions::bind(
+                "onRowChanged",
+                [viewModel,
+                    &rowEvents,
+                    &rowPayload,
+                    &rowMirroredValue](int value) {
+                    ++rowEvents;
+                    rowPayload = value;
+                    const core::Value* mirroredValue = viewModel->findValue("selectedRow");
+                    rowMirroredValue = mirroredValue != nullptr ? mirroredValue->asInt() : -1;
+                }),
+            markup::actions::bind(
+                "onModeAChanged",
+                [viewModel,
+                    &radioEvents,
+                    &radioPayload,
+                    &radioMirroredValue](bool value) {
+                    ++radioEvents;
+                    radioPayload = value;
+                    const core::Value* mirroredValue = viewModel->findValue("modeASelected");
+                    radioMirroredValue = mirroredValue != nullptr && mirroredValue->asBool();
+                }),
+        });
         result.handle.bindViewModel(viewModel);
 
         ui::VBox* root = dynamic_cast<ui::VBox*>(result.handle.root().get());
