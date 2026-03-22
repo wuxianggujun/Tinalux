@@ -4,6 +4,7 @@
 
 #include "tinalux/markup/LayoutLoader.h"
 #include "tinalux/markup/ViewModel.h"
+#include "tinalux/ui/Label.h"
 #include "tinalux/ui/TextInput.h"
 #include "tinalux/ui/Theme.h"
 #include "tinalux/ui/VBox.h"
@@ -203,6 +204,60 @@ VBox(id: "root") {
     expect(
         gammaField->text() == "Gamma",
         "newly materialized loop widget should resolve local component parameters");
+
+    {
+        const std::string branchSource = R"(
+VBox(id: "root") {
+    @if(${model.primary}) {
+        Label(id: "primaryLabel", text: "Primary")
+    } @elseif(${model.secondary}) {
+        Label(id: "secondaryLabel", text: "Secondary")
+    } @else {
+        Label(id: "fallbackLabel", text: "Fallback")
+    }
+}
+)";
+
+        markup::LoadResult branchResult = markup::LayoutLoader::load(branchSource, theme);
+        expectLoadOk(branchResult, "@elseif/@else markup should load");
+        expect(branchResult.warnings.empty(), "@elseif/@else markup should not emit warnings");
+
+        auto branchViewModel = markup::ViewModel::create();
+        branchViewModel->setBool("primary", false);
+        branchViewModel->setBool("secondary", false);
+        branchResult.handle.bindViewModel(branchViewModel);
+
+        ui::Label* fallbackLabel = branchResult.handle.findById<ui::Label>("fallbackLabel");
+        expect(fallbackLabel != nullptr, "fallback branch should materialize when no condition matches");
+        expect(
+            branchResult.handle.findById<ui::Label>("primaryLabel") == nullptr,
+            "primary branch should stay hidden when disabled");
+        expect(
+            branchResult.handle.findById<ui::Label>("secondaryLabel") == nullptr,
+            "secondary branch should stay hidden when disabled");
+
+        branchViewModel->setBool("secondary", true);
+        ui::Label* secondaryLabel = branchResult.handle.findById<ui::Label>("secondaryLabel");
+        expect(secondaryLabel != nullptr, "@elseif branch should materialize after condition change");
+        expect(
+            branchResult.handle.findById<ui::Label>("fallbackLabel") == nullptr,
+            "@elseif branch should replace fallback content");
+
+        branchViewModel->setBool("primary", true);
+        ui::Label* primaryLabel = branchResult.handle.findById<ui::Label>("primaryLabel");
+        expect(primaryLabel != nullptr, "@if branch should win over @elseif when enabled");
+        expect(
+            branchResult.handle.findById<ui::Label>("secondaryLabel") == nullptr,
+            "@if branch should replace @elseif content");
+
+        branchViewModel->setBool("primary", false);
+        branchViewModel->setBool("secondary", false);
+        fallbackLabel = branchResult.handle.findById<ui::Label>("fallbackLabel");
+        expect(fallbackLabel != nullptr, "fallback branch should rematerialize after disabling conditions");
+        expect(
+            branchResult.handle.findById<ui::Label>("primaryLabel") == nullptr,
+            "primary branch should disappear after disabling conditions");
+    }
 
     return 0;
 }

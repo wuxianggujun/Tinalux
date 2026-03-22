@@ -33,6 +33,7 @@ struct AstNode {
     std::string typeName;
     std::vector<AstProperty> properties;
     std::vector<AstNode> children;
+    std::vector<AstNode> conditionalBranches;
     std::optional<std::string> controlPath;
     std::string loopVariable;
     int line = 0;

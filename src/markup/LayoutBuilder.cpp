@@ -361,25 +361,57 @@ void LayoutBuilder::appendExpandedNodes(
             continue;
         }
 
-        if (node.controlPath.has_value() && !node.controlPath->empty()) {
-            const std::string normalizedPath = normalizeScopedPath(*node.controlPath);
-            if (!normalizedPath.empty()) {
+        if (node.isIfBlock()) {
+            const auto trackBranchPath = [&](const std::optional<std::string>& controlPath) {
+                if (!controlPath.has_value() || controlPath->empty()) {
+                    return;
+                }
+
+                const std::string normalizedPath = normalizeScopedPath(*controlPath);
+                if (normalizedPath.empty()) {
+                    return;
+                }
+
                 const auto pathParts = splitScopedPath(normalizedPath);
                 if (!pathParts.empty() && !scope.contains(std::string(pathParts.front()))) {
                     trackStructuralPath(normalizedPath);
                 }
-            }
-        }
+            };
 
-        if (node.isIfBlock()) {
+            trackBranchPath(node.controlPath);
+            for (const auto& conditionalBranch : node.conditionalBranches) {
+                trackBranchPath(conditionalBranch.controlPath);
+            }
+
             if (node.controlPath.has_value()
                 && evaluateConditionPath(*node.controlPath, scope)) {
                 appendExpandedNodes(node.children, scope, outNodes);
+                continue;
+            }
+
+            for (const auto& conditionalBranch : node.conditionalBranches) {
+                if (conditionalBranch.controlPath.has_value()
+                    && !evaluateConditionPath(*conditionalBranch.controlPath, scope)) {
+                    continue;
+                }
+
+                appendExpandedNodes(conditionalBranch.children, scope, outNodes);
+                break;
             }
             continue;
         }
 
         if (node.isForBlock()) {
+            if (node.controlPath.has_value() && !node.controlPath->empty()) {
+                const std::string normalizedPath = normalizeScopedPath(*node.controlPath);
+                if (!normalizedPath.empty()) {
+                    const auto pathParts = splitScopedPath(normalizedPath);
+                    if (!pathParts.empty() && !scope.contains(std::string(pathParts.front()))) {
+                        trackStructuralPath(normalizedPath);
+                    }
+                }
+            }
+
             if (!node.controlPath.has_value()) {
                 continue;
             }
@@ -428,6 +460,32 @@ AstNode LayoutBuilder::resolveComponentTemplateNode(
             slotChildren,
             declaredSlots,
             resolved.children);
+    }
+
+    resolved.conditionalBranches.clear();
+    resolved.conditionalBranches.reserve(templateNode.conditionalBranches.size());
+    for (const auto& conditionalBranch : templateNode.conditionalBranches) {
+        AstNode resolvedBranch = conditionalBranch;
+        resolvedBranch.children.clear();
+        for (const auto& branchChild : conditionalBranch.children) {
+            appendResolvedComponentChild(
+                branchChild,
+                parameterValues,
+                slotChildren,
+                declaredSlots,
+                resolvedBranch.children);
+        }
+
+        resolvedBranch.conditionalBranches.clear();
+        for (const auto& nestedBranch : conditionalBranch.conditionalBranches) {
+            resolvedBranch.conditionalBranches.push_back(resolveComponentTemplateNode(
+                nestedBranch,
+                parameterValues,
+                slotChildren,
+                declaredSlots));
+        }
+
+        resolved.conditionalBranches.push_back(std::move(resolvedBranch));
     }
 
     return resolved;
@@ -653,6 +711,12 @@ bool LayoutBuilder::containsSlotNode(const AstNode& node) const
 
     for (const auto& child : node.children) {
         if (containsSlotNode(child)) {
+            return true;
+        }
+    }
+
+    for (const auto& conditionalBranch : node.conditionalBranches) {
+        if (containsSlotNode(conditionalBranch)) {
             return true;
         }
     }

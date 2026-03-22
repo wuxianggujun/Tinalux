@@ -283,6 +283,11 @@ AstNode Parser::parseControlNode()
         return parseForNode(atToken.line, atToken.column);
     }
 
+    if (directive == "else" || directive == "elseif") {
+        error("'@" + directive + "' must appear immediately after an @if block");
+        return {};
+    }
+
     error("unknown control directive '@" + directive + "'");
     return {};
 }
@@ -303,17 +308,45 @@ AstNode Parser::parseIfNode(int line, int column)
     node.controlPath = current_.text;
     current_ = lexer_.next();
     expect(TokenType::RightParen, "@if directive");
-    expect(TokenType::LeftBrace, "@if body");
+    node.children = parseControlBlockChildren("@if body");
 
-    while (current_.type != TokenType::RightBrace
-        && current_.type != TokenType::EndOfFile) {
-        node.children.push_back(parseNode());
-        if (current_.type == TokenType::Comma) {
-            current_ = lexer_.next();
+    while (current_.type == TokenType::At) {
+        const int branchLine = current_.line;
+        const int branchColumn = current_.column;
+        const Token directiveToken = lexer_.peek();
+        if (directiveToken.type != TokenType::Identifier) {
+            break;
         }
+
+        if (directiveToken.text != "elseif" && directiveToken.text != "else") {
+            break;
+        }
+
+        current_ = lexer_.next();
+        const std::string directive = current_.text;
+        current_ = lexer_.next();
+
+        if (directive == "elseif") {
+            if (!node.conditionalBranches.empty()
+                && !node.conditionalBranches.back().controlPath.has_value()) {
+                error("@elseif cannot appear after @else");
+                return node;
+            }
+
+            node.conditionalBranches.push_back(parseElseIfBranch(branchLine, branchColumn));
+            continue;
+        }
+
+        if (!node.conditionalBranches.empty()
+            && !node.conditionalBranches.back().controlPath.has_value()) {
+            error("duplicate @else branch for @if block");
+            return node;
+        }
+
+        node.conditionalBranches.push_back(parseElseBranch(branchLine, branchColumn));
+        break;
     }
 
-    expect(TokenType::RightBrace, "@if body");
     return node;
 }
 
@@ -347,17 +380,54 @@ AstNode Parser::parseForNode(int line, int column)
     node.controlPath = current_.text;
     current_ = lexer_.next();
     expect(TokenType::RightParen, "@for directive");
-    expect(TokenType::LeftBrace, "@for body");
+    node.children = parseControlBlockChildren("@for body");
+    return node;
+}
+
+std::vector<AstNode> Parser::parseControlBlockChildren(const char* context)
+{
+    std::vector<AstNode> children;
+    expect(TokenType::LeftBrace, context);
 
     while (current_.type != TokenType::RightBrace
         && current_.type != TokenType::EndOfFile) {
-        node.children.push_back(parseNode());
+        children.push_back(parseNode());
         if (current_.type == TokenType::Comma) {
             current_ = lexer_.next();
         }
     }
 
-    expect(TokenType::RightBrace, "@for body");
+    expect(TokenType::RightBrace, context);
+    return children;
+}
+
+AstNode Parser::parseElseIfBranch(int line, int column)
+{
+    AstNode node;
+    node.kind = AstNodeKind::IfBlock;
+    node.line = line;
+    node.column = column;
+
+    expect(TokenType::LeftParen, "@elseif directive");
+    if (current_.type != TokenType::BindingLiteral) {
+        error("expected binding expression inside @elseif(...)");
+        return node;
+    }
+
+    node.controlPath = current_.text;
+    current_ = lexer_.next();
+    expect(TokenType::RightParen, "@elseif directive");
+    node.children = parseControlBlockChildren("@elseif body");
+    return node;
+}
+
+AstNode Parser::parseElseBranch(int line, int column)
+{
+    AstNode node;
+    node.kind = AstNodeKind::IfBlock;
+    node.line = line;
+    node.column = column;
+    node.children = parseControlBlockChildren("@else body");
     return node;
 }
 

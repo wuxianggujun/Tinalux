@@ -139,6 +139,47 @@ VBox(id: "root") {
     }
 
     {
+        const std::string source = R"(
+VBox(id: "root") {
+    @if(${model.primary}) {
+        Button(id: "primary", text: "Primary")
+    } @elseif(${model.secondary}) {
+        Button(id: "secondary", text: "Secondary")
+    } @else {
+        Button(id: "fallback", text: "Fallback")
+    }
+}
+)";
+
+        const markup::DocumentParseResult result = markup::Parser::parseDocument(source);
+        expect(result.ok(), "@elseif/@else markup should parse");
+        expect(result.document.root.has_value(), "@elseif/@else parse should keep root");
+
+        const markup::AstNode& root = *result.document.root;
+        expect(root.children.size() == 1, "control-flow chain should remain a single root child");
+
+        const markup::AstNode& ifNode = root.children.front();
+        expect(ifNode.isIfBlock(), "@if/@elseif/@else chain should parse as if block");
+        expect(
+            ifNode.controlPath.has_value() && *ifNode.controlPath == "model.primary",
+            "primary branch should preserve control path");
+        expect(ifNode.conditionalBranches.size() == 2, "if block should keep elseif and else branches");
+        expect(
+            ifNode.conditionalBranches.front().controlPath.has_value()
+                && *ifNode.conditionalBranches.front().controlPath == "model.secondary",
+            "@elseif branch should preserve control path");
+        expect(
+            !ifNode.conditionalBranches.back().controlPath.has_value(),
+            "@else branch should not require a control path");
+        expect(
+            ifNode.conditionalBranches.front().children.size() == 1,
+            "@elseif branch should keep one child widget");
+        expect(
+            ifNode.conditionalBranches.back().children.size() == 1,
+            "@else branch should keep one child widget");
+    }
+
+    {
         const std::string invalidForSource = R"(
 VBox(id: "root") {
     @for(item ${model.items}) {
