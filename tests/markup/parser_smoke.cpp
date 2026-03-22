@@ -185,6 +185,52 @@ VBox(id: "root") {
     }
 
     {
+        const std::string shorthandSource = R"(
+VBox(id: "root") {
+    Label("Dashboard"),
+    Button(${model.ctaText}),
+    Checkbox("Remember me", checked: true)
+}
+)";
+
+        const markup::DocumentParseResult result = markup::Parser::parseDocument(shorthandSource);
+        expectParseOk(result, "anonymous property syntax should parse");
+        expect(result.document.root.has_value(), "shorthand document root should exist");
+
+        const markup::AstNode& root = *result.document.root;
+        expect(root.children.size() == 3, "shorthand document should keep three child widgets");
+
+        const markup::AstNode& labelNode = root.children[0];
+        expect(labelNode.properties.size() == 1, "Label shorthand should create one property");
+        expect(
+            labelNode.properties.front().hasImplicitName(),
+            "Label shorthand should preserve implicit property marker");
+        expect(
+            labelNode.properties.front().name.empty(),
+            "Label shorthand property should remain unnamed in AST");
+        expect(
+            labelNode.properties.front().value.type() == core::ValueType::String
+                && labelNode.properties.front().value.asString() == "Dashboard",
+            "Label shorthand should preserve string literal value");
+
+        const markup::AstNode& buttonNode = root.children[1];
+        expect(buttonNode.properties.size() == 1, "Button shorthand should create one property");
+        expect(
+            buttonNode.properties.front().hasBinding()
+                && *buttonNode.properties.front().bindingPath == "model.ctaText",
+            "Button shorthand should preserve binding expression");
+
+        const markup::AstNode& checkboxNode = root.children[2];
+        expect(checkboxNode.properties.size() == 2, "Checkbox shorthand should mix anonymous and named properties");
+        expect(
+            checkboxNode.properties.front().hasImplicitName(),
+            "Checkbox shorthand should preserve leading anonymous property");
+        expect(
+            checkboxNode.properties.back().name == "checked",
+            "Checkbox shorthand should keep named properties intact");
+    }
+
+    {
         const std::string invalidIfSource = R"(
 VBox(id: "root") {
     if(true) {

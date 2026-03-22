@@ -9,6 +9,7 @@
 #include "tinalux/core/Geometry.h"
 #include "tinalux/markup/LayoutLoader.h"
 #include "tinalux/ui/Button.h"
+#include "tinalux/ui/Checkbox.h"
 #include "tinalux/ui/Dialog.h"
 #include "tinalux/ui/Dropdown.h"
 #include "tinalux/ui/ImageWidget.h"
@@ -56,6 +57,32 @@ int main()
     using namespace tinalux;
 
     const ui::Theme theme = ui::Theme::light();
+
+    {
+        const std::string source = R"(
+component PrimaryAction(label: "Default CTA"): Button(label)
+VBox(id: "root") {
+    Button(id: "cta", "Deploy"),
+    Checkbox(id: "remember", "Remember me", checked: true),
+    PrimaryAction(id: "componentCta", "Launch")
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "anonymous property syntax should load");
+        expect(result.warnings.empty(), "anonymous property syntax should not emit warnings");
+
+        const ui::Button* cta = result.handle.findById<ui::Button>("cta");
+        expect(cta != nullptr, "Button shorthand should materialize Button widget");
+
+        const ui::Checkbox* remember = result.handle.findById<ui::Checkbox>("remember");
+        expect(remember != nullptr, "Checkbox shorthand should materialize Checkbox widget");
+        expect(remember->label() == "Remember me", "Checkbox shorthand should map to label");
+        expect(remember->checked(), "Checkbox shorthand should preserve named properties");
+
+        const ui::Button* componentCta = result.handle.findById<ui::Button>("componentCta");
+        expect(componentCta != nullptr, "single-parameter component shorthand should resolve");
+    }
 
     {
         const std::string source = R"(

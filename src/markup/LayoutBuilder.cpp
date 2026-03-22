@@ -329,7 +329,12 @@ std::shared_ptr<ui::Widget> LayoutBuilder::buildNode(
     }
     widget->setMarkupTypeName(node.typeName);
 
-    for (const auto& prop : node.properties) {
+    const std::vector<AstProperty> normalizedProperties = normalizeImplicitProperties(
+        node.properties,
+        node.typeName,
+        typeInfo->markupPrimaryProperty);
+
+    for (const auto& prop : normalizedProperties) {
         const AstProperty resolvedProp = resolveScopedProperty(prop, scope);
         if (resolvedProp.name == "style") {
             if (resolvedProp.hasObjectValue()) {
@@ -340,7 +345,7 @@ std::shared_ptr<ui::Widget> LayoutBuilder::buildNode(
         }
     }
 
-    for (const auto& prop : node.properties) {
+    for (const auto& prop : normalizedProperties) {
         const AstProperty resolvedProp = resolveScopedProperty(prop, scope);
         if (resolvedProp.name == "style") {
             continue;
@@ -356,6 +361,46 @@ std::shared_ptr<ui::Widget> LayoutBuilder::buildNode(
     }
 
     return widget;
+}
+
+std::vector<AstProperty> LayoutBuilder::normalizeImplicitProperties(
+    const std::vector<AstProperty>& properties,
+    std::string_view ownerName,
+    std::string_view primaryPropertyName)
+{
+    std::vector<AstProperty> normalized;
+    normalized.reserve(properties.size());
+
+    bool consumedImplicitProperty = false;
+    for (const auto& property : properties) {
+        if (!property.hasImplicitName()) {
+            normalized.push_back(property);
+            continue;
+        }
+
+        if (primaryPropertyName.empty()) {
+            std::ostringstream oss;
+            oss << "anonymous value syntax is not supported on '" << ownerName
+                << "' at line " << property.line;
+            warnings_.push_back(oss.str());
+            continue;
+        }
+
+        if (consumedImplicitProperty) {
+            std::ostringstream oss;
+            oss << "only one anonymous value is supported on '" << ownerName
+                << "' at line " << property.line;
+            warnings_.push_back(oss.str());
+        }
+
+        AstProperty resolved = property;
+        resolved.name = std::string(primaryPropertyName);
+        resolved.implicitName = false;
+        normalized.push_back(std::move(resolved));
+        consumedImplicitProperty = true;
+    }
+
+    return normalized;
 }
 
 std::shared_ptr<ui::Widget> LayoutBuilder::buildComponentNode(
@@ -387,6 +432,13 @@ AstNode LayoutBuilder::mergeComponentNode(
     const AstComponentDefinition& component,
     const AstNode& instanceNode)
 {
+    const std::string componentPrimaryProperty =
+        component.parameters.size() == 1 ? component.parameters.front().name : std::string();
+    const std::vector<AstProperty> normalizedInstanceProperties = normalizeImplicitProperties(
+        instanceNode.properties,
+        component.name,
+        componentPrimaryProperty);
+
     std::unordered_map<std::string, AstProperty> parameterValues;
     parameterValues.reserve(component.parameters.size());
     for (const auto& parameter : component.parameters) {
@@ -394,8 +446,8 @@ AstNode LayoutBuilder::mergeComponentNode(
     }
 
     std::vector<AstProperty> rootOverrides;
-    rootOverrides.reserve(instanceNode.properties.size());
-    for (const auto& instanceProp : instanceNode.properties) {
+    rootOverrides.reserve(normalizedInstanceProperties.size());
+    for (const auto& instanceProp : normalizedInstanceProperties) {
         bool matchedParameter = false;
         for (const auto& parameter : component.parameters) {
             if (parameter.name == instanceProp.name) {
@@ -663,6 +715,7 @@ AstProperty LayoutBuilder::resolveComponentProperty(
         if (parameterIt != parameterValues.end()) {
             AstProperty parameterProp = parameterIt->second;
             parameterProp.name = property.name;
+            parameterProp.implicitName = property.implicitName;
             parameterProp.line = property.line;
             parameterProp.column = property.column;
             return parameterProp;

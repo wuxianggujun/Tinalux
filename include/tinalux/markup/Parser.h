@@ -34,7 +34,7 @@ private:
     std::vector<AstNode> parseControlBlockChildren(const char* context);
     AstNode parseElseIfBranch(int line, int column);
     AstNode parseElseBranch(int line, int column);
-    AstProperty parseProperty();
+    AstProperty parseProperty(bool allowImplicitName = false);
     core::Value parseValue();
     core::Value parseValueDirective();
     void skipNodeBoundary();

@@ -462,6 +462,7 @@ void registerBuiltinTypes()
                     static_cast<ui::Label&>(w).setColor(v.asColor());
                 }},
         },
+        .markupPrimaryProperty = "text",
     });
 
     reg.registerType(core::TypeInfo {
@@ -486,6 +487,7 @@ void registerBuiltinTypes()
                         static_cast<std::size_t>(v.asInt()));
                 }},
         },
+        .markupPrimaryProperty = "text",
     });
 
     reg.registerType(core::TypeInfo {
@@ -628,6 +630,7 @@ void registerBuiltinTypes()
                     });
                 }),
         },
+        .markupPrimaryProperty = "text",
     });
 
     reg.registerType(core::TypeInfo {
@@ -860,6 +863,7 @@ void registerBuiltinTypes()
                         });
                 }),
         },
+        .markupPrimaryProperty = "label",
     });
 
     reg.registerType(core::TypeInfo {
@@ -897,6 +901,7 @@ void registerBuiltinTypes()
                         });
                 }),
         },
+        .markupPrimaryProperty = "label",
     });
 
     reg.registerType(core::TypeInfo {
@@ -950,6 +955,7 @@ void registerBuiltinTypes()
                         });
                 }),
         },
+        .markupPrimaryProperty = "label",
     });
 
     reg.registerType(core::TypeInfo {

@@ -21,11 +21,13 @@ struct AstProperty {
     std::vector<AstProperty> objectProperties;
     std::optional<std::string> bindingPath;
     bool objectValue = false;
+    bool implicitName = false;
     int line = 0;
     int column = 0;
 
     bool hasObjectValue() const { return objectValue; }
     bool hasBinding() const { return bindingPath.has_value(); }
+    bool hasImplicitName() const { return implicitName; }
 };
 
 struct AstNode {

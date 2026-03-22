@@ -249,7 +249,7 @@ AstNode Parser::parseNode()
         // parse property list
         while (current_.type != TokenType::RightParen
             && current_.type != TokenType::EndOfFile) {
-            node.properties.push_back(parseProperty());
+            node.properties.push_back(parseProperty(true));
 
             if (current_.type == TokenType::Comma) {
                 current_ = lexer_.next();
@@ -446,11 +446,28 @@ AstNode Parser::parseElseBranch(int line, int column)
     return node;
 }
 
-AstProperty Parser::parseProperty()
+AstProperty Parser::parseProperty(bool allowImplicitName)
 {
     AstProperty prop;
     prop.line = current_.line;
     prop.column = current_.column;
+
+    if (allowImplicitName) {
+        const bool isNamedProperty = current_.type == TokenType::Identifier
+            && lexer_.peek().type == TokenType::Colon;
+        if (!isNamedProperty) {
+            prop.implicitName = true;
+
+            if (current_.type == TokenType::BindingLiteral) {
+                prop.bindingPath = current_.text;
+                current_ = lexer_.next();
+                return prop;
+            }
+
+            prop.value = parseValue();
+            return prop;
+        }
+    }
 
     if (current_.type != TokenType::Identifier) {
         error("expected property name, got '" + current_.text + "'");
