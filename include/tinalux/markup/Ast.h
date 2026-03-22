@@ -15,10 +15,17 @@ enum class AstNodeKind : std::uint8_t {
     ForBlock,
 };
 
+struct AstProperty;
+
+struct AstObjectValue {
+    std::vector<AstProperty> properties;
+};
+
 struct AstProperty {
     std::string name;
     core::Value value;
     std::vector<core::Value> arrayValues;
+    std::vector<AstObjectValue> arrayObjectValues;
     std::vector<AstProperty> objectProperties;
     std::optional<std::string> bindingPath;
     bool arrayValue = false;
@@ -28,6 +35,7 @@ struct AstProperty {
     int column = 0;
 
     bool hasArrayValue() const { return arrayValue; }
+    bool hasArrayObjectValues() const { return !arrayObjectValues.empty(); }
     bool hasObjectValue() const { return objectValue; }
     bool hasBinding() const { return bindingPath.has_value(); }
     bool hasImplicitName() const { return implicitName; }

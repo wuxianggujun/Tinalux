@@ -299,6 +299,73 @@ std::optional<std::vector<ui::TextSpan>> richTextSpansNode(const ModelNode& node
     return spans;
 }
 
+std::optional<ModelNode> objectNodeFromProperties(const std::vector<AstProperty>& properties);
+
+std::optional<ModelNode> propertyNode(const AstProperty& property)
+{
+    if (property.hasBinding()) {
+        return std::nullopt;
+    }
+
+    if (property.hasObjectValue()) {
+        return objectNodeFromProperties(property.objectProperties);
+    }
+
+    if (property.hasArrayValue()) {
+        if (property.hasArrayObjectValues() && !property.arrayValues.empty()) {
+            return std::nullopt;
+        }
+
+        ModelNode::Array values;
+        values.reserve(property.hasArrayObjectValues()
+                ? property.arrayObjectValues.size()
+                : property.arrayValues.size());
+
+        if (property.hasArrayObjectValues()) {
+            for (const AstObjectValue& objectValue : property.arrayObjectValues) {
+                std::optional<ModelNode> objectNode = objectNodeFromProperties(objectValue.properties);
+                if (!objectNode.has_value()) {
+                    return std::nullopt;
+                }
+                values.push_back(std::move(*objectNode));
+            }
+        } else {
+            for (const core::Value& value : property.arrayValues) {
+                values.emplace_back(value);
+            }
+        }
+
+        return ModelNode::array(std::move(values));
+    }
+
+    return ModelNode(property.value);
+}
+
+std::optional<ModelNode> objectNodeFromProperties(const std::vector<AstProperty>& properties)
+{
+    ModelNode::Object object;
+    for (const AstProperty& childProperty : properties) {
+        std::optional<ModelNode> childNode = propertyNode(childProperty);
+        if (!childNode.has_value()) {
+            return std::nullopt;
+        }
+
+        object[childProperty.name] = std::move(*childNode);
+    }
+
+    return ModelNode::object(std::move(object));
+}
+
+std::optional<std::vector<ui::TextSpan>> richTextSpansProperty(const AstProperty& property)
+{
+    const std::optional<ModelNode> node = propertyNode(property);
+    if (!node.has_value()) {
+        return std::nullopt;
+    }
+
+    return richTextSpansNode(*node);
+}
+
 std::optional<std::string> interactionNameFromPropertyName(std::string_view propertyName)
 {
     if (propertyName.size() <= 2
@@ -1145,6 +1212,18 @@ AstProperty LayoutBuilder::resolveComponentProperty(
         for (const auto& entry : property.arrayValues) {
             resolved.arrayValues.push_back(resolveComponentValue(entry, parameterValues));
         }
+
+        resolved.arrayObjectValues.clear();
+        resolved.arrayObjectValues.reserve(property.arrayObjectValues.size());
+        for (const AstObjectValue& objectValue : property.arrayObjectValues) {
+            AstObjectValue resolvedObjectValue;
+            resolvedObjectValue.properties.reserve(objectValue.properties.size());
+            for (const AstProperty& childProperty : objectValue.properties) {
+                resolvedObjectValue.properties.push_back(
+                    resolveComponentProperty(childProperty, parameterValues));
+            }
+            resolved.arrayObjectValues.push_back(std::move(resolvedObjectValue));
+        }
         return resolved;
     }
 
@@ -1279,6 +1358,18 @@ AstProperty LayoutBuilder::resolveScopedProperty(
 
                 resolved.arrayValues.push_back(resolvedValue);
             }
+
+            resolved.arrayObjectValues.clear();
+            resolved.arrayObjectValues.reserve(source.arrayObjectValues.size());
+            for (const AstObjectValue& objectValue : source.arrayObjectValues) {
+                AstObjectValue resolvedObjectValue;
+                resolvedObjectValue.properties.reserve(objectValue.properties.size());
+                for (const AstProperty& childProperty : objectValue.properties) {
+                    resolvedObjectValue.properties.push_back(
+                        resolveRecursive(childProperty, resolvingLets));
+                }
+                resolved.arrayObjectValues.push_back(std::move(resolvedObjectValue));
+            }
             return resolved;
         }
 
@@ -1306,6 +1397,7 @@ AstProperty LayoutBuilder::resolveScopedProperty(
 
                 resolved.value = letValue.value;
                 resolved.arrayValues = letValue.arrayValues;
+                resolved.arrayObjectValues = letValue.arrayObjectValues;
                 resolved.objectProperties = letValue.objectProperties;
                 resolved.bindingPath = letValue.bindingPath;
                 resolved.arrayValue = letValue.arrayValue;
@@ -1324,6 +1416,7 @@ AstProperty LayoutBuilder::resolveScopedProperty(
             resolved.value = *constantValue;
             resolved.arrayValue = false;
             resolved.arrayValues.clear();
+            resolved.arrayObjectValues.clear();
             resolved.objectValue = false;
             resolved.objectProperties.clear();
         }
@@ -1844,6 +1937,14 @@ void LayoutBuilder::applyStandardProperty(
             return;
         }
 
+        if (prop.hasArrayObjectValues()) {
+            std::ostringstream oss;
+            oss << "property '" << prop.name << "' on '" << nodeType
+                << "' expects an array of string-like values at line " << prop.line;
+            warnings_.push_back(oss.str());
+            return;
+        }
+
         const std::optional<std::vector<std::string>> items =
             stringArrayValues(prop.arrayValues);
         if (!items.has_value()) {
@@ -1916,6 +2017,14 @@ void LayoutBuilder::applyStandardProperty(
             return;
         }
 
+        if (prop.hasArrayObjectValues()) {
+            std::ostringstream oss;
+            oss << "property '" << prop.name << "' on '" << nodeType
+                << "' expects an array of string-like values at line " << prop.line;
+            warnings_.push_back(oss.str());
+            return;
+        }
+
         const std::optional<std::vector<std::string>> items =
             stringArrayValues(prop.arrayValues);
         if (!items.has_value()) {
@@ -1939,51 +2048,65 @@ void LayoutBuilder::applyStandardProperty(
             return;
         }
 
-        if (!prop.hasBinding()) {
+        if (prop.hasBinding()) {
+            auto preparedBinding = prepareBinding(
+                *prop.bindingPath,
+                scope,
+                prop.line,
+                "property '" + prop.name + "' on '" + nodeType + "'",
+                false);
+            if (!preparedBinding.has_value()) {
+                return;
+            }
+
+            if (!preparedBinding->evaluateNode) {
+                std::ostringstream oss;
+                oss << "property '" << prop.name << "' on '" << nodeType
+                    << "' requires a direct array path at line " << prop.line;
+                warnings_.push_back(oss.str());
+                return;
+            }
+
+            registerNodeBinding(
+                widget,
+                prop.name,
+                std::move(preparedBinding->dependencyPaths),
+                {},
+                std::move(preparedBinding->evaluateNode),
+                [weakWidget = std::weak_ptr<ui::Widget>(widget)](const ModelNode& node) {
+                    auto lockedWidget = weakWidget.lock();
+                    if (!lockedWidget) {
+                        return;
+                    }
+
+                    const std::optional<std::vector<ui::TextSpan>> spans = richTextSpansNode(node);
+                    if (!spans.has_value()) {
+                        return;
+                    }
+
+                    static_cast<ui::RichTextWidget&>(*lockedWidget).setSpans(*spans);
+                });
+            return;
+        }
+
+        if (!prop.hasArrayValue()) {
             std::ostringstream oss;
             oss << "property '" << prop.name << "' on '" << nodeType
-                << "' requires a direct array path at line " << prop.line;
+                << "' expects an array literal or direct array path at line " << prop.line;
             warnings_.push_back(oss.str());
             return;
         }
 
-        auto preparedBinding = prepareBinding(
-            *prop.bindingPath,
-            scope,
-            prop.line,
-            "property '" + prop.name + "' on '" + nodeType + "'",
-            false);
-        if (!preparedBinding.has_value()) {
-            return;
-        }
-
-        if (!preparedBinding->evaluateNode) {
+        const std::optional<std::vector<ui::TextSpan>> spans = richTextSpansProperty(prop);
+        if (!spans.has_value()) {
             std::ostringstream oss;
             oss << "property '" << prop.name << "' on '" << nodeType
-                << "' requires a direct array path at line " << prop.line;
+                << "' expects an array of object values at line " << prop.line;
             warnings_.push_back(oss.str());
             return;
         }
 
-        registerNodeBinding(
-            widget,
-            prop.name,
-            std::move(preparedBinding->dependencyPaths),
-            {},
-            std::move(preparedBinding->evaluateNode),
-            [weakWidget = std::weak_ptr<ui::Widget>(widget)](const ModelNode& node) {
-                auto lockedWidget = weakWidget.lock();
-                if (!lockedWidget) {
-                    return;
-                }
-
-                const std::optional<std::vector<ui::TextSpan>> spans = richTextSpansNode(node);
-                if (!spans.has_value()) {
-                    return;
-                }
-
-                static_cast<ui::RichTextWidget&>(*lockedWidget).setSpans(*spans);
-            });
+        static_cast<ui::RichTextWidget&>(*widget).setSpans(*spans);
         return;
     }
 

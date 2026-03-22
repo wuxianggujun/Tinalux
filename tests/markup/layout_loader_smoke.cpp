@@ -307,6 +307,55 @@ VBox(id: root) {
     }
 
     {
+        const std::string source = R"(
+let followupText: " Ship now"
+component SummaryCard(
+    titleText: "Release Notes",
+    accentText: followupText
+): RichText(
+    id: summary,
+    spans: [
+        {
+            text: titleText,
+            role: Heading,
+            bold: true,
+            fontSize: 22
+        },
+        {
+            text: accentText,
+            color: #FF225588,
+            underline: true,
+            fontFamilies: ["Consolas", "Segoe UI"]
+        }
+    ])
+VBox(id: root) {
+    SummaryCard(id: summaryCard)
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "static RichText spans markup should load");
+        expect(result.warnings.empty(), "static RichText spans markup should not emit warnings");
+
+        const ui::RichTextWidget* summaryCard = result.handle.findById<ui::RichTextWidget>("summaryCard");
+        expect(summaryCard != nullptr, "component static RichText should materialize from markup");
+        expect(summaryCard->spans().size() == 2, "static spans array should materialize all rich text spans");
+        expect(summaryCard->spans()[0].text == "Release Notes", "component parameter substitution should resolve static span text");
+        expect(summaryCard->spans()[0].role == ui::RichTextSpanRole::Heading, "static span roles should resolve from enum identifiers");
+        expect(summaryCard->spans()[0].bold, "static span bool properties should be preserved");
+        expect(
+            nearlyEqual(summaryCard->spans()[0].fontSize.value_or(0.0f), 22.0f),
+            "static span numeric properties should be preserved");
+        expect(summaryCard->spans()[1].text == " Ship now", "let values should resolve inside static span objects");
+        expect(
+            summaryCard->spans()[1].color.has_value()
+                && summaryCard->spans()[1].color.value() == core::Color(0xFF225588u),
+            "static span colors should be preserved");
+        expect(summaryCard->spans()[1].underline, "static span underline should be preserved");
+        expect(summaryCard->spans()[1].fontFamilies.size() == 2, "static span font family arrays should be preserved");
+    }
+
+    {
         ui::IconRegistry::instance().clear();
         ui::IconRegistry::instance().registerIconFactory(ui::IconType::Close, [](float) {
             const std::array<std::uint8_t, 4> rgba {255, 255, 255, 255};
