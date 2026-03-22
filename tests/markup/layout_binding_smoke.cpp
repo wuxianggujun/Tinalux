@@ -305,6 +305,48 @@ VBox(id: root) {
     {
         const std::string source = R"(
 VBox(id: root) {
+    TextInput(id: summary, text: "共 ${model.count} 条记录"),
+    TextInput(id: detail, text: "启用=${model.enabled}, 比例=${model.scale}"),
+    TextInput(id: accent, text: "颜色=${model.accent}")
+}
+)";
+
+        markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "interpolated string markup should load");
+        expect(result.warnings.empty(), "interpolated string markup should not emit warnings");
+
+        auto viewModel = markup::ViewModel::create();
+        viewModel->setInt("count", 3);
+        viewModel->setBool("enabled", true);
+        viewModel->setFloat("scale", 1.5f);
+        viewModel->setColor("accent", core::Color(0xFF336699u));
+
+        ui::TextInput* summary = result.handle.findById<ui::TextInput>("summary");
+        ui::TextInput* detail = result.handle.findById<ui::TextInput>("detail");
+        ui::TextInput* accent = result.handle.findById<ui::TextInput>("accent");
+        expect(summary != nullptr, "interpolated summary TextInput should exist");
+        expect(detail != nullptr, "interpolated detail TextInput should exist");
+        expect(accent != nullptr, "interpolated accent TextInput should exist");
+
+        result.handle.bindViewModel(viewModel);
+
+        expect(summary->text() == "共 3 条记录", "interpolated int text should render initial value");
+        expect(detail->text() == "启用=true, 比例=1.5", "interpolated bool and float text should render initial values");
+        expect(accent->text() == "颜色=#FF336699", "interpolated color text should render initial value");
+
+        viewModel->setInt("count", 9);
+        viewModel->setBool("enabled", false);
+        viewModel->setFloat("scale", 2.25f);
+        viewModel->setColor("accent", core::Color(0xCC112233u));
+
+        expect(summary->text() == "共 9 条记录", "interpolated int text should live-update");
+        expect(detail->text() == "启用=false, 比例=2.25", "interpolated bool and float text should live-update");
+        expect(accent->text() == "颜色=#CC112233", "interpolated color text should live-update");
+    }
+
+    {
+        const std::string source = R"(
+VBox(id: root) {
     Button(id: submit, text: "Submit", onClick: ${model.onSubmit}),
     Dropdown(
         id: choiceEvents,

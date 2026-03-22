@@ -156,6 +156,7 @@ Button(id: "submitButton", text: "Submit")
 TextInput(text: ${model.query})
 Panel(visible: ${model.showStatus && model.count > 0})
 Button(text: ${model.prefix + model.suffix})
+TextInput(text: "共 ${model.count} 条记录")
 ```
 
 当前支持：
@@ -163,8 +164,18 @@ Button(text: ${model.prefix + model.suffix})
 - `${model.xxx}` 读取 `ViewModel`
 - `${item.xxx}` 读取 `for` 循环作用域
 - 普通表达式，例如比较、布尔组合、简单运算、字符串拼接
+- 双引号字符串插值，词法阶段会自动降级成普通 binding 表达式
 - 双向写回的输入控件绑定
 - 事件属性绑定，例如 `onClick: ${model.onSubmit}`、`onSelectionChanged: ${model.onChoiceChanged}`
+
+字符串插值示例：
+
+```tui
+TextInput(text: "共 ${model.count} 条记录")
+TextInput(text: "启用=${model.enabled}, 比例=${model.scale}")
+```
+
+如果需要输出字面量 `${...}`，请转义成 `\${...}`。
 
 当前事件属性要求：
 

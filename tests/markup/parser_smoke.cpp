@@ -278,6 +278,37 @@ VBox(id: root) {
     }
 
     {
+        const std::string interpolatedStringSource = R"(
+VBox(id: root) {
+    TextInput(id: summary, text: "共 ${model.count} 条记录"),
+    TextInput(id: escaped, text: "字面量 \${model.count}")
+}
+)";
+
+        const markup::DocumentParseResult result = markup::Parser::parseDocument(interpolatedStringSource);
+        expectParseOk(result, "interpolated string document should parse");
+        expect(result.document.root.has_value(), "interpolated string document root should exist");
+
+        const markup::AstNode& root = *result.document.root;
+        expect(root.children.size() == 2, "interpolated string document should keep both widgets");
+
+        const markup::AstProperty* summaryTextProp = findProperty(root.children.front(), "text");
+        expect(summaryTextProp != nullptr, "summary TextInput should preserve text property");
+        expect(
+            summaryTextProp->bindingPath.has_value()
+                && *summaryTextProp->bindingPath == "\"共 \" + (model.count) + \" 条记录\"",
+            "parser should lower interpolated strings into binding expressions");
+
+        const markup::AstProperty* escapedTextProp = findProperty(root.children.back(), "text");
+        expect(escapedTextProp != nullptr, "escaped TextInput should preserve text property");
+        expect(
+            !escapedTextProp->bindingPath.has_value()
+                && escapedTextProp->value.type() == core::ValueType::String
+                && escapedTextProp->value.asString() == "字面量 ${model.count}",
+            "parser should keep escaped interpolation markers as plain string text");
+    }
+
+    {
         const std::string shorthandSource = R"(
 component SearchField(placeholder: "Search", currentText: ""): TextInput(placeholder, currentText)
 VBox(id: root, 12, 8) {

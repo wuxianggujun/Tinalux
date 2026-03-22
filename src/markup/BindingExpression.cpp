@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cctype>
 #include <cstdint>
+#include <iomanip>
 #include <sstream>
 #include <unordered_set>
 #include <utility>
@@ -717,15 +718,37 @@ bool isIntValue(const EvaluatedValue& value)
     return value.scalar.has_value() && value.scalar->type() == core::ValueType::Int;
 }
 
-std::optional<std::string> stringValue(const EvaluatedValue& value)
+std::optional<std::string> stringCoercibleValue(const EvaluatedValue& value)
 {
     if (!value.scalar.has_value()) {
         return std::nullopt;
     }
 
-    if (value.scalar->type() == core::ValueType::String
-        || value.scalar->type() == core::ValueType::Enum) {
+    switch (value.scalar->type()) {
+    case core::ValueType::None:
+        return std::string();
+    case core::ValueType::Bool:
+        return value.scalar->asBool() ? "true" : "false";
+    case core::ValueType::Int:
+        return std::to_string(value.scalar->asInt());
+    case core::ValueType::Float: {
+        std::ostringstream stream;
+        stream << value.scalar->asFloat();
+        return stream.str();
+    }
+    case core::ValueType::String:
+    case core::ValueType::Enum:
         return value.scalar->asString();
+    case core::ValueType::Color: {
+        std::ostringstream stream;
+        stream << '#'
+               << std::uppercase
+               << std::hex
+               << std::setw(8)
+               << std::setfill('0')
+               << value.scalar->asColor().value();
+        return stream.str();
+    }
     }
 
     return std::nullopt;
@@ -821,9 +844,15 @@ std::optional<core::Value> evaluateBinary(
     }
 
     if (op == BindingExpression::BinaryOperator::Add) {
-        const std::optional<std::string> lhsText = stringValue(lhs);
-        const std::optional<std::string> rhsText = stringValue(rhs);
-        if (lhsText.has_value() || rhsText.has_value()) {
+        const bool lhsStringLike = lhs.scalar.has_value()
+            && (lhs.scalar->type() == core::ValueType::String
+                || lhs.scalar->type() == core::ValueType::Enum);
+        const bool rhsStringLike = rhs.scalar.has_value()
+            && (rhs.scalar->type() == core::ValueType::String
+                || rhs.scalar->type() == core::ValueType::Enum);
+        if (lhsStringLike || rhsStringLike) {
+            const std::optional<std::string> lhsText = stringCoercibleValue(lhs);
+            const std::optional<std::string> rhsText = stringCoercibleValue(rhs);
             if (!lhsText.has_value() || !rhsText.has_value()) {
                 return std::nullopt;
             }

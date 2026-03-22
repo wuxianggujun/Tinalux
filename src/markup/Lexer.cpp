@@ -4,6 +4,65 @@
 
 namespace tinalux::markup {
 
+namespace {
+
+std::string escapeBindingStringLiteral(std::string_view text)
+{
+    std::string escaped;
+    escaped.reserve(text.size());
+    for (char ch : text) {
+        switch (ch) {
+        case '\\':
+            escaped += "\\\\";
+            break;
+        case '"':
+            escaped += "\\\"";
+            break;
+        case '\n':
+            escaped += "\\n";
+            break;
+        case '\r':
+            escaped += "\\r";
+            break;
+        case '\t':
+            escaped += "\\t";
+            break;
+        default:
+            escaped += ch;
+            break;
+        }
+    }
+    return escaped;
+}
+
+void appendBindingTerm(std::string& expression, std::string term)
+{
+    if (term.empty()) {
+        return;
+    }
+
+    if (!expression.empty()) {
+        expression += " + ";
+    }
+    expression += std::move(term);
+}
+
+void appendStringLiteralTerm(std::string& expression, std::string_view text)
+{
+    if (text.empty()) {
+        return;
+    }
+
+    appendBindingTerm(expression, "\"" + escapeBindingStringLiteral(text) + "\"");
+}
+
+void appendExpressionTerm(std::string& expression, std::string_view text)
+{
+    appendBindingTerm(expression, "(" + std::string(text) + ")");
+}
+
+} // namespace
+
 Lexer::Lexer(std::string_view source)
     : source_(source)
 {
@@ -168,8 +227,20 @@ Token Lexer::readString()
     advance(); // skip opening "
 
     std::string text;
+    std::string bindingText;
+    bool hasInterpolation = false;
     while (!atEnd() && current() != '"') {
         if (current() == '\\' && pos_ + 1 < source_.size()) {
+            if (pos_ + 2 < source_.size()
+                && source_[pos_ + 1] == '$'
+                && source_[pos_ + 2] == '{') {
+                advance(); // skip backslash
+                advance(); // skip dollar
+                advance(); // skip left brace
+                text += "${";
+                continue;
+            }
+
             advance(); // skip backslash
             char escaped = advance();
             switch (escaped) {
@@ -179,6 +250,30 @@ Token Lexer::readString()
             case '"': text += '"'; break;
             default: text += '\\'; text += escaped; break;
             }
+        } else if (current() == '$' && pos_ + 1 < source_.size() && source_[pos_ + 1] == '{') {
+            hasInterpolation = true;
+            appendStringLiteralTerm(bindingText, text);
+            text.clear();
+
+            advance(); // skip dollar
+            advance(); // skip left brace
+
+            std::string expression;
+            while (!atEnd() && current() != '}') {
+                expression += advance();
+            }
+
+            if (atEnd()) {
+                Token tok;
+                tok.type = TokenType::Error;
+                tok.text = std::move(expression);
+                tok.line = startLine;
+                tok.column = startCol;
+                return tok;
+            }
+
+            advance(); // skip right brace
+            appendExpressionTerm(bindingText, expression);
         } else {
             text += advance();
         }
@@ -189,8 +284,13 @@ Token Lexer::readString()
     }
 
     Token tok;
-    tok.type = TokenType::StringLiteral;
-    tok.text = std::move(text);
+    tok.type = hasInterpolation ? TokenType::BindingLiteral : TokenType::StringLiteral;
+    if (hasInterpolation) {
+        appendStringLiteralTerm(bindingText, text);
+        tok.text = std::move(bindingText);
+    } else {
+        tok.text = std::move(text);
+    }
     tok.line = startLine;
     tok.column = startCol;
     return tok;
