@@ -18,6 +18,7 @@ Tinalux 的 Markup DSL 用来写界面布局文件，不是通用配置文件格
 当前 DSL 顶层支持这些声明：
 
 - `import "components/shared.tui"`
+- `let gap: 12`
 - `style primaryAction: Button(...)`
 - `component SearchField(...): TextInput(...)`
 - 一个根节点，例如 `VBox(...) { ... }`
@@ -41,7 +42,11 @@ VBox(id: root, 12, 8) {
     Label("Dashboard")
 
     if(${model.showAdvanced}) {
-        Button(id: deployButton, "Deploy", res("icons/deploy.png"))
+        Button(
+            id: deployButton,
+            text: "Deploy",
+            icon: res("icons/deploy.png"),
+            onClick: ${model.onDeploy})
     } elseif(${model.showFallback}) {
         Label("Fallback")
     } else {
@@ -51,8 +56,8 @@ VBox(id: root, 12, 8) {
     Checkbox(id: remember, "Remember me", ${model.rememberMe})
     Toggle(id: rememberMirror, on: ${remember.checked})
 
-    for(item in ${model.items}) {
-        Label(${item.title})
+    for(item, index in ${model.items}) {
+        Label(text: ${item.title + " #" + index})
     }
 }
 ```
@@ -159,6 +164,13 @@ Button(text: ${model.prefix + model.suffix})
 - `${item.xxx}` 读取 `for` 循环作用域
 - 普通表达式，例如比较、布尔组合、简单运算、字符串拼接
 - 双向写回的输入控件绑定
+- 事件属性绑定，例如 `onClick: ${model.onSubmit}`、`onSelectionChanged: ${model.onChoiceChanged}`
+
+当前事件属性要求：
+
+- 必须写成 direct path，例如 `${model.onSubmit}`
+- 不能写成 `${model.prefix + model.suffix}` 这种普通表达式
+- `ViewModel` 侧需要提供 action 节点
 
 ## 8. `id.property` 引用
 
@@ -227,6 +239,14 @@ for(item in ${model.items}) {
 ```
 
 循环变量只在当前 `for` 块里有效。
+
+也支持索引变量：
+
+```tui
+for(item, index in ${model.items}) {
+    Label(text: ${index + ": " + item.title})
+}
+```
 
 ## 10. 资源引用
 

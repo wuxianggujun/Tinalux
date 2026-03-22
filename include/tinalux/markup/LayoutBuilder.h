@@ -25,6 +25,7 @@ struct BuildResult {
     std::shared_ptr<ui::Widget> root;
     std::unordered_map<std::string, std::shared_ptr<ui::Widget>> idMap;
     std::vector<detail::BindingDescriptor> bindings;
+    std::vector<detail::InteractionBindingDescriptor> interactionBindings;
     std::vector<std::string> structuralPaths;
     std::vector<std::string> warnings;
 };
@@ -172,6 +173,12 @@ private:
             const std::shared_ptr<ViewModel>&,
             const std::function<const ModelNode*(std::string_view)>&)> evaluateNode,
         std::function<void(const ModelNode&)> applyNode);
+    void registerInteractionBinding(
+        const std::shared_ptr<ui::Widget>& widget,
+        std::string interactionName,
+        std::function<const ModelNode*(
+            const std::shared_ptr<ViewModel>&,
+            const std::function<const ModelNode*(std::string_view)>&)> evaluateNode);
     bool attachChildren(
         const std::shared_ptr<ui::Widget>& widget,
         const core::TypeInfo& typeInfo,
@@ -187,6 +194,7 @@ private:
     std::vector<std::string> componentStack_;
     std::vector<std::string> styleStack_;
     std::vector<detail::BindingDescriptor> bindings_;
+    std::vector<detail::InteractionBindingDescriptor> interactionBindings_;
     std::vector<std::string> structuralPaths_;
     std::vector<std::string> warnings_;
 };

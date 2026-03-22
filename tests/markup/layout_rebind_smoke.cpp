@@ -202,6 +202,73 @@ VBox(id: root) {
     expect(applyClicks == 3, "stored click handler should reattach after structural rebuild");
 
     {
+        const std::string declarativeInteractionSource = R"(
+VBox(id: root) {
+    if(${model.showAction}) {
+        Button(id: applyAction, text: "Apply", onClick: ${model.onApply})
+    }
+}
+)";
+
+        markup::LoadResult interactionResult = markup::LayoutLoader::load(declarativeInteractionSource, theme);
+        expectLoadOk(interactionResult, "declarative interaction rebind markup should load");
+        expect(interactionResult.warnings.empty(), "declarative interaction rebind markup should not emit warnings");
+
+        int firstActionCalls = 0;
+        int secondActionCalls = 0;
+
+        auto firstActionModel = markup::ViewModel::create();
+        firstActionModel->setBool("showAction", true);
+        firstActionModel->setAction(
+            "onApply",
+            [&](const core::Value& value) {
+                expect(value.isNone(), "declarative button action should receive empty payload");
+                ++firstActionCalls;
+            });
+        interactionResult.handle.bindViewModel(firstActionModel);
+
+        ui::Button* applyAction = interactionResult.handle.findById<ui::Button>("applyAction");
+        expect(applyAction != nullptr, "first declarative action ViewModel should materialize button");
+        applyAction->setFocused(true);
+        applyAction->onEvent(clickButtonOnce);
+        expect(firstActionCalls == 1, "first declarative action ViewModel should receive button click");
+
+        auto secondActionModel = markup::ViewModel::create();
+        secondActionModel->setBool("showAction", true);
+        secondActionModel->setAction(
+            "onApply",
+            [&](const core::Value& value) {
+                expect(value.isNone(), "rebound declarative button action should receive empty payload");
+                ++secondActionCalls;
+            });
+        interactionResult.handle.bindViewModel(secondActionModel);
+
+        applyAction = interactionResult.handle.findById<ui::Button>("applyAction");
+        expect(applyAction != nullptr, "rebinding should rematerialize declarative action button");
+        applyAction->setFocused(true);
+        applyAction->onEvent(clickButtonOnce);
+        expect(firstActionCalls == 1, "stale declarative action should detach after rebinding");
+        expect(secondActionCalls == 1, "active declarative action should attach after rebinding");
+
+        firstActionModel->setBool("showAction", false);
+        expect(
+            interactionResult.handle.findById<ui::Button>("applyAction") != nullptr,
+            "stale declarative action ViewModel should not remove active button");
+
+        secondActionModel->setBool("showAction", false);
+        expect(
+            interactionResult.handle.findById<ui::Button>("applyAction") == nullptr,
+            "active declarative action ViewModel should still control structural rebuilds");
+
+        secondActionModel->setBool("showAction", true);
+        applyAction = interactionResult.handle.findById<ui::Button>("applyAction");
+        expect(applyAction != nullptr, "active declarative action ViewModel should rematerialize button");
+        applyAction->setFocused(true);
+        applyAction->onEvent(clickButtonOnce);
+        expect(secondActionCalls == 2, "rematerialized declarative action button should keep active handler");
+    }
+
+    {
         const std::string scrollSource = R"(
 VBox(id: root) {
     if(${model.showScroller}) {

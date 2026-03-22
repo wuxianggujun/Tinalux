@@ -165,5 +165,22 @@ int main()
         firstItemNode != nullptr && firstItemNode->isObject(),
         "items.0 should resolve to an object node");
 
+    int actionCalls = 0;
+    bool actionPayloadWasNone = false;
+    const bool actionChanged = viewModel->setAction(
+        "profile.onSave",
+        [&](const core::Value& value) {
+            ++actionCalls;
+            actionPayloadWasNone = value.isNone();
+        });
+    expect(actionChanged, "setting action node should report a change");
+    const markup::ModelNode* actionNode = viewModel->findNode("profile.onSave");
+    expect(actionNode != nullptr && actionNode->isAction(), "action node should be discoverable");
+    const markup::ModelNode::Action* action = viewModel->findAction("profile.onSave");
+    expect(action != nullptr, "action path should resolve to callable handler");
+    (*action)(core::Value());
+    expect(actionCalls == 1, "resolved action should be invokable");
+    expect(actionPayloadWasNone, "resolved action should preserve payload values");
+
     return 0;
 }

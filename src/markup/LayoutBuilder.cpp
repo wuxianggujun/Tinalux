@@ -1,6 +1,7 @@
 #include "tinalux/markup/LayoutBuilder.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <optional>
 #include <sstream>
@@ -70,6 +71,21 @@ std::optional<std::vector<std::string>> stringArrayNode(const ModelNode& node)
     }
 
     return items;
+}
+
+std::optional<std::string> interactionNameFromPropertyName(std::string_view propertyName)
+{
+    if (propertyName.size() <= 2
+        || propertyName[0] != 'o'
+        || propertyName[1] != 'n'
+        || !std::isupper(static_cast<unsigned char>(propertyName[2]))) {
+        return std::nullopt;
+    }
+
+    std::string interactionName(propertyName.substr(2));
+    interactionName[0] = static_cast<char>(
+        std::tolower(static_cast<unsigned char>(interactionName[0])));
+    return interactionName;
 }
 
 std::string slotLabel(std::string_view slotName)
@@ -320,6 +336,7 @@ BuildResult LayoutBuilder::build(
     }
     result.idMap = std::move(builder.idMap_);
     result.bindings = std::move(builder.bindings_);
+    result.interactionBindings = std::move(builder.interactionBindings_);
     result.structuralPaths = std::move(builder.structuralPaths_);
     result.warnings = std::move(builder.warnings_);
     return result;
@@ -1623,6 +1640,45 @@ void LayoutBuilder::applyStandardProperty(
         return;
     }
 
+    if (const std::optional<std::string> interactionName =
+            interactionNameFromPropertyName(prop.name)) {
+        if (const core::InteractionInfo* interactionInfo = typeInfo.findInteraction(*interactionName)) {
+            (void)interactionInfo;
+
+            if (!prop.hasBinding()) {
+                std::ostringstream oss;
+                oss << "interaction property '" << prop.name << "' on '" << nodeType
+                    << "' expects a direct binding path at line " << prop.line;
+                warnings_.push_back(oss.str());
+                return;
+            }
+
+            auto preparedBinding = prepareBinding(
+                *prop.bindingPath,
+                scope,
+                prop.line,
+                "interaction property '" + prop.name + "' on '" + nodeType + "'",
+                false);
+            if (!preparedBinding.has_value()) {
+                return;
+            }
+
+            if (!preparedBinding->evaluateNode) {
+                std::ostringstream oss;
+                oss << "interaction property '" << prop.name << "' on '" << nodeType
+                    << "' requires a direct binding path at line " << prop.line;
+                warnings_.push_back(oss.str());
+                return;
+            }
+
+            registerInteractionBinding(
+                widget,
+                *interactionName,
+                std::move(preparedBinding->evaluateNode));
+            return;
+        }
+    }
+
     const core::PropertyInfo* propInfo = typeInfo.findProperty(prop.name);
     if (!propInfo) {
         std::ostringstream oss;
@@ -1735,6 +1791,20 @@ void LayoutBuilder::registerNodeBinding(
                 applyNode(*node);
                 return true;
             },
+    });
+}
+
+void LayoutBuilder::registerInteractionBinding(
+    const std::shared_ptr<ui::Widget>& widget,
+    std::string interactionName,
+    std::function<const ModelNode*(
+        const std::shared_ptr<ViewModel>&,
+        const std::function<const ModelNode*(std::string_view)>&)> evaluateNode)
+{
+    interactionBindings_.push_back(detail::InteractionBindingDescriptor {
+        .widget = widget,
+        .interactionName = std::move(interactionName),
+        .evaluateNode = std::move(evaluateNode),
     });
 }
 

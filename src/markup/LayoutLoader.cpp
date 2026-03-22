@@ -407,6 +407,7 @@ LayoutHandle::LayoutHandle(LayoutHandle&& other) noexcept
     , rebuildInProgress_(other.rebuildInProgress_)
     , bindingGeneration_(std::move(other.bindingGeneration_))
     , runtimeState_(std::move(other.runtimeState_))
+    , interactionBindings_(std::move(other.interactionBindings_))
     , interactionHandlers_(std::move(other.interactionHandlers_))
 {
     if (!bindingGeneration_) {
@@ -445,6 +446,7 @@ LayoutHandle& LayoutHandle::operator=(LayoutHandle&& other) noexcept
     rebuildInProgress_ = other.rebuildInProgress_;
     bindingGeneration_ = std::move(other.bindingGeneration_);
     runtimeState_ = std::move(other.runtimeState_);
+    interactionBindings_ = std::move(other.interactionBindings_);
     interactionHandlers_ = std::move(other.interactionHandlers_);
 
     if (!bindingGeneration_) {
@@ -461,12 +463,14 @@ LayoutHandle::LayoutHandle(
     std::shared_ptr<ui::Widget> root,
     std::unordered_map<std::string, std::shared_ptr<ui::Widget>> idMap,
     std::vector<detail::BindingDescriptor> bindings,
+    std::vector<detail::InteractionBindingDescriptor> interactionBindings,
     std::shared_ptr<AstDocument> documentTemplate,
     const ui::Theme& theme,
     std::vector<std::string> structuralPaths)
     : root_(std::move(root))
     , idMap_(std::move(idMap))
     , bindings_(std::move(bindings))
+    , interactionBindings_(std::move(interactionBindings))
     , documentTemplate_(std::move(documentTemplate))
     , theme_(std::make_shared<ui::Theme>(theme))
     , structuralPaths_(std::move(structuralPaths))
@@ -785,6 +789,7 @@ void LayoutHandle::rebuildFromTemplate()
     root_ = std::move(buildResult.root);
     idMap_ = std::move(buildResult.idMap);
     bindings_ = std::move(buildResult.bindings);
+    interactionBindings_ = std::move(buildResult.interactionBindings);
     structuralPaths_ = std::move(buildResult.structuralPaths);
 }
 
@@ -871,6 +876,10 @@ void LayoutHandle::refreshInteractionBindings()
     for (const auto& binding : bindings_) {
         refreshWidget(binding.widget.lock().get());
     }
+
+    for (const auto& binding : interactionBindings_) {
+        refreshWidget(binding.widget.lock().get());
+    }
 }
 
 void LayoutHandle::refreshWidgetInteractionBindings(ui::Widget& widget)
@@ -907,11 +916,17 @@ void LayoutHandle::refreshInteractionBinding(
         }
     }
 
+    const detail::InteractionBindingDescriptor* declarativeBinding =
+        findInteractionBinding(&widget, interaction.name);
     const std::string path = binding ? binding->writeBackPath : std::string();
     const std::string changedPath =
         (!widget.id().empty() && !interaction.boundProperty.empty())
         ? (widget.id() + "." + interaction.boundProperty)
         : std::string();
+    const auto evaluateActionNode =
+        declarativeBinding ? declarativeBinding->evaluateNode : std::function<const ModelNode*(
+            const std::shared_ptr<ViewModel>&,
+            const std::function<const ModelNode*(std::string_view)>&)>();
     const core::ValueType payloadType = interaction.payloadType;
     const std::shared_ptr<std::uint64_t> generationState = bindingGeneration_;
     const std::uint64_t generation = generationState ? *generationState : 0;
@@ -923,6 +938,7 @@ void LayoutHandle::refreshInteractionBinding(
         [userHandler = std::move(userHandler),
             path,
             changedPath,
+            evaluateActionNode = std::move(evaluateActionNode),
             payloadType,
             generationState,
             generation,
@@ -956,7 +972,32 @@ void LayoutHandle::refreshInteractionBinding(
             if (!changedPath.empty()) {
                 owner.handleWidgetDependencyChange(changedPath);
             }
+
+            if (evaluateActionNode) {
+                const ModelNode* actionNode = evaluateActionNode(
+                    weakViewModel.lock(),
+                    {});
+                const ModelNode::Action* action =
+                    actionNode != nullptr ? actionNode->actionValue() : nullptr;
+                if (action != nullptr && *action) {
+                    (*action)(value);
+                }
+            }
         });
+}
+
+const detail::InteractionBindingDescriptor* LayoutHandle::findInteractionBinding(
+    const ui::Widget* widget,
+    std::string_view interactionName) const
+{
+    for (const auto& binding : interactionBindings_) {
+        const auto lockedWidget = binding.widget.lock();
+        if (lockedWidget.get() == widget && binding.interactionName == interactionName) {
+            return &binding;
+        }
+    }
+
+    return nullptr;
 }
 
 const detail::BindingDescriptor* LayoutHandle::findBinding(
@@ -1007,6 +1048,7 @@ LoadResult LayoutLoader::load(std::string_view source, const ui::Theme& theme)
         std::move(buildResult.root),
         std::move(buildResult.idMap),
         std::move(buildResult.bindings),
+        std::move(buildResult.interactionBindings),
         std::move(documentTemplate),
         theme,
         std::move(buildResult.structuralPaths));
@@ -1041,6 +1083,7 @@ LoadResult LayoutLoader::loadFile(const std::string& path, const ui::Theme& them
         std::move(buildResult.root),
         std::move(buildResult.idMap),
         std::move(buildResult.bindings),
+        std::move(buildResult.interactionBindings),
         std::move(documentTemplate),
         theme,
         std::move(buildResult.structuralPaths));

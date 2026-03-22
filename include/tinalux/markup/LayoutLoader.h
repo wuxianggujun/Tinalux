@@ -39,6 +39,7 @@ public:
         std::shared_ptr<ui::Widget> root,
         std::unordered_map<std::string, std::shared_ptr<ui::Widget>> idMap,
         std::vector<detail::BindingDescriptor> bindings,
+        std::vector<detail::InteractionBindingDescriptor> interactionBindings,
         std::shared_ptr<AstDocument> documentTemplate,
         const ui::Theme& theme,
         std::vector<std::string> structuralPaths);
@@ -88,6 +89,9 @@ private:
     void refreshInteractionBinding(
         ui::Widget& widget,
         const core::InteractionInfo& interaction);
+    const detail::InteractionBindingDescriptor* findInteractionBinding(
+        const ui::Widget* widget,
+        std::string_view interactionName) const;
     const detail::BindingDescriptor* findBinding(
         const ui::Widget* widget,
         std::string_view propertyName) const;
@@ -104,6 +108,7 @@ private:
     bool rebuildInProgress_ = false;
     std::shared_ptr<std::uint64_t> bindingGeneration_ = std::make_shared<std::uint64_t>(0);
     std::shared_ptr<detail::LayoutHandleState> runtimeState_;
+    std::vector<detail::InteractionBindingDescriptor> interactionBindings_;
     std::unordered_map<std::string, std::unordered_map<std::string, core::InteractionHandler>>
         interactionHandlers_;
 };

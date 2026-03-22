@@ -305,6 +305,61 @@ VBox(id: root) {
     {
         const std::string source = R"(
 VBox(id: root) {
+    Button(id: submit, text: "Submit", onClick: ${model.onSubmit}),
+    Dropdown(
+        id: choiceEvents,
+        items: ["Zero", "One", "Two"],
+        selectedIndex: ${model.choiceIndex},
+        onSelectionChanged: ${model.onChoiceChanged})
+}
+)";
+
+        markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "declarative interaction markup should load");
+        expect(result.warnings.empty(), "declarative interaction markup should not emit warnings");
+
+        auto viewModel = markup::ViewModel::create();
+        int submitClicks = 0;
+        int choicePayload = -1;
+        int choiceMirroredValue = -1;
+        viewModel->setInt("choiceIndex", 0);
+        viewModel->setAction(
+            "onSubmit",
+            [&](const core::Value& value) {
+                expect(value.isNone(), "button click action should receive an empty payload");
+                ++submitClicks;
+            });
+        viewModel->setAction(
+            "onChoiceChanged",
+            [viewModel, &choicePayload, &choiceMirroredValue](const core::Value& value) {
+                choicePayload = value.asInt();
+                const core::Value* mirroredValue = viewModel->findValue("choiceIndex");
+                choiceMirroredValue = mirroredValue != nullptr ? mirroredValue->asInt() : -1;
+            });
+        result.handle.bindViewModel(viewModel);
+
+        ui::Button* submit = result.handle.findById<ui::Button>("submit");
+        ui::Dropdown* choiceEvents = result.handle.findById<ui::Dropdown>("choiceEvents");
+        expect(submit != nullptr, "declarative interaction button should exist");
+        expect(choiceEvents != nullptr, "declarative interaction dropdown should exist");
+
+        submit->setFocused(true);
+        core::KeyEvent clickButtonOnce(core::keys::kSpace, 0, 0, core::EventType::KeyPress);
+        expect(submit->onEvent(clickButtonOnce), "declarative interaction button should handle click input");
+        expect(submitClicks == 1, "declarative click action should fire once");
+
+        choicePayload = -1;
+        choiceMirroredValue = -1;
+        choiceEvents->setSelectedIndex(2);
+        expect(choicePayload == 2, "declarative selection action should receive interaction payload");
+        expect(
+            choiceMirroredValue == 2,
+            "declarative selection action should observe the updated bound property value");
+    }
+
+    {
+        const std::string source = R"(
+VBox(id: root) {
     TextInput(id: statusText, text: ${model.isError ? "Error" : "OK"}),
     TextInput(id: nestedText, text: ${model.primary ? (model.secondary ? "A" : "B") : "C"}, style: {
         backgroundColor: ${model.isError ? #FFFFE0E0 : #FFE0FFE0},

@@ -22,16 +22,19 @@ class ModelNode {
 public:
     using Object = std::unordered_map<std::string, ModelNode>;
     using Array = std::vector<ModelNode>;
+    using Action = core::InteractionHandler;
 
     enum class Kind : std::uint8_t {
         Null,
         Scalar,
         Object,
         Array,
+        Action,
     };
 
     ModelNode() = default;
     explicit ModelNode(core::Value scalar);
+    explicit ModelNode(Action action);
 
     static ModelNode object(Object object);
     static ModelNode array(Array array);
@@ -41,15 +44,17 @@ public:
     [[nodiscard]] bool isScalar() const { return kind_ == Kind::Scalar; }
     [[nodiscard]] bool isObject() const { return kind_ == Kind::Object; }
     [[nodiscard]] bool isArray() const { return kind_ == Kind::Array; }
+    [[nodiscard]] bool isAction() const { return kind_ == Kind::Action; }
 
     [[nodiscard]] const core::Value* scalar() const;
     [[nodiscard]] const Object* objectValue() const;
     [[nodiscard]] const Array* arrayValue() const;
+    [[nodiscard]] const Action* actionValue() const;
     [[nodiscard]] const ModelNode* child(std::string_view name) const;
 
 private:
     Kind kind_ = Kind::Null;
-    std::variant<std::monostate, core::Value, Object, Array> data_;
+    std::variant<std::monostate, core::Value, Object, Array, Action> data_;
 };
 
 class ViewModel : public std::enable_shared_from_this<ViewModel> {
@@ -76,6 +81,8 @@ public:
     bool setFloat(std::string_view path, float value);
     bool setColor(std::string_view path, core::Color value);
     bool setEnum(std::string_view path, std::string name);
+    bool setAction(std::string_view path, ModelNode::Action action);
+    const ModelNode::Action* findAction(std::string_view path) const;
 
     ListenerId addListener(std::string_view path, ChangeCallback callback);
     ListenerId addInvalidationListener(std::string_view path, InvalidationCallback callback);
@@ -113,6 +120,14 @@ struct BindingDescriptor {
     std::function<bool(
         const std::shared_ptr<ViewModel>&,
         const std::function<const ModelNode*(std::string_view)>&)> applyResolved;
+};
+
+struct InteractionBindingDescriptor {
+    std::weak_ptr<ui::Widget> widget;
+    std::string interactionName;
+    std::function<const ModelNode*(
+        const std::shared_ptr<ViewModel>&,
+        const std::function<const ModelNode*(std::string_view)>&)> evaluateNode;
 };
 
 } // namespace detail

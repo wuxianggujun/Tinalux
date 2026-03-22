@@ -124,6 +124,10 @@ bool nodeEquals(const ModelNode& lhs, const ModelNode& rhs)
         return true;
     }
 
+    if (lhs.isAction()) {
+        return false;
+    }
+
     const auto* lhsArray = lhs.arrayValue();
     const auto* rhsArray = rhs.arrayValue();
     if (lhsArray == nullptr || rhsArray == nullptr || lhsArray->size() != rhsArray->size()) {
@@ -269,6 +273,12 @@ ModelNode::ModelNode(core::Value scalar)
 {
 }
 
+ModelNode::ModelNode(Action action)
+    : kind_(Kind::Action)
+    , data_(std::move(action))
+{
+}
+
 ModelNode ModelNode::object(Object object)
 {
     ModelNode node;
@@ -298,6 +308,11 @@ const ModelNode::Object* ModelNode::objectValue() const
 const ModelNode::Array* ModelNode::arrayValue() const
 {
     return isArray() ? &std::get<Array>(data_) : nullptr;
+}
+
+const ModelNode::Action* ModelNode::actionValue() const
+{
+    return isAction() ? &std::get<Action>(data_) : nullptr;
 }
 
 const ModelNode* ModelNode::child(std::string_view name) const
@@ -454,6 +469,17 @@ bool ViewModel::setColor(std::string_view path, core::Color value)
 bool ViewModel::setEnum(std::string_view path, std::string name)
 {
     return setValue(path, core::Value::enumValue(std::move(name)));
+}
+
+bool ViewModel::setAction(std::string_view path, ModelNode::Action action)
+{
+    return setNode(path, ModelNode(std::move(action)));
+}
+
+const ModelNode::Action* ViewModel::findAction(std::string_view path) const
+{
+    const ModelNode* node = findNode(path);
+    return node != nullptr ? node->actionValue() : nullptr;
 }
 
 ViewModel::ListenerId ViewModel::addListener(
