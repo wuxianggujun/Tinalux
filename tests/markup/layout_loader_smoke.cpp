@@ -122,22 +122,23 @@ VBox(id: root) {
 
     {
         const std::string source = R"(
+let pickerItems: ["Zero", "One", "Two"]
 VBox(id: root) {
-    Dropdown(id: choices, selectedIndex: 2, "Pick one", 8)
+    Dropdown(id: picker, items: pickerItems, placeholder: "Pick one", maxVisibleItems: 7, selectedIndex: 1)
 }
 )";
 
         const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
-        expectLoadOk(result, "id-skipping mixed positional markup should load");
-        expect(result.warnings.empty(), "id-skipping mixed positional markup should not emit warnings");
+        expectLoadOk(result, "dropdown array literal markup should load");
+        expect(result.warnings.empty(), "dropdown array literal markup should not emit warnings");
 
-        ui::Dropdown* choices = result.handle.findById<ui::Dropdown>("choices");
-        expect(choices != nullptr, "mixed positional dropdown syntax should materialize Dropdown");
-        expect(choices->placeholder() == "Pick one", "mixed positional dropdown should preserve positional placeholder");
-        expect(choices->maxVisibleItems() == 8, "mixed positional dropdown should preserve positional maxVisibleItems");
-        expect(choices->selectedIndex() == -1, "mixed positional dropdown should defer named selectedIndex until items exist");
-        choices->setItems({"Zero", "One", "Two"});
-        expect(choices->selectedIndex() == 2, "mixed positional dropdown should preserve named selectedIndex after items are attached");
+        ui::Dropdown* picker = result.handle.findById<ui::Dropdown>("picker");
+        expect(picker != nullptr, "dropdown array literal syntax should materialize Dropdown");
+        expect(picker->items().size() == 3, "dropdown array literal should materialize all items");
+        expect(picker->selectedIndex() == 1, "dropdown array literal should preserve selectedIndex");
+        expect(picker->selectedItem() == "One", "dropdown array literal should preserve selected item");
+        expect(picker->placeholder() == "Pick one", "dropdown array literal should preserve placeholder");
+        expect(picker->maxVisibleItems() == 7, "dropdown array literal should preserve maxVisibleItems");
     }
 
     {

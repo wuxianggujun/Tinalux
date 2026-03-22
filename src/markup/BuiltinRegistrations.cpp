@@ -1167,6 +1167,7 @@ void registerBuiltinTypes()
         .name = "Dropdown",
         .factory = [] { return std::make_shared<ui::Dropdown>(); },
         .properties = {
+            {"items", core::ValueType::None, {}, {}, -100},
             {"placeholder", core::ValueType::String,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Dropdown&>(w).setPlaceholder(v.asString());

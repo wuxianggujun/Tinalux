@@ -481,6 +481,11 @@ AstProperty Parser::parseProperty(bool allowImplicitName)
                 return prop;
             }
 
+            if (current_.type == TokenType::LeftBracket) {
+                parseArrayValue(prop);
+                return prop;
+            }
+
             prop.value = parseValue();
             return prop;
         }
@@ -519,6 +524,11 @@ AstProperty Parser::parseProperty(bool allowImplicitName)
         return prop;
     }
 
+    if (current_.type == TokenType::LeftBracket) {
+        parseArrayValue(prop);
+        return prop;
+    }
+
     if (prop.name == "id"
         && (current_.type == TokenType::BindingLiteral || current_.type == TokenType::StringLiteral)) {
         error("property 'id' expects a bare identifier");
@@ -533,6 +543,35 @@ AstProperty Parser::parseProperty(bool allowImplicitName)
     prop.value = parseValue();
 
     return prop;
+}
+
+void Parser::parseArrayValue(AstProperty& prop)
+{
+    prop.arrayValue = true;
+    prop.arrayValues.clear();
+    expect(TokenType::LeftBracket, "array property value");
+
+    while (current_.type != TokenType::RightBracket
+        && current_.type != TokenType::EndOfFile) {
+        if (current_.type == TokenType::BindingLiteral) {
+            error("binding expressions inside array literals are not supported");
+            current_ = lexer_.next();
+        } else if (current_.type == TokenType::LeftBrace) {
+            error("object values inside array literals are not supported");
+            current_ = lexer_.next();
+        } else if (current_.type == TokenType::LeftBracket) {
+            error("nested array literals are not supported");
+            current_ = lexer_.next();
+        } else {
+            prop.arrayValues.push_back(parseValue());
+        }
+
+        if (current_.type == TokenType::Comma) {
+            current_ = lexer_.next();
+        }
+    }
+
+    expect(TokenType::RightBracket, "array property value");
 }
 
 core::Value Parser::parseValue()

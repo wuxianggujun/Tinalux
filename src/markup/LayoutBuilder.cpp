@@ -10,6 +10,7 @@
 #include "tinalux/ui/Button.h"
 #include "tinalux/ui/Container.h"
 #include "tinalux/ui/Dialog.h"
+#include "tinalux/ui/Dropdown.h"
 #include "tinalux/ui/Panel.h"
 #include "tinalux/ui/ProgressBar.h"
 #include "tinalux/ui/ScrollView.h"
@@ -27,6 +28,48 @@ std::optional<std::string> stringLikeValue(const core::Value& value)
         return value.asString();
     }
     return std::nullopt;
+}
+
+std::optional<std::vector<std::string>> stringArrayValues(const std::vector<core::Value>& values)
+{
+    std::vector<std::string> items;
+    items.reserve(values.size());
+
+    for (const core::Value& value : values) {
+        const std::optional<std::string> item = stringLikeValue(value);
+        if (!item.has_value()) {
+            return std::nullopt;
+        }
+        items.push_back(*item);
+    }
+
+    return items;
+}
+
+std::optional<std::vector<std::string>> stringArrayNode(const ModelNode& node)
+{
+    const ModelNode::Array* array = node.arrayValue();
+    if (array == nullptr) {
+        return std::nullopt;
+    }
+
+    std::vector<std::string> items;
+    items.reserve(array->size());
+    for (const ModelNode& entry : *array) {
+        const core::Value* scalar = entry.scalar();
+        if (scalar == nullptr) {
+            return std::nullopt;
+        }
+
+        const std::optional<std::string> item = stringLikeValue(*scalar);
+        if (!item.has_value()) {
+            return std::nullopt;
+        }
+
+        items.push_back(*item);
+    }
+
+    return items;
 }
 
 std::string slotLabel(std::string_view slotName)
@@ -745,6 +788,15 @@ AstProperty LayoutBuilder::resolveComponentProperty(
     const std::unordered_map<std::string, AstProperty>& parameterValues) const
 {
     AstProperty resolved = property;
+    if (property.hasArrayValue()) {
+        resolved.arrayValues.clear();
+        resolved.arrayValues.reserve(property.arrayValues.size());
+        for (const auto& entry : property.arrayValues) {
+            resolved.arrayValues.push_back(resolveComponentValue(entry, parameterValues));
+        }
+        return resolved;
+    }
+
     if (property.hasObjectValue()) {
         resolved.objectProperties.clear();
         resolved.objectProperties.reserve(property.objectProperties.size());
@@ -859,6 +911,26 @@ AstProperty LayoutBuilder::resolveScopedProperty(
             const AstProperty& source,
             std::unordered_set<std::string>& resolvingLets) -> AstProperty {
         AstProperty resolved = source;
+        if (source.hasArrayValue()) {
+            resolved.arrayValues.clear();
+            resolved.arrayValues.reserve(source.arrayValues.size());
+            for (const core::Value& arrayValue : source.arrayValues) {
+                core::Value resolvedValue = arrayValue;
+                if (arrayValue.type() == core::ValueType::Enum) {
+                    const auto letIt = letMap_.find(arrayValue.asString());
+                    if (letIt != letMap_.end()
+                        && !letIt->second.hasBinding()
+                        && !letIt->second.hasObjectValue()
+                        && !letIt->second.hasArrayValue()) {
+                        resolvedValue = letIt->second.value;
+                    }
+                }
+
+                resolved.arrayValues.push_back(resolvedValue);
+            }
+            return resolved;
+        }
+
         if (source.hasObjectValue()) {
             resolved.objectProperties.clear();
             resolved.objectProperties.reserve(source.objectProperties.size());
@@ -882,8 +954,10 @@ AstProperty LayoutBuilder::resolveScopedProperty(
                 resolvingLets.erase(letName);
 
                 resolved.value = letValue.value;
+                resolved.arrayValues = letValue.arrayValues;
                 resolved.objectProperties = letValue.objectProperties;
                 resolved.bindingPath = letValue.bindingPath;
+                resolved.arrayValue = letValue.arrayValue;
                 resolved.objectValue = letValue.objectValue;
             }
         }
@@ -897,6 +971,8 @@ AstProperty LayoutBuilder::resolveScopedProperty(
         if (constantValue.has_value()) {
             resolved.bindingPath.reset();
             resolved.value = *constantValue;
+            resolved.arrayValue = false;
+            resolved.arrayValues.clear();
             resolved.objectValue = false;
             resolved.objectProperties.clear();
         }
@@ -994,8 +1070,14 @@ std::optional<LayoutBuilder::PreparedBinding> LayoutBuilder::prepareBinding(
         appendUniquePath(binding.dependencyPaths, normalizedPath);
     }
 
-    if (allowWriteBack && expression->isDirectPath()) {
-        const std::string normalizedPath = normalizeScopedPath(expression->directPath());
+    const bool directPathBinding = expression->isDirectPath();
+    std::string directPath;
+    if (directPathBinding) {
+        directPath = normalizeScopedPath(expression->directPath());
+    }
+
+    if (allowWriteBack && directPathBinding) {
+        const std::string& normalizedPath = directPath;
         const std::vector<std::string_view> parts = splitScopedPath(normalizedPath);
         if (!normalizedPath.empty()
             && !parts.empty()
@@ -1004,8 +1086,10 @@ std::optional<LayoutBuilder::PreparedBinding> LayoutBuilder::prepareBinding(
         }
     }
 
-    binding.evaluate = [expression = std::move(expression),
-                           localRoots = std::move(localRoots)](
+    const auto scalarExpression = expression;
+    const auto scalarLocalRoots = localRoots;
+    binding.evaluate = [expression = scalarExpression,
+                           localRoots = scalarLocalRoots](
                            const std::shared_ptr<ViewModel>& viewModel,
                            const std::function<const ModelNode*(std::string_view)>& externalResolver)
         -> std::optional<core::Value> {
@@ -1026,6 +1110,29 @@ std::optional<LayoutBuilder::PreparedBinding> LayoutBuilder::prepareBinding(
                 return viewModel ? viewModel->findNode(normalizedPath) : nullptr;
             });
     };
+
+    if (directPathBinding) {
+        const auto nodeLocalRoots = localRoots;
+        binding.evaluateNode = [directPath,
+                                   localRoots = nodeLocalRoots](
+                                   const std::shared_ptr<ViewModel>& viewModel,
+                                   const std::function<const ModelNode*(std::string_view)>& externalResolver)
+            -> const ModelNode* {
+            if (const ModelNode* localNode =
+                    resolveLocalSnapshotNode(directPath, localRoots)) {
+                return localNode;
+            }
+
+            if (externalResolver) {
+                if (const ModelNode* externalNode = externalResolver(directPath)) {
+                    return externalNode;
+                }
+            }
+
+            return viewModel ? viewModel->findNode(directPath) : nullptr;
+        };
+    }
+
     return binding;
 }
 
@@ -1314,6 +1421,86 @@ void LayoutBuilder::applyStandardProperty(
     const AstProperty& prop,
     const ScopeBindings& scope)
 {
+    if (prop.name == "items" && nodeType == "Dropdown") {
+        if (prop.hasObjectValue()) {
+            std::ostringstream oss;
+            oss << "property '" << prop.name << "' on '" << nodeType
+                << "' does not accept object values at line " << prop.line;
+            warnings_.push_back(oss.str());
+            return;
+        }
+
+        if (prop.hasBinding()) {
+            auto preparedBinding = prepareBinding(
+                *prop.bindingPath,
+                scope,
+                prop.line,
+                "property '" + prop.name + "' on '" + nodeType + "'",
+                false);
+            if (!preparedBinding.has_value()) {
+                return;
+            }
+
+            if (!preparedBinding->evaluateNode) {
+                std::ostringstream oss;
+                oss << "property '" << prop.name << "' on '" << nodeType
+                    << "' requires a direct array path at line " << prop.line;
+                warnings_.push_back(oss.str());
+                return;
+            }
+
+            registerNodeBinding(
+                widget,
+                prop.name,
+                std::move(preparedBinding->dependencyPaths),
+                {},
+                std::move(preparedBinding->evaluateNode),
+                [weakWidget = std::weak_ptr<ui::Widget>(widget)](const ModelNode& node) {
+                    auto lockedWidget = weakWidget.lock();
+                    if (!lockedWidget) {
+                        return;
+                    }
+
+                    const std::optional<std::vector<std::string>> items = stringArrayNode(node);
+                    if (!items.has_value()) {
+                        return;
+                    }
+
+                    static_cast<ui::Dropdown&>(*lockedWidget).setItems(*items);
+                });
+            return;
+        }
+
+        if (!prop.hasArrayValue()) {
+            std::ostringstream oss;
+            oss << "property '" << prop.name << "' on '" << nodeType
+                << "' expects an array literal at line " << prop.line;
+            warnings_.push_back(oss.str());
+            return;
+        }
+
+        const std::optional<std::vector<std::string>> items =
+            stringArrayValues(prop.arrayValues);
+        if (!items.has_value()) {
+            std::ostringstream oss;
+            oss << "property '" << prop.name << "' on '" << nodeType
+                << "' expects an array of string-like values at line " << prop.line;
+            warnings_.push_back(oss.str());
+            return;
+        }
+
+        static_cast<ui::Dropdown&>(*widget).setItems(*items);
+        return;
+    }
+
+    if (prop.hasArrayValue()) {
+        std::ostringstream oss;
+        oss << "property '" << prop.name << "' on '" << nodeType
+            << "' does not accept array values at line " << prop.line;
+        warnings_.push_back(oss.str());
+        return;
+    }
+
     if (prop.hasObjectValue()) {
         std::ostringstream oss;
         oss << "property '" << prop.name << "' on '" << nodeType
@@ -1513,6 +1700,41 @@ void LayoutBuilder::registerBinding(
         .expectedType = expectedType,
         .evaluate = std::move(evaluate),
         .apply = std::move(apply),
+    });
+}
+
+void LayoutBuilder::registerNodeBinding(
+    const std::shared_ptr<ui::Widget>& widget,
+    std::string propertyName,
+    std::vector<std::string> dependencyPaths,
+    std::string writeBackPath,
+    std::function<const ModelNode*(
+        const std::shared_ptr<ViewModel>&,
+        const std::function<const ModelNode*(std::string_view)>&)> evaluateNode,
+    std::function<void(const ModelNode&)> applyNode)
+{
+    bindings_.push_back(detail::BindingDescriptor {
+        .widget = widget,
+        .propertyName = std::move(propertyName),
+        .dependencyPaths = std::move(dependencyPaths),
+        .writeBackPath = std::move(writeBackPath),
+        .applyResolved =
+            [evaluateNode = std::move(evaluateNode),
+             applyNode = std::move(applyNode)](
+                const std::shared_ptr<ViewModel>& viewModel,
+                const std::function<const ModelNode*(std::string_view)>& externalResolver) -> bool {
+                if (!evaluateNode || !applyNode) {
+                    return false;
+                }
+
+                const ModelNode* node = evaluateNode(viewModel, externalResolver);
+                if (node == nullptr) {
+                    return false;
+                }
+
+                applyNode(*node);
+                return true;
+            },
     });
 }
 

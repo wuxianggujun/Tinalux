@@ -35,6 +35,7 @@ private:
     AstNode parseElseIfBranch(int line, int column);
     AstNode parseElseBranch(int line, int column);
     AstProperty parseProperty(bool allowImplicitName = false);
+    void parseArrayValue(AstProperty& prop);
     core::Value parseValue();
     core::Value parseValueDirective();
     void skipNodeBoundary();

@@ -129,6 +129,37 @@ VBox(id: root) {
     }
 
     {
+        const std::string arraySource = R"(
+let pickerItems: ["Zero", "One", "Two"]
+VBox(id: root) {
+    Dropdown(id: choice, items: ["North", "South", "East"])
+}
+)";
+
+        const markup::DocumentParseResult result = markup::Parser::parseDocument(arraySource);
+        expectParseOk(result, "array literal document should parse");
+        expect(result.document.lets.size() == 1, "array literal document should capture let definitions");
+        expect(result.document.lets.front().hasArrayValue(), "let array literal should preserve array flag");
+        expect(result.document.lets.front().arrayValues.size() == 3, "let array literal should preserve element count");
+        expect(
+            result.document.lets.front().arrayValues[1].type() == core::ValueType::String
+                && result.document.lets.front().arrayValues[1].asString() == "One",
+            "let array literal should preserve string elements");
+        expect(result.document.root.has_value(), "array literal document root should exist");
+        const markup::AstProperty* itemsProp = findProperty(*result.document.root, "items");
+        expect(itemsProp == nullptr, "root VBox should not capture child dropdown items");
+        expect(result.document.root->children.size() == 1, "array literal document should keep dropdown child");
+        itemsProp = findProperty(result.document.root->children.front(), "items");
+        expect(itemsProp != nullptr, "dropdown should preserve items property");
+        expect(itemsProp->hasArrayValue(), "dropdown items should preserve array flag");
+        expect(itemsProp->arrayValues.size() == 3, "dropdown items should preserve element count");
+        expect(
+            itemsProp->arrayValues[2].type() == core::ValueType::String
+                && itemsProp->arrayValues[2].asString() == "East",
+            "dropdown items should preserve array element payloads");
+    }
+
+    {
         const std::string source = R"(
 import "components/shared.tui"
 style primaryAction: Button(backgroundColor: #FF336699, borderRadius: 12)

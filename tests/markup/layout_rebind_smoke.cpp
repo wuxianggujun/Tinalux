@@ -12,6 +12,7 @@
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Button.h"
 #include "tinalux/ui/Dialog.h"
+#include "tinalux/ui/Dropdown.h"
 #include "tinalux/ui/Label.h"
 #include "tinalux/ui/Panel.h"
 #include "tinalux/ui/ScrollView.h"
@@ -84,6 +85,11 @@ void configureInteractiveInput(tinalux::ui::TextInput& input)
     input.setLeadingIcon(solidInteractionIcon());
     input.setTrailingIcon(solidInteractionIcon());
     input.arrange(tinalux::core::Rect::MakeXYWH(0.0f, 0.0f, 180.0f, 40.0f));
+}
+
+tinalux::markup::ModelNode stringNode(const char* value)
+{
+    return tinalux::markup::ModelNode(tinalux::core::Value(std::string(value)));
 }
 
 } // namespace
@@ -272,6 +278,77 @@ VBox(id: root) {
         activity->onEvent(scrollDown);
         expect(scrollEvents == 3, "stored scroll handler should reattach after structural rebuild");
         expect(nearlyEqual(lastOffset, activity->scrollOffset()), "rematerialized ScrollView should keep scroll callback payloads in sync");
+    }
+
+    {
+        const std::string pickerSource = R"(
+VBox(id: root) {
+    if(${model.showPicker}) {
+        Dropdown(id: choice, items: ${model.choices}, placeholder: "Pick", selectedIndex: ${model.choiceIndex})
+    }
+}
+)";
+
+        markup::LoadResult pickerResult = markup::LayoutLoader::load(pickerSource, theme);
+        expectLoadOk(pickerResult, "dropdown rebind markup should load");
+        expect(pickerResult.warnings.empty(), "dropdown rebind markup should not emit warnings");
+
+        auto firstPickerModel = markup::ViewModel::create();
+        firstPickerModel->setBool("showPicker", true);
+        firstPickerModel->setArray("choices", {stringNode("Zero"), stringNode("One"), stringNode("Two")});
+        firstPickerModel->setInt("choiceIndex", 2);
+        pickerResult.handle.bindViewModel(firstPickerModel);
+
+        ui::Dropdown* choice = pickerResult.handle.findById<ui::Dropdown>("choice");
+        expect(choice != nullptr, "first dropdown ViewModel should materialize Dropdown");
+        expect(choice->items().size() == 3, "first dropdown ViewModel should seed items");
+        expect(choice->selectedItem() == "Two", "first dropdown ViewModel should seed selected item");
+
+        auto secondPickerModel = markup::ViewModel::create();
+        secondPickerModel->setBool("showPicker", true);
+        secondPickerModel->setArray(
+            "choices",
+            {stringNode("North"), stringNode("South"), stringNode("East"), stringNode("West")});
+        secondPickerModel->setInt("choiceIndex", 1);
+        pickerResult.handle.bindViewModel(secondPickerModel);
+
+        choice = pickerResult.handle.findById<ui::Dropdown>("choice");
+        expect(choice != nullptr, "rebinding should keep dropdown materialized");
+        expect(choice->items().size() == 4, "rebinding should refresh dropdown items from second ViewModel");
+        expect(choice->selectedItem() == "South", "rebinding should refresh dropdown selection from second ViewModel");
+
+        firstPickerModel->setArray("choices", {stringNode("Stale"), stringNode("Data")});
+        firstPickerModel->setInt("choiceIndex", 0);
+        firstPickerModel->setBool("showPicker", false);
+        choice = pickerResult.handle.findById<ui::Dropdown>("choice");
+        expect(choice != nullptr, "stale ViewModel should not remove active dropdown");
+        expect(choice->items().size() == 4, "stale ViewModel should not mutate active dropdown items");
+        expect(choice->selectedItem() == "South", "stale ViewModel should not mutate active dropdown selection");
+
+        secondPickerModel->setArray("choices", {stringNode("Red"), stringNode("Green")});
+        secondPickerModel->setInt("choiceIndex", 0);
+        choice = pickerResult.handle.findById<ui::Dropdown>("choice");
+        expect(choice != nullptr, "active ViewModel should keep dropdown alive");
+        expect(choice->items().size() == 2, "active ViewModel should live-update dropdown items");
+        expect(choice->selectedItem() == "Red", "active ViewModel should live-update dropdown selection");
+
+        secondPickerModel->setBool("showPicker", false);
+        expect(
+            pickerResult.handle.findById<ui::Dropdown>("choice") == nullptr,
+            "active ViewModel should still control dropdown structural rebuilds");
+
+        firstPickerModel->setBool("showPicker", true);
+        expect(
+            pickerResult.handle.findById<ui::Dropdown>("choice") == nullptr,
+            "stale ViewModel should not rematerialize removed dropdown");
+
+        secondPickerModel->setBool("showPicker", true);
+        secondPickerModel->setArray("choices", {stringNode("Alpha"), stringNode("Beta"), stringNode("Gamma")});
+        secondPickerModel->setInt("choiceIndex", 2);
+        choice = pickerResult.handle.findById<ui::Dropdown>("choice");
+        expect(choice != nullptr, "active ViewModel should rematerialize dropdown after structural rebuild");
+        expect(choice->items().size() == 3, "rematerialized dropdown should receive latest items");
+        expect(choice->selectedItem() == "Gamma", "rematerialized dropdown should receive latest selected item");
     }
 
     {

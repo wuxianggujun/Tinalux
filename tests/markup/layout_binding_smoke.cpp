@@ -172,7 +172,7 @@ VBox(id: root) {
     Checkbox(id: remember, label: ${model.userPrefix + model.username}, checked: ${model.rememberMe}),
     Toggle(id: autoRefresh, label: "Auto Refresh", on: ${model.autoRefresh}),
     Slider(id: volume, min: 0, max: 100, step: 0.5, value: ${model.volume}),
-    Dropdown(id: choice, placeholder: ${model.choicePrefix + model.choicePlaceholder}, selectedIndex: ${model.choiceIndex}),
+    Dropdown(id: choice, items: ${model.choices}, placeholder: ${model.choicePrefix + model.choicePlaceholder}, selectedIndex: ${model.choiceIndex}),
     Panel(id: status, visible: ${model.showStatus && model.statusCount > 0}),
     Button(id: cta, text: ${model.ctaPrefix + model.ctaSuffix}, style: { borderRadius: ${model.radius * model.scale} })
 }
@@ -190,6 +190,14 @@ VBox(id: root) {
         viewModel->setBool("rememberMe", true);
         viewModel->setBool("autoRefresh", true);
         viewModel->setFloat("volume", 72.5f);
+        viewModel->setArray(
+            "choices",
+            {
+                markup::ModelNode(core::Value(std::string("Zero"))),
+                markup::ModelNode(core::Value(std::string("One"))),
+                markup::ModelNode(core::Value(std::string("Two"))),
+                markup::ModelNode(core::Value(std::string("Three"))),
+            });
         viewModel->setString("choicePrefix", "Pick: ");
         viewModel->setString("choicePlaceholder", "Pick a value");
         viewModel->setInt("choiceIndex", 2);
@@ -216,7 +224,6 @@ VBox(id: root) {
         expect(status != nullptr, "Panel binding target should exist");
         expect(cta != nullptr, "Button binding target should exist");
 
-        choice->setItems({"Zero", "One", "Two", "Three"});
         result.handle.bindViewModel(viewModel);
 
         expect(queryInput->text() == "initial query", "TextInput should receive initial bound text");
@@ -231,7 +238,9 @@ VBox(id: root) {
             std::exit(1);
         }
         expect(choice->placeholder() == "Pick: Pick a value", "Dropdown should evaluate initial string expression");
+        expect(choice->items().size() == 4, "Dropdown should receive initial bound items");
         expect(choice->selectedIndex() == 2, "Dropdown should receive initial selection");
+        expect(choice->selectedItem() == "Two", "Dropdown should resolve initial selected item from bound items");
         expect(!status->visible(), "Panel should evaluate initial boolean expression");
         expect(cta->style() != nullptr, "Button style binding should materialize a custom style");
         expect(nearlyEqual(cta->style()->borderRadius, 18.0f), "Button style binding should evaluate arithmetic expression");
@@ -242,6 +251,13 @@ VBox(id: root) {
         viewModel->setBool("rememberMe", false);
         viewModel->setBool("autoRefresh", false);
         viewModel->setFloat("volume", 33.0f);
+        viewModel->setArray(
+            "choices",
+            {
+                markup::ModelNode(core::Value(std::string("North"))),
+                markup::ModelNode(core::Value(std::string("South"))),
+                markup::ModelNode(core::Value(std::string("East"))),
+            });
         viewModel->setString("choicePrefix", "Choose: ");
         viewModel->setString("choicePlaceholder", "Choose again");
         viewModel->setInt("choiceIndex", 1);
@@ -264,7 +280,9 @@ VBox(id: root) {
             std::exit(1);
         }
         expect(choice->placeholder() == "Choose: Choose again", "Dropdown placeholder expression should live-update");
+        expect(choice->items().size() == 3, "Dropdown bound items should live-update from ViewModel");
         expect(choice->selectedIndex() == 1, "Dropdown selection should live-update");
+        expect(choice->selectedItem() == "South", "Dropdown selected item should stay in sync with updated items");
         expect(status->visible(), "Panel visible expression should live-update");
         expect(cta->style() != nullptr, "Button style binding should keep custom style installed");
         expect(nearlyEqual(cta->style()->borderRadius, 24.0f), "Button style expression should live-update");
@@ -276,11 +294,11 @@ VBox(id: root) {
             queryValue->type() == core::ValueType::String && queryValue->asString() == "typed text",
             "TextInput two-way binding should keep string payload");
 
-        choice->setSelectedIndex(3);
+        choice->setSelectedIndex(2);
         const core::Value* choiceIndexValue = viewModel->findValue("choiceIndex");
         expect(choiceIndexValue != nullptr, "Dropdown two-way binding should write back to ViewModel");
         expect(
-            choiceIndexValue->type() == core::ValueType::Int && choiceIndexValue->asInt() == 3,
+            choiceIndexValue->type() == core::ValueType::Int && choiceIndexValue->asInt() == 2,
             "Dropdown two-way binding should keep int payload");
     }
 

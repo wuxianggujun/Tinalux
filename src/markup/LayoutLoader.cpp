@@ -239,6 +239,10 @@ bool evaluateAndApplyBinding(
     const std::shared_ptr<ViewModel>& viewModel,
     const std::function<const ModelNode*(std::string_view)>& widgetResolver)
 {
+    if (binding.applyResolved && binding.applyResolved(viewModel, widgetResolver)) {
+        return true;
+    }
+
     if (!binding.evaluate) {
         return false;
     }

@@ -110,6 +110,9 @@ struct BindingDescriptor {
         const std::shared_ptr<ViewModel>&,
         const std::function<const ModelNode*(std::string_view)>&)> evaluate;
     std::function<void(const core::Value&)> apply;
+    std::function<bool(
+        const std::shared_ptr<ViewModel>&,
+        const std::function<const ModelNode*(std::string_view)>&)> applyResolved;
 };
 
 } // namespace detail

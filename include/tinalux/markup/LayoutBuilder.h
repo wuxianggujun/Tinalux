@@ -52,6 +52,9 @@ private:
         std::function<std::optional<core::Value>(
             const std::shared_ptr<ViewModel>&,
             const std::function<const ModelNode*(std::string_view)>&)> evaluate;
+        std::function<const ModelNode*(
+            const std::shared_ptr<ViewModel>&,
+            const std::function<const ModelNode*(std::string_view)>&)> evaluateNode;
     };
 
     LayoutBuilder(const ui::Theme& theme, std::shared_ptr<ViewModel> viewModel);
@@ -160,6 +163,15 @@ private:
             const std::shared_ptr<ViewModel>&,
             const std::function<const ModelNode*(std::string_view)>&)> evaluate,
         std::function<void(const core::Value&)> apply);
+    void registerNodeBinding(
+        const std::shared_ptr<ui::Widget>& widget,
+        std::string propertyName,
+        std::vector<std::string> dependencyPaths,
+        std::string writeBackPath,
+        std::function<const ModelNode*(
+            const std::shared_ptr<ViewModel>&,
+            const std::function<const ModelNode*(std::string_view)>&)> evaluateNode,
+        std::function<void(const ModelNode&)> applyNode);
     bool attachChildren(
         const std::shared_ptr<ui::Widget>& widget,
         const core::TypeInfo& typeInfo,

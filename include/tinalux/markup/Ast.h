@@ -18,13 +18,16 @@ enum class AstNodeKind : std::uint8_t {
 struct AstProperty {
     std::string name;
     core::Value value;
+    std::vector<core::Value> arrayValues;
     std::vector<AstProperty> objectProperties;
     std::optional<std::string> bindingPath;
+    bool arrayValue = false;
     bool objectValue = false;
     bool implicitName = false;
     int line = 0;
     int column = 0;
 
+    bool hasArrayValue() const { return arrayValue; }
     bool hasObjectValue() const { return objectValue; }
     bool hasBinding() const { return bindingPath.has_value(); }
     bool hasImplicitName() const { return implicitName; }

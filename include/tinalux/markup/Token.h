@@ -16,6 +16,8 @@ enum class TokenType : std::uint8_t {
 
     LeftParen,
     RightParen,
+    LeftBracket,
+    RightBracket,
     LeftBrace,
     RightBrace,
     Colon,

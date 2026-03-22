@@ -26,6 +26,8 @@ Token Lexer::next()
 
     if (ch == '(') { advance(); return makeToken(TokenType::LeftParen, "("); }
     if (ch == ')') { advance(); return makeToken(TokenType::RightParen, ")"); }
+    if (ch == '[') { advance(); return makeToken(TokenType::LeftBracket, "["); }
+    if (ch == ']') { advance(); return makeToken(TokenType::RightBracket, "]"); }
     if (ch == '{') { advance(); return makeToken(TokenType::LeftBrace, "{"); }
     if (ch == '}') { advance(); return makeToken(TokenType::RightBrace, "}"); }
     if (ch == ':') { advance(); return makeToken(TokenType::Colon, ":"); }
