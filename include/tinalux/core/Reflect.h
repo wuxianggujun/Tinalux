@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -106,6 +107,8 @@ struct PropertyInfo {
     std::string name;
     ValueType expectedType = ValueType::None;
     std::function<void(ui::Widget&, const Value&)> setter;
+    std::function<std::optional<Value>(const ui::Widget&)> getter;
+    int applicationOrder = 0;
 };
 
 struct StylePropertyInfo {

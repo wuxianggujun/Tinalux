@@ -11,10 +11,12 @@
 #include "tinalux/ui/HBox.h"
 #include "tinalux/ui/ImageWidget.h"
 #include "tinalux/ui/Label.h"
+#include "tinalux/ui/ListView.h"
 #include "tinalux/ui/Panel.h"
 #include "tinalux/ui/ParagraphLabel.h"
 #include "tinalux/ui/ProgressBar.h"
 #include "tinalux/ui/Radio.h"
+#include "tinalux/ui/RichText.h"
 #include "tinalux/ui/ScrollView.h"
 #include "tinalux/ui/Slider.h"
 #include "tinalux/ui/TextInput.h"
@@ -271,6 +273,7 @@ void registerBuiltinTypes()
                 }),
         },
         .childAttachment = makeContainerChildAttachment<ui::Panel>(),
+        .markupPositionalProperties = {"backgroundColor", "cornerRadius"},
     });
 
     reg.registerType(core::TypeInfo {
@@ -284,14 +287,23 @@ void registerBuiltinTypes()
             {"dismissOnBackdrop", core::ValueType::Bool,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Dialog&>(w).setDismissOnBackdrop(v.asBool());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Dialog&>(w).dismissOnBackdrop());
                 }},
             {"dismissOnEscape", core::ValueType::Bool,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Dialog&>(w).setDismissOnEscape(v.asBool());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Dialog&>(w).dismissOnEscape());
                 }},
             {"showCloseButton", core::ValueType::Bool,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Dialog&>(w).setShowCloseButton(v.asBool());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Dialog&>(w).showCloseButton());
                 }},
             {"backdropColor", core::ValueType::Color,
                 [](ui::Widget& w, const core::Value& v) {
@@ -308,6 +320,24 @@ void registerBuiltinTypes()
             {"padding", core::ValueType::Float,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Dialog&>(w).setPadding(v.asNumber());
+                }},
+            {"maxWidth", core::ValueType::Float,
+                [](ui::Widget& w, const core::Value& v) {
+                    auto& dialog = static_cast<ui::Dialog&>(w);
+                    const core::Size current = dialog.maxSize();
+                    dialog.setMaxSize(core::Size::Make(v.asNumber(), current.height()));
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Dialog&>(w).maxSize().width());
+                }},
+            {"maxHeight", core::ValueType::Float,
+                [](ui::Widget& w, const core::Value& v) {
+                    auto& dialog = static_cast<ui::Dialog&>(w);
+                    const core::Size current = dialog.maxSize();
+                    dialog.setMaxSize(core::Size::Make(current.width(), v.asNumber()));
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Dialog&>(w).maxSize().height());
                 }},
         },
         .styleProperties = {
@@ -382,6 +412,19 @@ void registerBuiltinTypes()
                     style.titleTextStyle.bold = value.asBool();
                 }),
         },
+        .interactions = {
+            makeInteraction<ui::Dialog>(
+                "dismiss",
+                "",
+                core::ValueType::None,
+                [](ui::Dialog& dialog, core::InteractionHandler handler) {
+                    dialog.onDismiss([handler = std::move(handler)] {
+                        if (handler) {
+                            handler(core::Value());
+                        }
+                    });
+                }),
+        },
         .childAttachment = makeSingleContentChildAttachment<ui::Dialog>(
             [](ui::Dialog& dialog, std::shared_ptr<ui::Widget> child) {
                 dialog.setContent(std::move(child));
@@ -445,8 +488,82 @@ void registerBuiltinTypes()
         .childAttachment = makeSingleContentChildAttachment<ui::ScrollView>(
             [](ui::ScrollView& scrollView, std::shared_ptr<ui::Widget> child) {
                 scrollView.setContent(std::move(child));
-            }),
+        }),
         .markupPositionalProperties = {"preferredHeight"},
+    });
+
+    reg.registerType(core::TypeInfo {
+        .name = "ListView",
+        .factory = [] { return std::make_shared<ui::ListView>(); },
+        .properties = {
+            {"preferredHeight", core::ValueType::Float,
+                [](ui::Widget& w, const core::Value& v) {
+                    static_cast<ui::ListView&>(w).setPreferredHeight(v.asNumber());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ListView&>(w).preferredHeight());
+                }},
+            {"spacing", core::ValueType::Float,
+                [](ui::Widget& w, const core::Value& v) {
+                    static_cast<ui::ListView&>(w).setSpacing(v.asNumber());
+                }},
+            {"padding", core::ValueType::Float,
+                [](ui::Widget& w, const core::Value& v) {
+                    static_cast<ui::ListView&>(w).setPadding(v.asNumber());
+                }},
+            {"selectedIndex", core::ValueType::Int,
+                [](ui::Widget& w, const core::Value& v) {
+                    static_cast<ui::ListView&>(w).setSelectedIndex(v.asInt());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ListView&>(w).selectedIndex());
+                }},
+        },
+        .styleProperties = {
+            makeThemeStyleProperty<ui::ListView, ui::ListViewStyle>(
+                "itemCornerRadius",
+                core::ValueType::Float,
+                &ui::Theme::listViewStyle,
+                [](ui::ListViewStyle& style, const core::Value& value) {
+                    style.itemCornerRadius = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::ListView, ui::ListViewStyle>(
+                "selectionFillColor",
+                core::ValueType::Color,
+                &ui::Theme::listViewStyle,
+                [](ui::ListViewStyle& style, const core::Value& value) {
+                    style.selectionFillColor = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::ListView, ui::ListViewStyle>(
+                "selectionBorderColor",
+                core::ValueType::Color,
+                &ui::Theme::listViewStyle,
+                [](ui::ListViewStyle& style, const core::Value& value) {
+                    style.selectionBorderColor = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::ListView, ui::ListViewStyle>(
+                "focusBorderColor",
+                core::ValueType::Color,
+                &ui::Theme::listViewStyle,
+                [](ui::ListViewStyle& style, const core::Value& value) {
+                    style.focusBorderColor = value.asColor();
+                }),
+        },
+        .interactions = {
+            makeInteraction<ui::ListView>(
+                "selectionChanged",
+                "selectedIndex",
+                core::ValueType::Int,
+                [](ui::ListView& listView, core::InteractionHandler handler) {
+                    listView.onSelectionChanged(
+                        [handler = std::move(handler)](int index) {
+                            if (handler) {
+                                handler(core::Value(index));
+                            }
+                        });
+                }),
+        },
+        .markupPositionalProperties = {"preferredHeight", "spacing", "padding", "selectedIndex"},
     });
 
     // ---- Leaf widgets ----
@@ -497,6 +614,117 @@ void registerBuiltinTypes()
     });
 
     reg.registerType(core::TypeInfo {
+        .name = "RichText",
+        .factory = [] { return std::make_shared<ui::RichTextWidget>(); },
+        .properties = {
+            {"text", core::ValueType::String,
+                [](ui::Widget& w, const core::Value& v) {
+                    ui::TextSpan span;
+                    span.text = v.asString();
+                    static_cast<ui::RichTextWidget&>(w).setSpans({std::move(span)});
+                }},
+            {"fontSize", core::ValueType::Float,
+                [](ui::Widget& w, const core::Value& v) {
+                    static_cast<ui::RichTextWidget&>(w).setDefaultFontSize(v.asNumber());
+                }},
+            {"color", core::ValueType::Color,
+                [](ui::Widget& w, const core::Value& v) {
+                    static_cast<ui::RichTextWidget&>(w).setDefaultColor(v.asColor());
+                }},
+            {"linkColor", core::ValueType::Color,
+                [](ui::Widget& w, const core::Value& v) {
+                    static_cast<ui::RichTextWidget&>(w).setLinkColor(v.asColor());
+                }},
+            {"lineHeightMultiplier", core::ValueType::Float,
+                [](ui::Widget& w, const core::Value& v) {
+                    static_cast<ui::RichTextWidget&>(w).setLineHeightMultiplier(v.asNumber());
+                }},
+            {"maxLines", core::ValueType::Int,
+                [](ui::Widget& w, const core::Value& v) {
+                    const int maxLines = v.asInt();
+                    static_cast<ui::RichTextWidget&>(w).setMaxLines(
+                        maxLines > 0 ? static_cast<std::size_t>(maxLines) : 0u);
+                }},
+            {"align", core::ValueType::Enum,
+                [](ui::Widget& w, const core::Value& v) {
+                    const auto& s = v.asString();
+                    auto& richText = static_cast<ui::RichTextWidget&>(w);
+                    if (s == "Start") richText.setTextAlign(ui::RichTextAlign::Start);
+                    else if (s == "Left") richText.setTextAlign(ui::RichTextAlign::Left);
+                    else if (s == "Center") richText.setTextAlign(ui::RichTextAlign::Center);
+                    else if (s == "Right") richText.setTextAlign(ui::RichTextAlign::Right);
+                    else if (s == "Justify") richText.setTextAlign(ui::RichTextAlign::Justify);
+                    else if (s == "End") richText.setTextAlign(ui::RichTextAlign::End);
+                }},
+        },
+        .styleProperties = {
+            makeThemeStyleProperty<ui::RichTextWidget, ui::RichTextStyle>(
+                "fontSize",
+                core::ValueType::Float,
+                &ui::Theme::richTextStyle,
+                [](ui::RichTextStyle& style, const core::Value& value) {
+                    style.body.textStyle.fontSize = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::RichTextWidget, ui::RichTextStyle>(
+                "lineHeight",
+                core::ValueType::Float,
+                &ui::Theme::richTextStyle,
+                [](ui::RichTextStyle& style, const core::Value& value) {
+                    style.body.textStyle.lineHeight = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::RichTextWidget, ui::RichTextStyle>(
+                "letterSpacing",
+                core::ValueType::Float,
+                &ui::Theme::richTextStyle,
+                [](ui::RichTextStyle& style, const core::Value& value) {
+                    style.body.textStyle.letterSpacing = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::RichTextWidget, ui::RichTextStyle>(
+                "bold",
+                core::ValueType::Bool,
+                &ui::Theme::richTextStyle,
+                [](ui::RichTextStyle& style, const core::Value& value) {
+                    style.body.textStyle.bold = value.asBool();
+                }),
+            makeThemeStyleProperty<ui::RichTextWidget, ui::RichTextStyle>(
+                "color",
+                core::ValueType::Color,
+                &ui::Theme::richTextStyle,
+                [](ui::RichTextStyle& style, const core::Value& value) {
+                    style.body.textColor = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::RichTextWidget, ui::RichTextStyle>(
+                "quoteAccentColor",
+                core::ValueType::Color,
+                &ui::Theme::richTextStyle,
+                [](ui::RichTextStyle& style, const core::Value& value) {
+                    style.quoteAccentColor = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::RichTextWidget, ui::RichTextStyle>(
+                "listMarkerColor",
+                core::ValueType::Color,
+                &ui::Theme::richTextStyle,
+                [](ui::RichTextStyle& style, const core::Value& value) {
+                    style.listMarkerColor = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::RichTextWidget, ui::RichTextStyle>(
+                "listLevelIndent",
+                core::ValueType::Float,
+                &ui::Theme::richTextStyle,
+                [](ui::RichTextStyle& style, const core::Value& value) {
+                    style.listLevelIndent = value.asNumber();
+                }),
+            makeDirectStyleProperty<ui::RichTextWidget>(
+                "linkColor",
+                core::ValueType::Color,
+                [](ui::RichTextWidget& widget, const core::Value& value) {
+                    widget.setLinkColor(value.asColor());
+                }),
+        },
+        .markupPositionalProperties = {"text"},
+    });
+
+    reg.registerType(core::TypeInfo {
         .name = "Button",
         .factory = [] { return std::make_shared<ui::Button>(""); },
         .properties = {
@@ -507,6 +735,36 @@ void registerBuiltinTypes()
             {"icon", core::ValueType::String,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Button&>(w).loadIconAsync(v.asString());
+                }},
+            {"iconPlacement", core::ValueType::Enum,
+                [](ui::Widget& w, const core::Value& v) {
+                    const auto& s = v.asString();
+                    auto& button = static_cast<ui::Button&>(w);
+                    if (s == "Start") button.setIconPlacement(ui::ButtonIconPlacement::Start);
+                    else if (s == "End") button.setIconPlacement(ui::ButtonIconPlacement::End);
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    const auto placement = static_cast<const ui::Button&>(w).iconPlacement();
+                    return core::Value::enumValue(
+                        placement == ui::ButtonIconPlacement::End ? "End" : "Start");
+                }},
+            {"iconWidth", core::ValueType::Float,
+                [](ui::Widget& w, const core::Value& v) {
+                    auto& button = static_cast<ui::Button&>(w);
+                    const core::Size current = button.iconSize();
+                    button.setIconSize(core::Size::Make(v.asNumber(), current.height()));
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Button&>(w).iconSize().width());
+                }},
+            {"iconHeight", core::ValueType::Float,
+                [](ui::Widget& w, const core::Value& v) {
+                    auto& button = static_cast<ui::Button&>(w);
+                    const core::Size current = button.iconSize();
+                    button.setIconSize(core::Size::Make(current.width(), v.asNumber()));
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Button&>(w).iconSize().height());
                 }},
         },
         .styleProperties = {
@@ -636,7 +894,7 @@ void registerBuiltinTypes()
                     });
                 }),
         },
-        .markupPositionalProperties = {"text", "icon"},
+        .markupPositionalProperties = {"text", "icon", "iconPlacement"},
     });
 
     reg.registerType(core::TypeInfo {
@@ -650,6 +908,14 @@ void registerBuiltinTypes()
             {"text", core::ValueType::String,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::TextInput&>(w).setText(v.asString());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::TextInput&>(w).text());
+                }},
+            {"selectedText", core::ValueType::String,
+                {},
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::TextInput&>(w).selectedText());
                 }},
             {"obscured", core::ValueType::Bool,
                 [](ui::Widget& w, const core::Value& v) {
@@ -798,6 +1064,18 @@ void registerBuiltinTypes()
                             }
                         });
                 }),
+            makeInteraction<ui::TextInput>(
+                "selectedTextChanged",
+                "selectedText",
+                core::ValueType::String,
+                [](ui::TextInput& input, core::InteractionHandler handler) {
+                    input.onSelectionChanged(
+                        [handler = std::move(handler)](const std::string& text) {
+                            if (handler) {
+                                handler(core::Value(text));
+                            }
+                        });
+                }),
         },
         .markupPositionalProperties = {"placeholder", "text", "obscured", "leadingIcon", "trailingIcon"},
     });
@@ -809,14 +1087,23 @@ void registerBuiltinTypes()
             {"placeholder", core::ValueType::String,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Dropdown&>(w).setPlaceholder(v.asString());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Dropdown&>(w).placeholder());
                 }},
             {"maxVisibleItems", core::ValueType::Int,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Dropdown&>(w).setMaxVisibleItems(v.asInt());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Dropdown&>(w).maxVisibleItems());
                 }},
             {"selectedIndex", core::ValueType::Int,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Dropdown&>(w).setSelectedIndex(v.asInt());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Dropdown&>(w).selectedIndex());
                 }},
             {"indicatorIcon", core::ValueType::String,
                 [](ui::Widget& w, const core::Value& v) {
@@ -847,10 +1134,16 @@ void registerBuiltinTypes()
             {"label", core::ValueType::String,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Checkbox&>(w).setLabel(v.asString());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Checkbox&>(w).label());
                 }},
             {"checked", core::ValueType::Bool,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Checkbox&>(w).setChecked(v.asBool());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Checkbox&>(w).checked());
                 }},
             {"checkmarkIcon", core::ValueType::String,
                 [](ui::Widget& w, const core::Value& v) {
@@ -881,14 +1174,23 @@ void registerBuiltinTypes()
             {"label", core::ValueType::String,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Radio&>(w).setLabel(v.asString());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Radio&>(w).label());
                 }},
             {"group", core::ValueType::String,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Radio&>(w).setGroup(v.asString());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Radio&>(w).group());
                 }},
             {"selected", core::ValueType::Bool,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Radio&>(w).setSelected(v.asBool());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Radio&>(w).selected());
                 }},
             {"selectionIcon", core::ValueType::String,
                 [](ui::Widget& w, const core::Value& v) {
@@ -919,6 +1221,9 @@ void registerBuiltinTypes()
             {"source", core::ValueType::String,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::ImageWidget&>(w).loadImageAsync(v.asString());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ImageWidget&>(w).imagePath());
                 }},
             {"fit", core::ValueType::Enum,
                 [](ui::Widget& w, const core::Value& v) {
@@ -928,13 +1233,80 @@ void registerBuiltinTypes()
                     else if (s == "Fill") image.setFit(ui::ImageFit::Fill);
                     else if (s == "Contain") image.setFit(ui::ImageFit::Contain);
                     else if (s == "Cover") image.setFit(ui::ImageFit::Cover);
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    const auto fit = static_cast<const ui::ImageWidget&>(w).fit();
+                    switch (fit) {
+                    case ui::ImageFit::None:
+                        return core::Value::enumValue("None");
+                    case ui::ImageFit::Fill:
+                        return core::Value::enumValue("Fill");
+                    case ui::ImageFit::Contain:
+                        return core::Value::enumValue("Contain");
+                    case ui::ImageFit::Cover:
+                        return core::Value::enumValue("Cover");
+                    }
+                    return std::nullopt;
                 }},
             {"opacity", core::ValueType::Float,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::ImageWidget&>(w).setOpacity(v.asNumber());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ImageWidget&>(w).opacity());
+                }},
+            {"preferredWidth", core::ValueType::Float,
+                [](ui::Widget& w, const core::Value& v) {
+                    auto& image = static_cast<ui::ImageWidget&>(w);
+                    const core::Size size = image.preferredSize();
+                    image.setPreferredSize(core::Size::Make(v.asNumber(), size.height()));
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ImageWidget&>(w).preferredSize().width());
+                }},
+            {"preferredHeight", core::ValueType::Float,
+                [](ui::Widget& w, const core::Value& v) {
+                    auto& image = static_cast<ui::ImageWidget&>(w);
+                    const core::Size size = image.preferredSize();
+                    image.setPreferredSize(core::Size::Make(size.width(), v.asNumber()));
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ImageWidget&>(w).preferredSize().height());
+                }},
+            {"placeholderWidth", core::ValueType::Float,
+                [](ui::Widget& w, const core::Value& v) {
+                    auto& image = static_cast<ui::ImageWidget&>(w);
+                    const core::Size size = image.placeholderSize();
+                    image.setPlaceholderSize(core::Size::Make(v.asNumber(), size.height()));
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ImageWidget&>(w).placeholderSize().width());
+                }},
+            {"placeholderHeight", core::ValueType::Float,
+                [](ui::Widget& w, const core::Value& v) {
+                    auto& image = static_cast<ui::ImageWidget&>(w);
+                    const core::Size size = image.placeholderSize();
+                    image.setPlaceholderSize(core::Size::Make(size.width(), v.asNumber()));
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ImageWidget&>(w).placeholderSize().height());
+                }},
+            {"loadingPlaceholderColor", core::ValueType::Color,
+                [](ui::Widget& w, const core::Value& v) {
+                    static_cast<ui::ImageWidget&>(w).setLoadingPlaceholderColor(v.asColor());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ImageWidget&>(w).loadingPlaceholderColor());
+                }},
+            {"failedPlaceholderColor", core::ValueType::Color,
+                [](ui::Widget& w, const core::Value& v) {
+                    static_cast<ui::ImageWidget&>(w).setFailedPlaceholderColor(v.asColor());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ImageWidget&>(w).failedPlaceholderColor());
                 }},
         },
-        .markupPositionalProperties = {"source", "fit", "opacity"},
+        .markupPositionalProperties = {"source", "fit", "opacity", "preferredWidth", "preferredHeight"},
     });
 
     reg.registerType(core::TypeInfo {
@@ -944,10 +1316,16 @@ void registerBuiltinTypes()
             {"label", core::ValueType::String,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Toggle&>(w).setLabel(v.asString());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Toggle&>(w).label());
                 }},
             {"on", core::ValueType::Bool,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Toggle&>(w).setOn(v.asBool());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Toggle&>(w).on());
                 }},
         },
         .interactions = {
@@ -974,21 +1352,37 @@ void registerBuiltinTypes()
             {"value", core::ValueType::Float,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Slider&>(w).setValue(v.asNumber());
-                }},
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Slider&>(w).value());
+                },
+                2},
             {"min", core::ValueType::Float,
                 [](ui::Widget& w, const core::Value& v) {
                     auto& slider = static_cast<ui::Slider&>(w);
                     slider.setRange(v.asNumber(), slider.maximum());
-                }},
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Slider&>(w).minimum());
+                },
+                0},
             {"max", core::ValueType::Float,
                 [](ui::Widget& w, const core::Value& v) {
                     auto& slider = static_cast<ui::Slider&>(w);
                     slider.setRange(slider.minimum(), v.asNumber());
-                }},
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Slider&>(w).maximum());
+                },
+                0},
             {"step", core::ValueType::Float,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Slider&>(w).setStep(v.asNumber());
-                }},
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::Slider&>(w).step());
+                },
+                1},
         },
         .interactions = {
             makeInteraction<ui::Slider>(

@@ -49,6 +49,13 @@ float dropdownIconSize(const Theme& theme)
     return std::max(kBaseDropdownIconSize, theme.typography.caption.fontSize);
 }
 
+int resolveSelectedIndex(int requestedIndex, std::size_t itemCount)
+{
+    return requestedIndex >= 0 && requestedIndex < static_cast<int>(itemCount)
+        ? requestedIndex
+        : -1;
+}
+
 core::Rect indicatorBounds(float width, float itemHeight, float padding, float iconSize)
 {
     return core::Rect::MakeXYWH(
@@ -97,28 +104,15 @@ Dropdown::~Dropdown()
 void Dropdown::setItems(const std::vector<std::string>& items)
 {
     items_ = items;
-    if (selectedIndex_ >= static_cast<int>(items_.size())) {
-        selectedIndex_ = -1;
-    }
     hoveredItem_ = -1;
+    applyRequestedSelection(true);
     markLayoutDirty();
 }
 
 void Dropdown::setSelectedIndex(int index)
 {
-    if (index < -1 || index >= static_cast<int>(items_.size())) {
-        index = -1;
-    }
-
-    if (selectedIndex_ == index) {
-        return;
-    }
-
-    selectedIndex_ = index;
-    markPaintDirty();
-    if (onSelectionChanged_) {
-        onSelectionChanged_(selectedIndex_);
-    }
+    requestedSelectedIndex_ = std::max(index, -1);
+    applyRequestedSelection(true);
 }
 
 std::string Dropdown::selectedItem() const
@@ -132,6 +126,21 @@ std::string Dropdown::selectedItem() const
 void Dropdown::onSelectionChanged(std::function<void(int)> handler)
 {
     onSelectionChanged_ = std::move(handler);
+}
+
+void Dropdown::applyRequestedSelection(bool emitCallback)
+{
+    const int resolvedIndex = resolveSelectedIndex(requestedSelectedIndex_, items_.size());
+    if (selectedIndex_ == resolvedIndex) {
+        return;
+    }
+
+    const bool hadSelection = selectedIndex_ != -1;
+    selectedIndex_ = resolvedIndex;
+    markPaintDirty();
+    if (emitCallback && onSelectionChanged_ && (hadSelection || selectedIndex_ != -1)) {
+        onSelectionChanged_(selectedIndex_);
+    }
 }
 
 void Dropdown::setMaxVisibleItems(int count)
@@ -350,6 +359,10 @@ void Dropdown::onDraw(rendering::Canvas& canvas)
 
 bool Dropdown::onEvent(core::Event& event)
 {
+    if (!isEnabledInHierarchy()) {
+        return false;
+    }
+
     switch (event.type()) {
     case core::EventType::MouseEnter:
         if (!hovered_) {

@@ -125,7 +125,7 @@ bool Widget::onEvent(core::Event&)
 
 Widget* Widget::hitTest(float x, float y)
 {
-    if (!visible_) {
+    if (!visible_ || !isEnabledInHierarchy()) {
         return nullptr;
     }
 
@@ -221,7 +221,7 @@ core::Rect Widget::globalBounds() const
 
 bool Widget::containsLocalPoint(float x, float y) const
 {
-    if (!visible_) {
+    if (!visible_ || !isEnabledInHierarchy()) {
         return false;
     }
 
@@ -249,6 +249,35 @@ void Widget::setVisible(bool visible)
     markLayoutDirty();
 }
 
+bool Widget::enabled() const
+{
+    return enabled_;
+}
+
+void Widget::setEnabled(bool enabled)
+{
+    if (enabled_ == enabled) {
+        return;
+    }
+
+    enabled_ = enabled;
+    if (!enabled_) {
+        setFocused(false);
+    }
+    markPaintDirty();
+}
+
+bool Widget::isEnabledInHierarchy() const
+{
+    for (const Widget* current = this; current != nullptr; current = current->parent_) {
+        if (!current->enabled_) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 bool Widget::focused() const
 {
     return focused_;
@@ -256,6 +285,10 @@ bool Widget::focused() const
 
 void Widget::setFocused(bool focused)
 {
+    if (focused && !isEnabledInHierarchy()) {
+        return;
+    }
+
     if (focused_ == focused) {
         return;
     }

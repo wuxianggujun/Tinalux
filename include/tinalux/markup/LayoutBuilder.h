@@ -49,11 +49,14 @@ private:
     struct PreparedBinding {
         std::vector<std::string> dependencyPaths;
         std::string writeBackPath;
-        std::function<std::optional<core::Value>(const std::shared_ptr<ViewModel>&)> evaluate;
+        std::function<std::optional<core::Value>(
+            const std::shared_ptr<ViewModel>&,
+            const std::function<const ModelNode*(std::string_view)>&)> evaluate;
     };
 
     LayoutBuilder(const ui::Theme& theme, std::shared_ptr<ViewModel> viewModel);
 
+    void registerLets(const std::vector<AstProperty>& lets);
     void registerStyles(const std::vector<AstStyleDefinition>& styles);
     void registerComponents(const std::vector<AstComponentDefinition>& components);
     std::shared_ptr<ui::Widget> buildNode(const AstNode& node, const ScopeBindings& scope);
@@ -94,7 +97,7 @@ private:
         const std::vector<AstProperty>& overrideProperties) const;
     AstProperty resolveScopedProperty(
         const AstProperty& property,
-        const ScopeBindings& scope) const;
+        const ScopeBindings& scope);
     std::optional<core::Value> tryEvaluateBindingToConstant(
         std::string_view expressionText,
         const ScopeBindings& scope) const;
@@ -153,7 +156,9 @@ private:
         std::vector<std::string> dependencyPaths,
         std::string writeBackPath,
         core::ValueType expectedType,
-        std::function<std::optional<core::Value>(const std::shared_ptr<ViewModel>&)> evaluate,
+        std::function<std::optional<core::Value>(
+            const std::shared_ptr<ViewModel>&,
+            const std::function<const ModelNode*(std::string_view)>&)> evaluate,
         std::function<void(const core::Value&)> apply);
     bool attachChildren(
         const std::shared_ptr<ui::Widget>& widget,
@@ -164,6 +169,7 @@ private:
     const ui::Theme& theme_;
     std::shared_ptr<ViewModel> viewModel_;
     std::unordered_map<std::string, std::shared_ptr<ui::Widget>> idMap_;
+    std::unordered_map<std::string, AstProperty> letMap_;
     std::unordered_map<std::string, AstStyleDefinition> styleMap_;
     std::unordered_map<std::string, AstComponentDefinition> componentMap_;
     std::vector<std::string> componentStack_;

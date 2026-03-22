@@ -8,6 +8,7 @@
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Theme.h"
 
+#include "../RuntimeState.h"
 #include "../TextPrimitives.h"
 
 namespace tinalux::ui {
@@ -203,6 +204,20 @@ void Dialog::setMaxSize(core::Size size)
 
     maxSizeOverride_ = clampedSize;
     markLayoutDirty();
+}
+
+core::Size Dialog::maxSize() const
+{
+    if (maxSizeOverride_) {
+        return *maxSizeOverride_;
+    }
+    if (customStyle_) {
+        return customStyle_->maxSize;
+    }
+    if (hasRuntimeState()) {
+        return resolvedTheme().dialogStyle.maxSize;
+    }
+    return DialogStyle {}.maxSize;
 }
 
 void Dialog::setStyle(const DialogStyle& style)
@@ -545,6 +560,10 @@ Widget* Dialog::hitTest(float x, float y)
 
 bool Dialog::onEvent(core::Event& event)
 {
+    if (!isEnabledInHierarchy()) {
+        return false;
+    }
+
     switch (event.type()) {
     case core::EventType::MouseMove: {
         const auto& mouseEvent = static_cast<const core::MouseMoveEvent&>(event);

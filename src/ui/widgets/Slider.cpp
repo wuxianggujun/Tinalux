@@ -60,7 +60,7 @@ float Slider::value() const
 
 void Slider::setValue(float value)
 {
-    setValueInternal(value, false);
+    setValueInternal(value, true);
 }
 
 float Slider::step() const
@@ -127,6 +127,9 @@ const SliderStyle& Slider::resolvedStyle() const
 
 WidgetState Slider::currentState() const
 {
+    if (!isEnabledInHierarchy()) {
+        return WidgetState::Disabled;
+    }
     if (dragging_) {
         return WidgetState::Pressed;
     }
@@ -324,6 +327,10 @@ void Slider::onDraw(rendering::Canvas& canvas)
 
 bool Slider::onEvent(core::Event& event)
 {
+    if (!isEnabledInHierarchy()) {
+        return false;
+    }
+
     switch (event.type()) {
     case core::EventType::MouseEnter:
         updateHovered(true);

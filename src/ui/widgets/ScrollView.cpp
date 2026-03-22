@@ -361,6 +361,10 @@ Widget* ScrollView::hitTest(float x, float y)
 
 bool ScrollView::onEvent(core::Event& event)
 {
+    if (!isEnabledInHierarchy()) {
+        return false;
+    }
+
     if (event.type() != core::EventType::MouseScroll) {
         return false;
     }

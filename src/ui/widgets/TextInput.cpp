@@ -111,6 +111,7 @@ std::string TextInput::text() const
 
 void TextInput::setText(const std::string& text)
 {
+    const std::string selectionBefore = selectedText();
     if (!model_->setText(text)) {
         return;
     }
@@ -118,6 +119,9 @@ void TextInput::setText(const std::string& text)
     draggingSelection_ = false;
     invalidateTextLayoutCache();
     notifyTextChanged();
+    if (selectedText() != selectionBefore) {
+        notifySelectionChanged();
+    }
     markLayoutDirty();
 }
 
@@ -288,6 +292,11 @@ void TextInput::onTextChanged(std::function<void(const std::string&)> handler)
     onTextChanged_ = std::move(handler);
 }
 
+void TextInput::onSelectionChanged(std::function<void(const std::string&)> handler)
+{
+    onSelectionChanged_ = std::move(handler);
+}
+
 std::string TextInput::selectedText() const
 {
     return model_->selectedText();
@@ -332,6 +341,7 @@ void TextInput::setFocused(bool focused)
         return;
     }
 
+    const std::string selectionBefore = selectedText();
     if (!focused) {
         draggingSelection_ = false;
         if (model_->clearCompositionState()) {
@@ -342,6 +352,9 @@ void TextInput::setFocused(bool focused)
 
     Widget::setFocused(focused);
     animateFocusProgress(focused ? 1.0f : 0.0f);
+    if (selectedText() != selectionBefore) {
+        notifySelectionChanged();
+    }
 }
 
 const TextInputStyle& TextInput::resolvedStyle() const
@@ -351,6 +364,9 @@ const TextInputStyle& TextInput::resolvedStyle() const
 
 WidgetState TextInput::currentState() const
 {
+    if (!isEnabledInHierarchy()) {
+        return WidgetState::Disabled;
+    }
     if (focused()) {
         return WidgetState::Focused;
     }
@@ -641,14 +657,26 @@ void TextInput::onDraw(rendering::Canvas& canvas)
 
 bool TextInput::onEvent(core::Event& event)
 {
+    if (!isEnabledInHierarchy()) {
+        return false;
+    }
+
+    const std::string selectionBefore = selectedText();
+    const auto finish = [this, &selectionBefore](bool handled) {
+        if (selectedText() != selectionBefore) {
+            notifySelectionChanged();
+        }
+        return handled;
+    };
+
     const TextInputStyle& style = resolvedStyle();
     switch (event.type()) {
     case core::EventType::MouseEnter:
         updateHovered(true);
-        return false;
+        return finish(false);
     case core::EventType::MouseLeave:
         updateHovered(false);
-        return false;
+        return finish(false);
     case core::EventType::MouseButtonPress: {
         const auto& mouseEvent = static_cast<const core::MouseButtonEvent&>(event);
         const core::Point localPoint = globalToLocal(core::Point::Make(
@@ -656,21 +684,21 @@ bool TextInput::onEvent(core::Event& event)
             static_cast<float>(mouseEvent.y)));
         if (mouseEvent.button != core::mouse::kLeft
             || !containsLocalPoint(localPoint.x(), localPoint.y())) {
-            return false;
+            return finish(false);
         }
 
         if (leadingIconSlotWidth(style) > 0.0f && leadingIconBounds(style).contains(localPoint)) {
             leadingIconPressed_ = true;
             trailingIconPressed_ = false;
             draggingSelection_ = false;
-            return true;
+            return finish(true);
         }
 
         if (trailingIconSlotWidth(style) > 0.0f && trailingIconBounds(style).contains(localPoint)) {
             trailingIconPressed_ = true;
             leadingIconPressed_ = false;
             draggingSelection_ = false;
-            return true;
+            return finish(true);
         }
 
         const float localX = localPoint.x() - style.paddingHorizontal - leadingIconSlotWidth(style);
@@ -682,7 +710,7 @@ bool TextInput::onEvent(core::Event& event)
             }
             updateHovered(true);
             draggingSelection_ = true;
-            return true;
+            return finish(true);
         }
 
         const std::size_t hitCursor =
@@ -695,7 +723,7 @@ bool TextInput::onEvent(core::Event& event)
         updateHovered(true);
         draggingSelection_ = true;
         markPaintDirty();
-        return true;
+        return finish(true);
     }
     case core::EventType::MouseMove: {
         const auto& mouseEvent = static_cast<const core::MouseMoveEvent&>(event);
@@ -704,10 +732,10 @@ bool TextInput::onEvent(core::Event& event)
             static_cast<float>(mouseEvent.y)));
         updateHovered(containsLocalPoint(localPoint.x(), localPoint.y()));
         if (leadingIconPressed_ || trailingIconPressed_) {
-            return true;
+            return finish(true);
         }
         if (!draggingSelection_) {
-            return false;
+            return finish(false);
         }
 
         const float localX = localPoint.x() - style.paddingHorizontal - leadingIconSlotWidth(style);
@@ -718,7 +746,7 @@ bool TextInput::onEvent(core::Event& event)
                 invalidateTextLayoutCache();
                 markPaintDirty();
             }
-            return true;
+            return finish(true);
         }
 
         const std::size_t hitCursor =
@@ -726,11 +754,11 @@ bool TextInput::onEvent(core::Event& event)
         if (model_->setCaret(hitCursor, true)) {
             markPaintDirty();
         }
-        return true;
+        return finish(true);
     }
     case core::EventType::MouseButtonRelease:
         if (static_cast<const core::MouseButtonEvent&>(event).button != core::mouse::kLeft) {
-            return false;
+            return finish(false);
         }
         {
             const auto& mouseEvent = static_cast<const core::MouseButtonEvent&>(event);
@@ -754,20 +782,20 @@ bool TextInput::onEvent(core::Event& event)
                 if (triggerTrailing && onTrailingIconClick_) {
                     onTrailingIconClick_();
                 }
-                return triggerLeading || triggerTrailing;
+                return finish(triggerLeading || triggerTrailing);
             }
         }
         draggingSelection_ = false;
-        return focused();
+        return finish(focused());
     case core::EventType::KeyPress:
     case core::EventType::KeyRepeat: {
         if (!focused()) {
-            return false;
+            return finish(false);
         }
 
         if (model_->compositionActive()) {
             if (model_->compositionManagedByPlatform()) {
-                return false;
+                return finish(false);
             }
 
             const auto& keyEvent = static_cast<const core::KeyEvent&>(event);
@@ -777,45 +805,45 @@ bool TextInput::onEvent(core::Event& event)
                     invalidateTextLayoutCache();
                     markLayoutDirty();
                 }
-                return true;
+                return finish(true);
             case core::keys::kLeft:
                 if (model_->moveCompositionLeft()) {
                     invalidateTextLayoutCache();
                     markPaintDirty();
                 }
-                return true;
+                return finish(true);
             case core::keys::kRight:
                 if (model_->moveCompositionRight()) {
                     invalidateTextLayoutCache();
                     markPaintDirty();
                 }
-                return true;
+                return finish(true);
             case core::keys::kHome:
                 if (model_->moveCompositionHome()) {
                     invalidateTextLayoutCache();
                     markPaintDirty();
                 }
-                return true;
+                return finish(true);
             case core::keys::kEnd:
                 if (model_->moveCompositionEnd()) {
                     invalidateTextLayoutCache();
                     markPaintDirty();
                 }
-                return true;
+                return finish(true);
             case core::keys::kBackspace:
                 if (model_->eraseCompositionBackward()) {
                     invalidateTextLayoutCache();
                     markLayoutDirty();
                 }
-                return true;
+                return finish(true);
             case core::keys::kDelete:
                 if (model_->eraseCompositionForward()) {
                     invalidateTextLayoutCache();
                     markLayoutDirty();
                 }
-                return true;
+                return finish(true);
             default:
-                return false;
+                return finish(false);
             }
         }
 
@@ -827,15 +855,15 @@ bool TextInput::onEvent(core::Event& event)
             if (model_->selectAll()) {
                 markPaintDirty();
             }
-            return true;
+            return finish(true);
         }
 
         if (controlPressed && keyEvent.key == core::keys::kC) {
             if (model_->hasSelection() && hasClipboardHandler()) {
                 setClipboardText(selectedText());
-                return true;
+                return finish(true);
             }
-            return false;
+            return finish(false);
         }
 
         if (controlPressed && keyEvent.key == core::keys::kX) {
@@ -846,15 +874,15 @@ bool TextInput::onEvent(core::Event& event)
                     notifyTextChanged();
                     markLayoutDirty();
                 }
-                return true;
+                return finish(true);
             }
-            return false;
+            return finish(false);
         }
 
         if (controlPressed && keyEvent.key == core::keys::kV) {
             const std::string pasted = clipboardText();
             if (pasted.empty()) {
-                return false;
+                return finish(false);
             }
 
             if (model_->insertText(pasted)) {
@@ -862,7 +890,7 @@ bool TextInput::onEvent(core::Event& event)
                 notifyTextChanged();
                 markLayoutDirty();
             }
-            return true;
+            return finish(true);
         }
 
         switch (keyEvent.key) {
@@ -872,14 +900,14 @@ bool TextInput::onEvent(core::Event& event)
                 notifyTextChanged();
                 markLayoutDirty();
             }
-            return true;
+            return finish(true);
         case core::keys::kDelete:
             if (model_->deleteForward()) {
                 invalidateTextLayoutCache();
                 notifyTextChanged();
                 markLayoutDirty();
             }
-            return true;
+            return finish(true);
         case core::keys::kLeft:
             if (shiftPressed) {
                 model_->setCaret(detail::previousUtf8Offset(model_->text(), model_->cursorPos()), true);
@@ -889,7 +917,7 @@ bool TextInput::onEvent(core::Event& event)
                 model_->collapseSelection(detail::previousUtf8Offset(model_->text(), model_->cursorPos()));
             }
             markPaintDirty();
-            return true;
+            return finish(true);
         case core::keys::kRight:
             if (shiftPressed) {
                 model_->setCaret(detail::nextUtf8Offset(model_->text(), model_->cursorPos()), true);
@@ -899,7 +927,7 @@ bool TextInput::onEvent(core::Event& event)
                 model_->collapseSelection(detail::nextUtf8Offset(model_->text(), model_->cursorPos()));
             }
             markPaintDirty();
-            return true;
+            return finish(true);
         case core::keys::kHome:
             if (shiftPressed) {
                 model_->setCaret(0, true);
@@ -907,7 +935,7 @@ bool TextInput::onEvent(core::Event& event)
                 model_->collapseSelection(0);
             }
             markPaintDirty();
-            return true;
+            return finish(true);
         case core::keys::kEnd:
             if (shiftPressed) {
                 model_->setCaret(model_->text().size(), true);
@@ -915,14 +943,14 @@ bool TextInput::onEvent(core::Event& event)
                 model_->collapseSelection(model_->text().size());
             }
             markPaintDirty();
-            return true;
+            return finish(true);
         default:
-            return false;
+            return finish(false);
         }
     }
     case core::EventType::TextInput: {
         if (!focused()) {
-            return false;
+            return finish(false);
         }
 
         const auto& textEvent = static_cast<const core::TextInputEvent&>(event);
@@ -932,7 +960,7 @@ bool TextInput::onEvent(core::Event& event)
                       ? detail::encodeUtf8(textEvent.codepoint)
                       : std::string {});
         if (encoded.empty()) {
-            return false;
+            return finish(false);
         }
 
         if (model_->insertText(encoded)) {
@@ -940,42 +968,42 @@ bool TextInput::onEvent(core::Event& event)
             notifyTextChanged();
             markLayoutDirty();
         }
-        return true;
+        return finish(true);
     }
     case core::EventType::TextCompositionStart: {
         if (!focused()) {
-            return false;
+            return finish(false);
         }
 
         const auto& compositionEvent = static_cast<const core::TextCompositionEvent&>(event);
         model_->beginComposition(compositionEvent.platformManaged);
         invalidateTextLayoutCache();
         markLayoutDirty();
-        return true;
+        return finish(true);
     }
     case core::EventType::TextCompositionUpdate: {
         if (!focused()) {
-            return false;
+            return finish(false);
         }
 
         const auto& compositionEvent = static_cast<const core::TextCompositionEvent&>(event);
         model_->updateComposition(compositionEvent);
         invalidateTextLayoutCache();
         markLayoutDirty();
-        return true;
+        return finish(true);
     }
     case core::EventType::TextCompositionEnd:
         if (!focused()) {
-            return false;
+            return finish(false);
         }
 
         if (model_->clearCompositionState()) {
             invalidateTextLayoutCache();
             markLayoutDirty();
         }
-        return true;
+        return finish(true);
     default:
-        return false;
+        return finish(false);
     }
 }
 
@@ -1079,6 +1107,13 @@ void TextInput::notifyTextChanged() const
 {
     if (onTextChanged_) {
         onTextChanged_(model_->text());
+    }
+}
+
+void TextInput::notifySelectionChanged() const
+{
+    if (onSelectionChanged_) {
+        onSelectionChanged_(model_->selectedText());
     }
 }
 

@@ -53,6 +53,7 @@ public:
     TextInputIconLoadState trailingIconLoadState() const;
     void onTrailingIconClick(std::function<void()> handler);
     void onTextChanged(std::function<void(const std::string&)> handler);
+    void onSelectionChanged(std::function<void(const std::string&)> handler);
     std::string selectedText() const;
     void setStyle(const TextInputStyle& style);
     void clearStyle();
@@ -85,6 +86,7 @@ private:
     core::Rect leadingIconBounds(const TextInputStyle& style) const;
     core::Rect trailingIconBounds(const TextInputStyle& style) const;
     void notifyTextChanged() const;
+    void notifySelectionChanged() const;
 
     std::string placeholder_;
     rendering::Image leadingIcon_;
@@ -104,6 +106,7 @@ private:
     TextInputIconLoadState trailingIconLoadState_ = TextInputIconLoadState::Idle;
     std::function<void()> onTrailingIconClick_;
     std::function<void(const std::string&)> onTextChanged_;
+    std::function<void(const std::string&)> onSelectionChanged_;
     std::optional<TextInputStyle> customStyle_;
     AnimationSink* hoverAnimationSink_ = nullptr;
     AnimationHandle hoverAnimation_ = 0;

@@ -63,10 +63,17 @@ public:
     void bindSelectionChanged(const std::string& id, std::function<void(int)> handler);
 
 private:
+    bool applyBindingNow(const detail::BindingDescriptor& binding);
     void clearValueListeners();
     void clearStructureListeners();
     void registerValueListeners();
     void registerStructureListeners();
+    bool isWidgetBindingPath(std::string_view path) const;
+    std::optional<ModelNode> readWidgetBindingNode(std::string_view path) const;
+    bool bindingDependsOnWidgetPath(
+        const detail::BindingDescriptor& binding,
+        std::string_view path) const;
+    void handleWidgetDependencyChange(std::string_view path);
     void bindInteraction(
         const std::string& id,
         std::string_view interactionName,

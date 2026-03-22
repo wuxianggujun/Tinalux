@@ -106,7 +106,9 @@ struct BindingDescriptor {
     std::vector<std::string> dependencyPaths;
     std::string writeBackPath;
     core::ValueType expectedType = core::ValueType::None;
-    std::function<std::optional<core::Value>(const std::shared_ptr<ViewModel>&)> evaluate;
+    std::function<std::optional<core::Value>(
+        const std::shared_ptr<ViewModel>&,
+        const std::function<const ModelNode*(std::string_view)>&)> evaluate;
     std::function<void(const core::Value&)> apply;
 };
 

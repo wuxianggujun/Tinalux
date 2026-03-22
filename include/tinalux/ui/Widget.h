@@ -55,6 +55,9 @@ public:
     bool containsGlobalPoint(float x, float y) const;
     bool visible() const;
     void setVisible(bool visible);
+    bool enabled() const;
+    virtual void setEnabled(bool enabled);
+    bool isEnabledInHierarchy() const;
     bool focused() const;
     virtual void setFocused(bool focused);
     virtual bool focusable() const;
@@ -98,6 +101,7 @@ protected:
     core::Rect bounds_ = core::Rect::MakeEmpty();
     core::Rect dirtyRegion_ = core::Rect::MakeEmpty();
     bool visible_ = true;
+    bool enabled_ = true;
     bool focused_ = false;
     bool paintDirty_ = true;
     bool subtreePaintDirty_ = true;

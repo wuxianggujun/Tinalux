@@ -8,12 +8,9 @@
 #include <string>
 #include <vector>
 
+#include "modules/skparagraph/include/Paragraph.h"
 #include "tinalux/ui/RichTextStyle.h"
 #include "tinalux/ui/Widget.h"
-
-namespace skia::textlayout {
-class Paragraph;
-}
 
 namespace tinalux::ui {
 

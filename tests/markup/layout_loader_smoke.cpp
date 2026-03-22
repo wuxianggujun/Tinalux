@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <string>
 
 #include "tinalux/core/Geometry.h"
@@ -14,8 +15,11 @@
 #include "tinalux/ui/Dropdown.h"
 #include "tinalux/ui/ImageWidget.h"
 #include "tinalux/ui/Label.h"
+#include "tinalux/ui/ListView.h"
 #include "tinalux/ui/Panel.h"
+#include "tinalux/ui/RichText.h"
 #include "tinalux/ui/ScrollView.h"
+#include "tinalux/ui/Slider.h"
 #include "tinalux/ui/TextInput.h"
 #include "tinalux/ui/Theme.h"
 #include "tinalux/ui/VBox.h"
@@ -57,6 +61,243 @@ int main()
     using namespace tinalux;
 
     const ui::Theme theme = ui::Theme::light();
+
+    {
+        const std::string source = R"(
+component SearchField(placeholder: "Search", currentText: ""): TextInput(placeholder, currentText)
+VBox(id: root) {
+    TextInput(id: directInput, placeholder: "Search projects", "alpha"),
+    SearchField(id: componentInput, placeholder: "Filter users", "bob")
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "mixed named and positional markup should load");
+        expect(result.warnings.empty(), "mixed named and positional markup should not emit warnings");
+
+        const ui::TextInput* directInput = result.handle.findById<ui::TextInput>("directInput");
+        expect(directInput != nullptr, "direct mixed syntax should materialize TextInput");
+        expect(
+            directInput->text() == "alpha",
+            "trailing positional arg should map to the next unfilled property");
+
+        const ui::TextInput* componentInput = result.handle.findById<ui::TextInput>("componentInput");
+        expect(componentInput != nullptr, "component mixed syntax should materialize TextInput");
+        expect(
+            componentInput->text() == "bob",
+            "component trailing positional arg should map to the next unfilled parameter");
+    }
+
+    {
+        const std::string source = R"(
+component RangeField(currentValue: 0, maximum: 100, increment: 1): Slider(currentValue, 0, maximum, increment)
+VBox(id: root) {
+    Slider(id: directSlider, max: 100, 25, 0, 5),
+    RangeField(id: componentSlider, maximum: 80, 40, 10)
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "out-of-order mixed positional markup should load");
+        expect(result.warnings.empty(), "out-of-order mixed positional markup should not emit warnings");
+
+        const ui::Slider* directSlider = result.handle.findById<ui::Slider>("directSlider");
+        expect(directSlider != nullptr, "direct mixed slider syntax should materialize Slider");
+        expect(nearlyEqual(directSlider->value(), 25.0f), "direct mixed slider should preserve positional value");
+        expect(nearlyEqual(directSlider->minimum(), 0.0f), "direct mixed slider should preserve positional min");
+        expect(nearlyEqual(directSlider->maximum(), 100.0f), "direct mixed slider should preserve named max");
+        expect(nearlyEqual(directSlider->step(), 5.0f), "direct mixed slider should skip filled max slot and map trailing positional arg to step");
+
+        const ui::Slider* componentSlider = result.handle.findById<ui::Slider>("componentSlider");
+        expect(componentSlider != nullptr, "component mixed slider syntax should materialize Slider");
+        expect(nearlyEqual(componentSlider->value(), 40.0f), "component mixed slider should preserve positional currentValue");
+        expect(nearlyEqual(componentSlider->minimum(), 0.0f), "component mixed slider should preserve template min");
+        expect(nearlyEqual(componentSlider->maximum(), 80.0f), "component mixed slider should preserve named maximum");
+        expect(nearlyEqual(componentSlider->step(), 10.0f), "component mixed slider should skip filled maximum parameter and map trailing positional arg to increment");
+    }
+
+    {
+        const std::string source = R"(
+VBox(id: root) {
+    Dropdown(id: choices, selectedIndex: 2, "Pick one", 8)
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "id-skipping mixed positional markup should load");
+        expect(result.warnings.empty(), "id-skipping mixed positional markup should not emit warnings");
+
+        ui::Dropdown* choices = result.handle.findById<ui::Dropdown>("choices");
+        expect(choices != nullptr, "mixed positional dropdown syntax should materialize Dropdown");
+        expect(choices->placeholder() == "Pick one", "mixed positional dropdown should preserve positional placeholder");
+        expect(choices->maxVisibleItems() == 8, "mixed positional dropdown should preserve positional maxVisibleItems");
+        expect(choices->selectedIndex() == -1, "mixed positional dropdown should defer named selectedIndex until items exist");
+        choices->setItems({"Zero", "One", "Two"});
+        expect(choices->selectedIndex() == 2, "mixed positional dropdown should preserve named selectedIndex after items are attached");
+    }
+
+    {
+        const std::string source = R"(
+let gap: 12
+let accent: #FF336699
+let ctaText: "Deploy"
+VBox(id: root, gap) {
+    TextInput(id: ctaTextMirror, text: ctaText),
+    Button(id: cta, text: ctaText, style: {
+        backgroundColor: accent,
+        borderRadius: gap
+    })
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "let markup should load");
+        expect(result.warnings.empty(), "let markup should not emit warnings");
+
+        const ui::VBox* root = dynamic_cast<ui::VBox*>(result.handle.root().get());
+        expect(root != nullptr, "let markup root should materialize as VBox");
+        expect(nearlyEqual(root->spacing(), 12.0f), "let should resolve into positional spacing");
+
+        const ui::TextInput* ctaTextMirror = result.handle.findById<ui::TextInput>("ctaTextMirror");
+        const ui::Button* cta = result.handle.findById<ui::Button>("cta");
+        expect(ctaTextMirror != nullptr, "let markup should materialize TextInput");
+        expect(cta != nullptr, "let markup should materialize Button");
+        expect(ctaTextMirror->text() == "Deploy", "string let should resolve into widget property");
+        expect(cta->style() != nullptr, "let style values should materialize a custom style");
+        expect(
+            cta->style()->backgroundColor.normal == core::Color(0xFF336699u),
+            "color let should resolve inside inline style");
+        expect(
+            nearlyEqual(cta->style()->borderRadius, 12.0f),
+            "numeric let should resolve inside inline style");
+    }
+
+    {
+        const std::string source = R"(
+VBox(id: root, 10) {
+    ListView(id: inbox, preferredHeight: 240, selectedIndex: 2, style: {
+        itemCornerRadius: 16,
+        selectionFillColor: #2200AAFF
+    }),
+    RichText(id: summary, "Release notes", maxLines: 3, align: Center, style: {
+        fontSize: 18,
+        color: #FF224466,
+        bold: true
+    })
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "ListView and RichText markup should load");
+        expect(result.warnings.empty(), "ListView and RichText markup should not emit warnings");
+
+        ui::ListView* inbox = result.handle.findById<ui::ListView>("inbox");
+        expect(inbox != nullptr, "ListView should be constructible from markup");
+        expect(nearlyEqual(inbox->preferredHeight(), 240.0f), "ListView preferredHeight should be parsed");
+        expect(inbox->style() != nullptr, "ListView style block should install a custom style");
+        expect(
+            nearlyEqual(inbox->style()->itemCornerRadius, 16.0f),
+            "ListView style block should override itemCornerRadius");
+        expect(
+            inbox->style()->selectionFillColor == core::Color(0x2200AAFFu),
+            "ListView style block should override selectionFillColor");
+        inbox->setItemFactory(
+            4,
+            [](std::size_t index, std::shared_ptr<ui::Widget>) -> std::shared_ptr<ui::Widget> {
+                return std::make_shared<ui::Label>("Item " + std::to_string(index));
+            });
+        expect(
+            inbox->selectedIndex() == 2,
+            "ListView should apply the declarative selectedIndex after a data source is attached");
+
+        const ui::RichTextWidget* summary = result.handle.findById<ui::RichTextWidget>("summary");
+        expect(summary != nullptr, "RichText should be constructible from markup");
+        expect(summary->spans().size() == 1, "RichText text property should materialize a single body span");
+        expect(summary->spans()[0].text == "Release notes", "RichText text property should preserve content");
+        expect(summary->style() != nullptr, "RichText style block should install a custom style");
+        expect(
+            nearlyEqual(summary->style()->body.textStyle.fontSize, 18.0f),
+            "RichText style block should override body fontSize");
+        expect(
+            summary->style()->body.textColor.has_value()
+                && summary->style()->body.textColor.value() == core::Color(0xFF224466u),
+            "RichText style block should override body textColor");
+        expect(summary->style()->body.textStyle.bold, "RichText style block should override body bold");
+    }
+
+    {
+        const std::string source = R"(
+VBox(id: root) {
+    Button(id: cta, "Ship", iconPlacement: End, iconWidth: 18, iconHeight: 12),
+    Dialog(
+        id: confirm,
+        "Confirm",
+        dismissOnBackdrop: false,
+        dismissOnEscape: false,
+        showCloseButton: false,
+        maxWidth: 360,
+        maxHeight: 220
+    ) {
+        Panel(id: body)
+    },
+    ImageWidget(
+        id: hero,
+        source: "assets/images/hero.png",
+        fit: Cover,
+        opacity: 0.75,
+        preferredWidth: 320,
+        preferredHeight: 180,
+        placeholderWidth: 40,
+        placeholderHeight: 24,
+        loadingPlaceholderColor: #FF223344,
+        failedPlaceholderColor: #FF552222
+    )
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "extended widget properties markup should load");
+        expect(result.warnings.empty(), "extended widget properties markup should not emit warnings");
+
+        const ui::Button* cta = result.handle.findById<ui::Button>("cta");
+        expect(cta != nullptr, "Button should materialize with extended properties");
+        expect(
+            cta->iconPlacement() == ui::ButtonIconPlacement::End,
+            "Button iconPlacement should be parsed");
+        expect(nearlyEqual(cta->iconSize().width(), 18.0f), "Button iconWidth should be parsed");
+        expect(nearlyEqual(cta->iconSize().height(), 12.0f), "Button iconHeight should be parsed");
+
+        const ui::Dialog* confirm = result.handle.findById<ui::Dialog>("confirm");
+        expect(confirm != nullptr, "Dialog should materialize with extended properties");
+        expect(!confirm->dismissOnBackdrop(), "Dialog dismissOnBackdrop should be parsed");
+        expect(!confirm->dismissOnEscape(), "Dialog dismissOnEscape should be parsed");
+        expect(!confirm->showCloseButton(), "Dialog showCloseButton should be parsed");
+        expect(nearlyEqual(confirm->maxSize().width(), 360.0f), "Dialog maxWidth should be parsed");
+        expect(nearlyEqual(confirm->maxSize().height(), 220.0f), "Dialog maxHeight should be parsed");
+
+        const ui::ImageWidget* hero = result.handle.findById<ui::ImageWidget>("hero");
+        expect(hero != nullptr, "ImageWidget should materialize with extended properties");
+        expect(hero->fit() == ui::ImageFit::Cover, "ImageWidget fit should still be parsed");
+        expect(nearlyEqual(hero->opacity(), 0.75f), "ImageWidget opacity should still be parsed");
+        expect(
+            nearlyEqual(hero->preferredSize().width(), 320.0f),
+            "ImageWidget preferredWidth should be parsed");
+        expect(
+            nearlyEqual(hero->preferredSize().height(), 180.0f),
+            "ImageWidget preferredHeight should be parsed");
+        expect(
+            nearlyEqual(hero->placeholderSize().width(), 40.0f),
+            "ImageWidget placeholderWidth should be parsed");
+        expect(
+            nearlyEqual(hero->placeholderSize().height(), 24.0f),
+            "ImageWidget placeholderHeight should be parsed");
+        expect(
+            hero->loadingPlaceholderColor() == core::Color(0xFF223344u),
+            "ImageWidget loadingPlaceholderColor should be parsed");
+        expect(
+            hero->failedPlaceholderColor() == core::Color(0xFF552222u),
+            "ImageWidget failedPlaceholderColor should be parsed");
+    }
 
     {
         const std::string source = R"(
@@ -583,10 +824,30 @@ VBox(id: root) {
                 result.errors.begin(),
                 result.errors.end(),
                 [](const std::string& error) {
-                    return error.find("property 'id' expects a bare identifier or binding expression")
+                    return error.find("property 'id' expects a bare identifier")
                         != std::string::npos;
                 }),
             "string id parse error should explain identifier-only id syntax");
+    }
+
+    {
+        const std::string source = R"(
+VBox(id: ${model.root}) {
+    Button(text: "Dynamic")
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expect(!result.ok(), "binding id markup should be rejected");
+        expect(
+            std::any_of(
+                result.errors.begin(),
+                result.errors.end(),
+                [](const std::string& error) {
+                    return error.find("property 'id' expects a bare identifier")
+                        != std::string::npos;
+                }),
+            "binding id parse error should explain identifier-only id syntax");
     }
 
     return 0;

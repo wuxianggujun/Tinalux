@@ -97,14 +97,17 @@
 - `Lexer` / `Parser` / `Ast`
 - `LayoutBuilder` / `LayoutLoader`
 - 运行时类型注册与属性装配
-- `@style`、样式继承、inline `style: { ... }`
-- `@import`
-- `@res("...")`
-- 带参数的 `@component`
+- `style`、样式继承、inline `style: { ... }`
+- `import`
+- `res("...")`
+- 带参数的 `component`
 - `Slot`
 - `${model.xxx}` 单向/双向属性绑定
+- `${someId.someProperty}` 普通属性 / 样式绑定
 - 树状 `ViewModel`：`Scalar / Object / Array`
-- `@if / @for`
+- `if / elseif / else / for`
+- 位置参数与匿名主属性语法糖
+- 可选裸标识符 `id`
 - 基于结构路径失效的整树重建
 
 ### Android 相关

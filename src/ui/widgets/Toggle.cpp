@@ -45,7 +45,7 @@ bool Toggle::on() const
 
 void Toggle::setOn(bool on)
 {
-    updateOn(on, false);
+    updateOn(on, true);
 }
 
 void Toggle::onToggle(std::function<void(bool)> handler)
@@ -86,6 +86,9 @@ const ToggleStyle& Toggle::resolvedStyle() const
 
 WidgetState Toggle::currentState() const
 {
+    if (!isEnabledInHierarchy()) {
+        return WidgetState::Disabled;
+    }
     if (pressed_) {
         return WidgetState::Pressed;
     }
@@ -223,6 +226,10 @@ void Toggle::onDraw(rendering::Canvas& canvas)
 
 bool Toggle::onEvent(core::Event& event)
 {
+    if (!isEnabledInHierarchy()) {
+        return false;
+    }
+
     switch (event.type()) {
     case core::EventType::MouseEnter:
         updateHovered(true);

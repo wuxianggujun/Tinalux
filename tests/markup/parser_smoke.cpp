@@ -63,6 +63,36 @@ int main()
 
     {
         const std::string source = R"(
+let gap: 12
+let accent: #FF336699
+let ctaText: ${model.ctaText}
+VBox(id: root) {
+    Button(text: ctaText, style: { backgroundColor: accent, borderRadius: gap })
+}
+)";
+
+        const markup::DocumentParseResult result = markup::Parser::parseDocument(source);
+        expectParseOk(result, "let document should parse");
+        expect(result.document.lets.size() == 3, "parser should capture top-level let definitions");
+        expect(
+            result.document.lets[0].name == "gap"
+                && result.document.lets[0].value.type() == core::ValueType::Int
+                && result.document.lets[0].value.asInt() == 12,
+            "int let should preserve scalar value");
+        expect(
+            result.document.lets[1].name == "accent"
+                && result.document.lets[1].value.type() == core::ValueType::Color
+                && result.document.lets[1].value.asColor().value() == 0xFF336699u,
+            "color let should preserve color literal value");
+        expect(
+            result.document.lets[2].name == "ctaText"
+                && result.document.lets[2].bindingPath.has_value()
+                && *result.document.lets[2].bindingPath == "model.ctaText",
+            "binding let should preserve raw binding expression");
+    }
+
+    {
+        const std::string source = R"(
 import "components/shared.tui"
 style primaryAction: Button(backgroundColor: #FF336699, borderRadius: 12)
 component ActionChip(text: ${model.title}): Button(text: text)
@@ -71,7 +101,7 @@ VBox(id: root) {
         TextInput(id: advancedQuery, text: ${model.query})
     },
     for(item in ${model.items}) {
-        Button(id: ${item.id}, text: ${item.label})
+        Button(text: ${item.label})
     }
 }
 )";
@@ -125,13 +155,8 @@ VBox(id: root) {
         expect(forNode.children.size() == 1, "for should keep one template child");
         const markup::AstNode& loopChild = forNode.children.front();
         expect(loopChild.isWidget(), "for child should remain a widget node");
-        const markup::AstProperty* idProp = findProperty(loopChild, "id");
         const markup::AstProperty* textProp = findProperty(loopChild, "text");
-        expect(idProp != nullptr, "for child should preserve id property");
         expect(textProp != nullptr, "for child should preserve text property");
-        expect(
-            idProp->bindingPath.has_value() && *idProp->bindingPath == "item.id",
-            "for child id binding should preserve loop-scoped path");
         expect(
             textProp->bindingPath.has_value() && *textProp->bindingPath == "item.label",
             "for child text binding should preserve loop-scoped path");

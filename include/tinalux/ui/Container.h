@@ -16,6 +16,7 @@ public:
     void removeChild(Widget* child);
     void clearChildren();
     void setLayout(std::unique_ptr<Layout> layout);
+    void setEnabled(bool enabled) override;
 
     core::Size measure(const Constraints& constraints) override;
     void arrange(const core::Rect& bounds) override;

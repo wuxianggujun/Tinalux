@@ -4,12 +4,16 @@
 #include <string>
 #include <vector>
 
+#include "../../src/ui/RuntimeState.h"
+#include "tinalux/core/KeyCodes.h"
+#include "tinalux/core/events/Event.h"
 #include "tinalux/markup/LayoutLoader.h"
 #include "tinalux/markup/ViewModel.h"
 #include "tinalux/ui/Button.h"
 #include "tinalux/ui/Checkbox.h"
 #include "tinalux/ui/Dropdown.h"
 #include "tinalux/ui/Panel.h"
+#include "tinalux/ui/ProgressBar.h"
 #include "tinalux/ui/Slider.h"
 #include "tinalux/ui/TextInput.h"
 #include "tinalux/ui/Theme.h"
@@ -53,6 +57,59 @@ int main()
     using namespace tinalux;
 
     const ui::Theme theme = ui::Theme::light();
+
+    {
+        const std::string source = R"(
+let gap: 12
+let accent: #FF336699
+let ctaText: ${model.ctaText}
+VBox(id: root, gap) {
+    Button(id: cta, text: ctaText, enabled: ${model.canSubmit}, style: {
+        backgroundColor: accent,
+        borderRadius: gap
+    }),
+    TextInput(id: ctaTextMirror, text: ctaText),
+    Panel(id: enabledMirror, visible: ${cta.enabled})
+}
+)";
+
+        markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "let binding markup should load");
+        expect(result.warnings.empty(), "let binding markup should not emit warnings");
+
+        auto viewModel = markup::ViewModel::create();
+        viewModel->setString("ctaText", "Deploy");
+        viewModel->setBool("canSubmit", false);
+        result.handle.bindViewModel(viewModel);
+
+        ui::VBox* root = dynamic_cast<ui::VBox*>(result.handle.root().get());
+        ui::Button* cta = result.handle.findById<ui::Button>("cta");
+        ui::TextInput* ctaTextMirror = result.handle.findById<ui::TextInput>("ctaTextMirror");
+        ui::Panel* enabledMirror = result.handle.findById<ui::Panel>("enabledMirror");
+
+        expect(root != nullptr, "let binding root should materialize as VBox");
+        expect(cta != nullptr, "let binding Button should exist");
+        expect(ctaTextMirror != nullptr, "let binding TextInput should exist");
+        expect(enabledMirror != nullptr, "enabled mirror Panel should exist");
+        expect(nearlyEqual(root->spacing(), 12.0f), "numeric let should resolve into positional root property");
+        expect(ctaTextMirror->text() == "Deploy", "binding let should resolve into widget property");
+        expect(!cta->enabled(), "enabled binding should apply initial false state");
+        expect(!enabledMirror->visible(), "widget id enabled binding should drive dependent visibility");
+        expect(cta->style() != nullptr, "let binding style should materialize a custom style");
+        expect(
+            cta->style()->backgroundColor.normal == core::Color(0xFF336699u),
+            "color let should resolve inside bound widget style");
+        expect(
+            nearlyEqual(cta->style()->borderRadius, 12.0f),
+            "numeric let should resolve inside bound widget style");
+
+        viewModel->setString("ctaText", "Submit now");
+        viewModel->setBool("canSubmit", true);
+
+        expect(ctaTextMirror->text() == "Submit now", "binding let should live-update from ViewModel");
+        expect(cta->enabled(), "enabled binding should live-update from ViewModel");
+        expect(enabledMirror->visible(), "widget id enabled binding should live-update from source widget");
+    }
 
     {
         const std::string source = R"(
@@ -175,6 +232,57 @@ VBox(id: root) {
 
     {
         const std::string source = R"(
+VBox(id: root) {
+    TextInput(id: statusText, text: ${model.isError ? "Error" : "OK"}),
+    TextInput(id: nestedText, text: ${model.primary ? (model.secondary ? "A" : "B") : "C"}, style: {
+        backgroundColor: ${model.isError ? #FFFFE0E0 : #FFE0FFE0},
+        borderRadius: ${model.isError ? 18 : 6}
+    })
+}
+)";
+
+        markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "conditional binding markup should load");
+        expect(result.warnings.empty(), "conditional binding markup should not emit warnings");
+
+        auto viewModel = markup::ViewModel::create();
+        viewModel->setBool("isError", true);
+        viewModel->setBool("primary", true);
+        viewModel->setBool("secondary", false);
+        result.handle.bindViewModel(viewModel);
+
+        ui::TextInput* statusText = result.handle.findById<ui::TextInput>("statusText");
+        ui::TextInput* nestedText = result.handle.findById<ui::TextInput>("nestedText");
+
+        expect(statusText != nullptr, "conditional binding status TextInput should exist");
+        expect(nestedText != nullptr, "conditional binding nested TextInput should exist");
+        expect(statusText->text() == "Error", "string conditional should resolve initial true branch");
+        expect(nestedText->text() == "B", "nested conditional should resolve inner false branch");
+        expect(nestedText->style() != nullptr, "conditional style binding should materialize a custom style");
+        expect(
+            nestedText->style()->backgroundColor.normal == core::Color(0xFFFFE0E0u),
+            "color conditional should resolve initial true branch");
+        expect(
+            nearlyEqual(nestedText->style()->borderRadius, 18.0f),
+            "numeric conditional should resolve initial true branch");
+
+        viewModel->setBool("isError", false);
+        viewModel->setBool("primary", false);
+        viewModel->setBool("secondary", true);
+
+        expect(statusText->text() == "OK", "string conditional should live-update to false branch");
+        expect(nestedText->text() == "C", "nested conditional should live-update to outer false branch");
+        expect(nestedText->style() != nullptr, "conditional style binding should keep custom style installed");
+        expect(
+            nestedText->style()->backgroundColor.normal == core::Color(0xFFE0FFE0u),
+            "color conditional should live-update to false branch");
+        expect(
+            nearlyEqual(nestedText->style()->borderRadius, 6.0f),
+            "numeric conditional should live-update to false branch");
+    }
+
+    {
+        const std::string source = R"(
 component MirrorField(currentText: ${model.query}): TextInput(text: currentText)
 VBox(id: root) {
     MirrorField(id: mirror)
@@ -203,6 +311,144 @@ VBox(id: root) {
             queryValue->type() == core::ValueType::String
                 && queryValue->asString() == "component typed",
             "component TextInput should write back through substituted binding");
+    }
+
+    {
+        const std::string source = R"(
+VBox(id: root) {
+    TextInput(id: queryInput, text: ${model.query}),
+    Panel(id: status, visible: ${queryInput.text != ""}),
+    TextInput(id: echoField, text: ${queryInput.text}),
+    Checkbox(id: remember, "Remember me", ${model.rememberMe}),
+    Toggle(id: rememberMirror, on: ${remember.checked}),
+    Slider(id: volumeInput, value: ${model.volume}, min: 0, max: 100, step: 1),
+    ProgressBar(id: volumeMirror, value: ${volumeInput.value})
+}
+)";
+
+        markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "widget id binding markup should load");
+        expect(result.warnings.empty(), "widget id binding markup should not emit warnings");
+
+        auto viewModel = markup::ViewModel::create();
+        viewModel->setString("query", "seed");
+        viewModel->setBool("rememberMe", true);
+        viewModel->setFloat("volume", 72.0f);
+        result.handle.bindViewModel(viewModel);
+
+        ui::TextInput* queryInput = result.handle.findById<ui::TextInput>("queryInput");
+        ui::Panel* status = result.handle.findById<ui::Panel>("status");
+        ui::TextInput* echoField = result.handle.findById<ui::TextInput>("echoField");
+        ui::Checkbox* remember = result.handle.findById<ui::Checkbox>("remember");
+        ui::Toggle* rememberMirror = result.handle.findById<ui::Toggle>("rememberMirror");
+        ui::Slider* volumeInput = result.handle.findById<ui::Slider>("volumeInput");
+        ui::ProgressBar* volumeMirror = result.handle.findById<ui::ProgressBar>("volumeMirror");
+
+        expect(queryInput != nullptr, "widget id source TextInput should exist");
+        expect(status != nullptr, "widget id dependent Panel should exist");
+        expect(echoField != nullptr, "widget id dependent TextInput should exist");
+        expect(remember != nullptr, "widget id source Checkbox should exist");
+        expect(rememberMirror != nullptr, "widget id dependent Toggle should exist");
+        expect(volumeInput != nullptr, "widget id source Slider should exist");
+        expect(volumeMirror != nullptr, "widget id dependent ProgressBar should exist");
+
+        expect(queryInput->text() == "seed", "source TextInput should receive initial model value");
+        expect(status->visible(), "visible binding should resolve through widget id");
+        expect(echoField->text() == "seed", "text binding should resolve through widget id");
+        expect(remember->checked(), "source Checkbox should receive initial model value");
+        expect(rememberMirror->on(), "bool binding should resolve through widget id");
+        expect(nearlyEqual(volumeInput->value(), 72.0f), "source Slider should receive initial model value");
+        expect(nearlyEqual(volumeMirror->value(), 72.0f), "float binding should resolve through widget id");
+
+        queryInput->setText("");
+        expect(!status->visible(), "widget id visible binding should live-update on source text changes");
+        expect(echoField->text().empty(), "widget id text binding should live-update on source text changes");
+        const core::Value* queryValue = viewModel->findValue("query");
+        expect(queryValue != nullptr, "source TextInput should still write back to ViewModel");
+        expect(
+            queryValue->type() == core::ValueType::String && queryValue->asString().empty(),
+            "source TextInput write-back should preserve cleared value");
+
+        queryInput->setText("hello");
+        expect(status->visible(), "widget id visible binding should rematerialize on source updates");
+        expect(echoField->text() == "hello", "widget id text binding should follow latest source value");
+
+        remember->setChecked(false);
+        expect(!rememberMirror->on(), "widget id bool binding should follow source checkbox changes");
+        const core::Value* rememberValue = viewModel->findValue("rememberMe");
+        expect(rememberValue != nullptr, "source Checkbox should still write back to ViewModel");
+        expect(
+            rememberValue->type() == core::ValueType::Bool && !rememberValue->asBool(),
+            "source Checkbox write-back should preserve bool payload");
+
+        volumeInput->setValue(33.0f);
+        expect(
+            nearlyEqual(volumeMirror->value(), 33.0f),
+            "widget id float binding should follow source slider changes");
+        const core::Value* volumeValue = viewModel->findValue("volume");
+        expect(volumeValue != nullptr, "source Slider should still write back to ViewModel");
+        expect(
+            volumeValue->type() == core::ValueType::Float
+                && nearlyEqual(volumeValue->asFloat(), 33.0f),
+            "source Slider write-back should preserve numeric payload");
+
+        echoField->setText("manual override");
+        expect(
+            result.handle.findById<ui::TextInput>("queryInput")->text() == "hello",
+            "dependent TextInput edits should not mutate the source widget");
+        expect(
+            viewModel->findValue("echoField.text") == nullptr,
+            "widget id binding targets should not write back into synthetic ViewModel paths");
+
+        queryInput->setText("resynced");
+        expect(
+            echoField->text() == "resynced",
+            "dependent TextInput should resync from source after later source updates");
+    }
+
+    {
+        const std::string source = R"(
+VBox(id: root) {
+    TextInput(id: queryInput, text: ${model.query}),
+    TextInput(id: selectionEcho, text: ${queryInput.selectedText})
+}
+)";
+
+        markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "selectedText binding markup should load");
+        expect(result.warnings.empty(), "selectedText binding markup should not emit warnings");
+
+        auto viewModel = markup::ViewModel::create();
+        viewModel->setString("query", "abcd");
+        result.handle.bindViewModel(viewModel);
+
+        ui::VBox* root = dynamic_cast<ui::VBox*>(result.handle.root().get());
+        ui::TextInput* queryInput = result.handle.findById<ui::TextInput>("queryInput");
+        ui::TextInput* selectionEcho = result.handle.findById<ui::TextInput>("selectionEcho");
+
+        expect(root != nullptr, "selectedText binding root should materialize as VBox");
+        expect(queryInput != nullptr, "selectedText source TextInput should exist");
+        expect(selectionEcho != nullptr, "selectedText dependent TextInput should exist");
+        expect(selectionEcho->text().empty(), "selectedText binding should start empty without a selection");
+
+        ui::RuntimeState runtime;
+        ui::ScopedRuntimeState scopedRuntime(runtime);
+        root->measure(ui::Constraints::tight(360.0f, 120.0f));
+        root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 360.0f, 120.0f));
+
+        queryInput->setFocused(true);
+        core::KeyEvent moveEnd(core::keys::kEnd, 0, 0, core::EventType::KeyPress);
+        core::KeyEvent selectLeft(core::keys::kLeft, 0, core::mods::kShift, core::EventType::KeyPress);
+        queryInput->onEvent(moveEnd);
+        queryInput->onEvent(selectLeft);
+        queryInput->onEvent(selectLeft);
+
+        expect(
+            queryInput->selectedText() == "cd",
+            "keyboard selection should produce the expected selectedText payload");
+        expect(
+            selectionEcho->text() == "cd",
+            "selectedText widget-id binding should live-update from the source TextInput selection");
     }
 
     return 0;

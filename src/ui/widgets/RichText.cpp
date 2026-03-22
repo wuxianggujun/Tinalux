@@ -987,6 +987,10 @@ void RichTextWidget::onDraw(rendering::Canvas& canvas)
 
 bool RichTextWidget::onEvent(core::Event& event)
 {
+    if (!isEnabledInHierarchy()) {
+        return false;
+    }
+
     switch (event.type()) {
     case core::EventType::MouseMove: {
         const auto& mouseEvent = static_cast<const core::MouseMoveEvent&>(event);

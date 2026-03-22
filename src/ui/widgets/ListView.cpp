@@ -10,6 +10,7 @@
 #include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Container.h"
 #include "tinalux/ui/Theme.h"
+#include "../RuntimeState.h"
 
 namespace tinalux::ui {
 
@@ -156,12 +157,15 @@ void ListView::setItemFactory(
     }
 
     const int previousSelection = selectedIndex_;
-    if (previousSelection >= static_cast<int>(itemCount())) {
-        selectedIndex_ = -1;
-    }
+    selectedIndex_ =
+        requestedSelectedIndex_ >= 0 && requestedSelectedIndex_ < static_cast<int>(itemCount())
+        ? requestedSelectedIndex_
+        : -1;
 
     markLayoutDirty();
-    if (hadSelection && selectedIndex_ == -1 && onSelectionChanged_) {
+    if (previousSelection != selectedIndex_
+        && (hadSelection || selectedIndex_ != -1)
+        && onSelectionChanged_) {
         onSelectionChanged_(selectedIndex_);
     }
 }
@@ -213,6 +217,7 @@ const ListViewStyle* ListView::style() const
 
 void ListView::setSelectedIndex(int index)
 {
+    requestedSelectedIndex_ = std::max(index, -1);
     updateSelection(index, true);
 }
 
@@ -300,6 +305,10 @@ void ListView::onDraw(rendering::Canvas& canvas)
 
 bool ListView::onEventCapture(core::Event& event)
 {
+    if (!isEnabledInHierarchy()) {
+        return false;
+    }
+
     switch (event.type()) {
     case core::EventType::MouseButtonPress: {
         const auto& mouseEvent = static_cast<const core::MouseButtonEvent&>(event);
@@ -359,6 +368,10 @@ bool ListView::onEventCapture(core::Event& event)
 
 bool ListView::onEvent(core::Event& event)
 {
+    if (!isEnabledInHierarchy()) {
+        return false;
+    }
+
     const bool handled = ScrollView::onEvent(event);
     if (handled && event.type() == core::EventType::MouseScroll) {
         applyVisibleItemLayout();
@@ -368,7 +381,9 @@ bool ListView::onEvent(core::Event& event)
 
 ListViewStyle ListView::resolvedStyle() const
 {
-    ListViewStyle style = customStyle_ ? *customStyle_ : resolvedTheme().listViewStyle;
+    ListViewStyle style = customStyle_
+        ? *customStyle_
+        : (hasRuntimeState() ? resolvedTheme().listViewStyle : ListViewStyle {});
     if (paddingOverride_) {
         style.padding = *paddingOverride_;
     }
@@ -417,6 +432,10 @@ float ListView::fallbackItemHeight(const ListViewStyle& style) const
 
     if (measuredHeightCount > 0) {
         return measuredHeightSum / static_cast<float>(measuredHeightCount);
+    }
+
+    if (!hasRuntimeState()) {
+        return std::max(24.0f, 16.0f * 1.5f + style.padding * 2.0f);
     }
 
     const Theme& theme = resolvedTheme();
@@ -867,9 +886,11 @@ void ListView::ensureItemVisible(int index)
 
 void ListView::updateSelection(int index, bool emitCallback)
 {
+    const int requestedIndex = std::max(index, -1);
     if (index < -1 || index >= static_cast<int>(itemCount())) {
         index = -1;
     }
+    requestedSelectedIndex_ = requestedIndex;
 
     if (selectedIndex_ == index) {
         ensureItemVisible(selectedIndex_);

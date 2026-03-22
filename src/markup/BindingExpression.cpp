@@ -1,8 +1,10 @@
 #include "BindingExpression.h"
 
 #include <algorithm>
+#include <charconv>
 #include <cmath>
 #include <cctype>
+#include <cstdint>
 #include <sstream>
 #include <unordered_set>
 #include <utility>
@@ -17,8 +19,11 @@ enum class TokenType : std::uint8_t {
     Identifier,
     Number,
     String,
+    Color,
     LeftParen,
     RightParen,
+    Question,
+    Colon,
     Plus,
     Minus,
     Star,
@@ -39,6 +44,23 @@ struct Token {
     std::string text;
     int position = 0;
 };
+
+std::optional<core::Color> parseColorHex(std::string_view hex)
+{
+    std::uint32_t value = 0;
+    const auto [ptr, ec] = std::from_chars(hex.data(), hex.data() + hex.size(), value, 16);
+    if (ec != std::errc {} || ptr != hex.data() + hex.size()) {
+        return std::nullopt;
+    }
+
+    if (hex.size() == 6) {
+        value = 0xFF000000u | value;
+    } else if (hex.size() != 8) {
+        return std::nullopt;
+    }
+
+    return core::Color(value);
+}
 
 bool truthyScalar(const core::Value& value)
 {
@@ -112,6 +134,14 @@ public:
             ++position_;
             return Token {.type = TokenType::RightParen, .text = ")", .position = tokenPosition};
         }
+        if (ch == '?') {
+            ++position_;
+            return Token {.type = TokenType::Question, .text = "?", .position = tokenPosition};
+        }
+        if (ch == ':') {
+            ++position_;
+            return Token {.type = TokenType::Colon, .text = ":", .position = tokenPosition};
+        }
         if (ch == '+') {
             ++position_;
             return Token {.type = TokenType::Plus, .text = "+", .position = tokenPosition};
@@ -173,6 +203,10 @@ public:
 
         if (ch == '"') {
             return readString();
+        }
+
+        if (ch == '#') {
+            return readColor();
         }
 
         if (std::isdigit(static_cast<unsigned char>(ch))
@@ -253,6 +287,28 @@ private:
         return Token {.type = TokenType::String, .text = std::move(text), .position = tokenPosition};
     }
 
+    Token readColor()
+    {
+        const int tokenPosition = static_cast<int>(position_);
+        ++position_;
+
+        std::string text;
+        while (position_ < source_.size()) {
+            const char ch = source_[position_];
+            if (!std::isxdigit(static_cast<unsigned char>(ch))) {
+                break;
+            }
+            text.push_back(ch);
+            ++position_;
+        }
+
+        if ((text.size() != 6 && text.size() != 8) || !parseColorHex(text).has_value()) {
+            return Token {.type = TokenType::Error, .text = "#" + text, .position = tokenPosition};
+        }
+
+        return Token {.type = TokenType::Color, .text = std::move(text), .position = tokenPosition};
+    }
+
     Token readNumber()
     {
         const int tokenPosition = static_cast<int>(position_);
@@ -314,7 +370,7 @@ public:
 
     std::unique_ptr<BindingExpression::Node> parse(std::string* errorMessage)
     {
-        auto expression = parseLogicalOr(errorMessage);
+        auto expression = parseConditional(errorMessage);
         if (!expression) {
             return nullptr;
         }
@@ -330,6 +386,44 @@ public:
     }
 
 private:
+    std::unique_ptr<BindingExpression::Node> parseConditional(std::string* errorMessage)
+    {
+        auto condition = parseLogicalOr(errorMessage);
+        if (!condition) {
+            return nullptr;
+        }
+
+        if (current_.type != TokenType::Question) {
+            return condition;
+        }
+
+        consume();
+        auto whenTrue = parseConditional(errorMessage);
+        if (!whenTrue) {
+            return nullptr;
+        }
+
+        if (current_.type != TokenType::Colon) {
+            if (errorMessage != nullptr) {
+                *errorMessage = "expected ':' after conditional branch";
+            }
+            return nullptr;
+        }
+
+        consume();
+        auto whenFalse = parseConditional(errorMessage);
+        if (!whenFalse) {
+            return nullptr;
+        }
+
+        auto node = std::make_unique<BindingExpression::Node>();
+        node->kind = BindingExpression::Node::Kind::Conditional;
+        node->left = std::move(condition);
+        node->right = std::move(whenTrue);
+        node->extra = std::move(whenFalse);
+        return node;
+    }
+
     std::unique_ptr<BindingExpression::Node> parseLogicalOr(std::string* errorMessage)
     {
         auto left = parseLogicalAnd(errorMessage);
@@ -514,6 +608,21 @@ private:
             return node;
         }
 
+        if (current_.type == TokenType::Color) {
+            auto node = std::make_unique<BindingExpression::Node>();
+            node->kind = BindingExpression::Node::Kind::Literal;
+            const std::optional<core::Color> color = parseColorHex(current_.text);
+            if (!color.has_value()) {
+                if (errorMessage != nullptr) {
+                    *errorMessage = "invalid color literal '#" + current_.text + "'";
+                }
+                return nullptr;
+            }
+            node->literalValue = core::Value(*color);
+            consume();
+            return node;
+        }
+
         if (current_.type == TokenType::String) {
             auto node = std::make_unique<BindingExpression::Node>();
             node->kind = BindingExpression::Node::Kind::Literal;
@@ -524,7 +633,7 @@ private:
 
         if (current_.type == TokenType::LeftParen) {
             consume();
-            auto node = parseLogicalOr(errorMessage);
+            auto node = parseConditional(errorMessage);
             if (!node) {
                 return nullptr;
             }
@@ -584,6 +693,7 @@ void collectDependencies(
 
     collectDependencies(node->left.get(), dependencies, seen);
     collectDependencies(node->right.get(), dependencies, seen);
+    collectDependencies(node->extra.get(), dependencies, seen);
 }
 
 std::optional<float> numericValue(const EvaluatedValue& value)
@@ -794,6 +904,13 @@ EvaluatedValue evaluateNode(
         const EvaluatedValue left = evaluateNode(node->left.get(), resolver);
         const EvaluatedValue right = evaluateNode(node->right.get(), resolver);
         return EvaluatedValue {.scalar = evaluateBinary(node->binaryOperator, left, right)};
+    }
+    case BindingExpression::Node::Kind::Conditional: {
+        const EvaluatedValue condition = evaluateNode(node->left.get(), resolver);
+        const BindingExpression::Node* branch = truthyValue(condition)
+            ? node->right.get()
+            : node->extra.get();
+        return evaluateNode(branch, resolver);
     }
     }
 

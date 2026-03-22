@@ -207,5 +207,47 @@ int main()
     expect(selectedMode == 0, "radio callback should track mouse-selected mode");
     expect(modeChangeCount >= 3, "radio callbacks should fire for select and deselect transitions");
 
+    const int checkboxChangeCountBeforeDisable = checkboxChangeCount;
+    checkbox->setEnabled(false);
+    checkbox->setFocused(true);
+    checkbox->onEvent(checkboxToggleKey);
+    expect(!checkbox->focused(), "disabled checkbox should reject focus");
+    expect(!checkbox->checked(), "disabled checkbox should ignore keyboard toggle");
+    expect(
+        checkboxChangeCount == checkboxChangeCountBeforeDisable,
+        "disabled checkbox should not fire callbacks");
+
+    const int toggleChangeCountBeforeDisable = toggleChangeCount;
+    toggle->setEnabled(false);
+    toggle->setFocused(true);
+    toggle->onEvent(toggleKey);
+    expect(!toggle->focused(), "disabled toggle should reject focus");
+    expect(!toggle->on(), "disabled toggle should ignore keyboard toggle");
+    expect(
+        toggleChangeCount == toggleChangeCountBeforeDisable,
+        "disabled toggle should not fire callbacks");
+
+    const int sliderChangeCountBeforeDisable = sliderChangeCount;
+    const float sliderValueBeforeDisable = slider->value();
+    slider->setEnabled(false);
+    slider->setFocused(true);
+    slider->onEvent(sliderRight);
+    expect(!slider->focused(), "disabled slider should reject focus");
+    expect(
+        std::abs(slider->value() - sliderValueBeforeDisable) < 0.001f,
+        "disabled slider should ignore keyboard updates");
+    expect(
+        sliderChangeCount == sliderChangeCountBeforeDisable,
+        "disabled slider should not increment callback count");
+
+    const int modeChangeCountBeforeDisable = modeChangeCount;
+    strictMode->setEnabled(false);
+    strictMode->setFocused(true);
+    strictMode->onEvent(radioKey);
+    expect(!strictMode->focused(), "disabled radio should reject focus");
+    expect(!strictMode->selected(), "disabled radio should ignore keyboard selection");
+    expect(selectedMode == 0, "disabled radio should not change selection tracking");
+    expect(modeChangeCount == modeChangeCountBeforeDisable, "disabled radio should not fire callbacks");
+
     return 0;
 }

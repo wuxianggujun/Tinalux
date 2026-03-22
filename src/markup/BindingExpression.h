@@ -42,6 +42,7 @@ public:
             Path,
             Unary,
             Binary,
+            Conditional,
         };
 
         Kind kind = Kind::Literal;
@@ -51,6 +52,7 @@ public:
         BinaryOperator binaryOperator = BinaryOperator::Add;
         std::unique_ptr<Node> left;
         std::unique_ptr<Node> right;
+        std::unique_ptr<Node> extra;
     };
 
     static std::shared_ptr<const BindingExpression> compile(

@@ -56,6 +56,24 @@ tinalux::markup::ModelNode actionNode(
     });
 }
 
+tinalux::ui::TextInput* findDirectTextInputByText(
+    tinalux::ui::VBox* root,
+    const std::string& text)
+{
+    if (root == nullptr) {
+        return nullptr;
+    }
+
+    for (const auto& child : root->children()) {
+        auto* input = dynamic_cast<tinalux::ui::TextInput*>(child.get());
+        if (input != nullptr && input->text() == text) {
+            return input;
+        }
+    }
+
+    return nullptr;
+}
+
 } // namespace
 
 int main()
@@ -71,7 +89,7 @@ VBox(id: root) {
     },
     for(item in ${model.actions}) {
         if(${item.visible && model.showVisibleActions}) {
-            ActionField(id: ${item.id}, value: ${item.label + model.actionSuffix})
+            ActionField(value: ${item.label + model.actionSuffix})
         }
     }
 }
@@ -109,25 +127,27 @@ VBox(id: root) {
     expect(root != nullptr, "bound root should remain VBox");
     expect(root->children().size() == 1, "only visible loop item should be materialized initially");
 
-    ui::TextInput* alphaField = result.handle.findById<ui::TextInput>("alphaField");
+    ui::TextInput* alphaField = findDirectTextInputByText(root, "Alpha");
     expect(alphaField != nullptr, "visible loop item should materialize");
     expect(alphaField->text() == "Alpha", "loop-local text should resolve into component parameter");
     expect(
-        result.handle.findById<ui::TextInput>("betaField") == nullptr,
+        findDirectTextInputByText(root, "Beta") == nullptr,
         "hidden loop item should not materialize");
     expect(
         result.handle.findById<ui::TextInput>("advancedQuery") == nullptr,
         "if block should stay absent until enabled");
 
     viewModel->setString("actionSuffix", "!");
-    alphaField = result.handle.findById<ui::TextInput>("alphaField");
+    root = dynamic_cast<ui::VBox*>(result.handle.root().get());
+    alphaField = findDirectTextInputByText(root, "Alpha!");
     expect(alphaField != nullptr, "visible loop item should stay mounted after global binding update");
     expect(
         alphaField->text() == "Alpha!",
         "mixed local/global expression should live-update without rebuilding the loop");
 
     viewModel->setString("actions.0.label", "Alpha Updated");
-    alphaField = result.handle.findById<ui::TextInput>("alphaField");
+    root = dynamic_cast<ui::VBox*>(result.handle.root().get());
+    alphaField = findDirectTextInputByText(root, "Alpha Updated!");
     expect(alphaField != nullptr, "updated visible loop item should still exist");
     expect(
         alphaField->text() == "Alpha Updated!",
@@ -138,14 +158,15 @@ VBox(id: root) {
     expect(root != nullptr, "root should stay valid after descendant structure update");
     expect(root->children().size() == 2, "descendant visibility update should rebuild collection");
 
-    ui::TextInput* betaField = result.handle.findById<ui::TextInput>("betaField");
+    ui::TextInput* betaField = findDirectTextInputByText(root, "Beta!");
     expect(betaField != nullptr, "newly visible loop item should materialize after nested update");
     expect(
         betaField->text() == "Beta!",
         "loop-local visible item should preserve original text and global suffix");
 
     viewModel->setString("actions.1.label", "Beta Updated");
-    betaField = result.handle.findById<ui::TextInput>("betaField");
+    root = dynamic_cast<ui::VBox*>(result.handle.root().get());
+    betaField = findDirectTextInputByText(root, "Beta Updated!");
     expect(betaField != nullptr, "renamed loop item should still exist");
     expect(
         betaField->text() == "Beta Updated!",
@@ -182,15 +203,16 @@ VBox(id: root) {
     expect(root != nullptr, "root should stay valid after global nested-condition rebuild");
     expect(root->children().size() == 1, "global nested-condition should remove loop items while keeping advanced input");
     expect(
-        result.handle.findById<ui::TextInput>("alphaField") == nullptr,
+        findDirectTextInputByText(root, "Alpha Updated!") == nullptr,
         "global nested-condition should remove previously visible loop item");
     expect(
-        result.handle.findById<ui::TextInput>("betaField") == nullptr,
+        findDirectTextInputByText(root, "Beta Updated!") == nullptr,
         "global nested-condition should remove all visible loop items");
 
     viewModel->setBool("showVisibleActions", true);
-    alphaField = result.handle.findById<ui::TextInput>("alphaField");
-    betaField = result.handle.findById<ui::TextInput>("betaField");
+    root = dynamic_cast<ui::VBox*>(result.handle.root().get());
+    alphaField = findDirectTextInputByText(root, "Alpha Updated!");
+    betaField = findDirectTextInputByText(root, "Beta Updated!");
     expect(alphaField != nullptr, "global nested-condition should rematerialize first loop item");
     expect(betaField != nullptr, "global nested-condition should rematerialize second loop item");
     expect(
@@ -227,13 +249,13 @@ VBox(id: root) {
     expect(root != nullptr, "root should stay valid after array replacement");
     expect(root->children().size() == 2, "array replacement should rebuild visible children");
     expect(
-        result.handle.findById<ui::TextInput>("alphaField") == nullptr,
+        findDirectTextInputByText(root, "Alpha Updated!") == nullptr,
         "replaced array should remove stale loop widgets");
     expect(
-        result.handle.findById<ui::TextInput>("betaField") == nullptr,
+        findDirectTextInputByText(root, "Beta Updated!") == nullptr,
         "replaced array should remove previously visible loop widgets");
 
-    ui::TextInput* gammaField = result.handle.findById<ui::TextInput>("gammaField");
+    ui::TextInput* gammaField = findDirectTextInputByText(root, "Gamma!");
     expect(gammaField != nullptr, "array replacement should materialize new loop widget");
     expect(
         gammaField->text() == "Gamma!",

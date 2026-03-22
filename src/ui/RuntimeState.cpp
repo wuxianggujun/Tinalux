@@ -73,6 +73,11 @@ std::uint64_t runtimeThemeGeneration()
     return activeRuntimeState().themeGeneration;
 }
 
+bool hasRuntimeState()
+{
+    return gBoundRuntimeState != nullptr;
+}
+
 ScopedRuntimeState::ScopedRuntimeState(RuntimeState& runtimeState)
     : previous_(gBoundRuntimeState)
 {

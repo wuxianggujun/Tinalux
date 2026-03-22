@@ -170,7 +170,7 @@ std::vector<std::shared_ptr<ui::Widget>> buildEventPath(
 ui::Widget* findFocusableWidget(ui::Widget* target)
 {
     for (ui::Widget* current = target; current != nullptr; current = current->parent()) {
-        if (current->focusable()) {
+        if (current->focusable() && current->isEnabledInHierarchy()) {
             return current;
         }
     }
@@ -179,7 +179,7 @@ ui::Widget* findFocusableWidget(ui::Widget* target)
 
 void collectFocusableWidgets(ui::Widget* widget, std::vector<ui::Widget*>& out)
 {
-    if (widget == nullptr || !widget->visible()) {
+    if (widget == nullptr || !widget->visible() || !widget->isEnabledInHierarchy()) {
         return;
     }
 
@@ -1037,14 +1037,28 @@ void UIContext::dispatchEvent(core::Event& event)
     }
 
     if (isKeyboardEvent(event.type())) {
-        dispatchAlongPath(event, lockWidget(focusedWidget_));
+        const auto focused = lockWidget(focusedWidget_);
+        if (focused == nullptr) {
+            return;
+        }
+
+        if (!focused->isEnabledInHierarchy()) {
+            setFocus(nullptr);
+            return;
+        }
+
+        dispatchAlongPath(event, focused);
     }
 }
 
 void UIContext::setFocus(const std::shared_ptr<ui::Widget>& widget)
 {
+    const std::shared_ptr<ui::Widget> nextFocused =
+        (widget != nullptr && widget->focusable() && widget->isEnabledInHierarchy())
+        ? widget
+        : std::shared_ptr<ui::Widget> {};
     const auto previousFocused = lockWidget(focusedWidget_);
-    if (previousFocused == widget) {
+    if (previousFocused == nextFocused) {
         return;
     }
 
@@ -1052,9 +1066,9 @@ void UIContext::setFocus(const std::shared_ptr<ui::Widget>& widget)
         previousFocused->setFocused(false);
     }
 
-    focusedWidget_ = widget;
-    if (widget != nullptr) {
-        widget->setFocused(true);
+    focusedWidget_ = nextFocused;
+    if (nextFocused != nullptr) {
+        nextFocused->setFocused(true);
     }
 
     needsRedraw_ = true;
@@ -1064,8 +1078,8 @@ void UIContext::setFocus(const std::shared_ptr<ui::Widget>& widget)
         previousFocused != nullptr
             ? fmt::format("0x{:x}", reinterpret_cast<std::uintptr_t>(previousFocused.get()))
             : std::string("null"),
-        widget != nullptr
-            ? fmt::format("0x{:x}", reinterpret_cast<std::uintptr_t>(widget.get()))
+        nextFocused != nullptr
+            ? fmt::format("0x{:x}", reinterpret_cast<std::uintptr_t>(nextFocused.get()))
             : std::string("null"));
 }
 

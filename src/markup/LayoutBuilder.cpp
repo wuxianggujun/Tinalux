@@ -266,6 +266,7 @@ BuildResult LayoutBuilder::build(
     const std::shared_ptr<ViewModel>& viewModel)
 {
     LayoutBuilder builder(theme, viewModel);
+    builder.registerLets(document.lets);
     builder.registerStyles(document.styles);
     builder.registerComponents(document.components);
     BuildResult result;
@@ -279,6 +280,22 @@ BuildResult LayoutBuilder::build(
     result.structuralPaths = std::move(builder.structuralPaths_);
     result.warnings = std::move(builder.warnings_);
     return result;
+}
+
+void LayoutBuilder::registerLets(const std::vector<AstProperty>& lets)
+{
+    for (const auto& letProperty : lets) {
+        if (letProperty.name.empty()) {
+            warnings_.push_back("encountered let definition without a name");
+            continue;
+        }
+
+        if (letMap_.contains(letProperty.name)) {
+            warnings_.push_back("duplicate let '" + letProperty.name + "'");
+        }
+
+        letMap_[letProperty.name] = letProperty;
+    }
 }
 
 void LayoutBuilder::registerStyles(const std::vector<AstStyleDefinition>& styles)
@@ -345,7 +362,19 @@ std::shared_ptr<ui::Widget> LayoutBuilder::buildNode(
         }
     }
 
-    for (const auto& prop : normalizedProperties) {
+    std::vector<AstProperty> applicationProperties = normalizedProperties;
+    std::stable_sort(
+        applicationProperties.begin(),
+        applicationProperties.end(),
+        [typeInfo](const AstProperty& lhs, const AstProperty& rhs) {
+            const core::PropertyInfo* lhsInfo = typeInfo->findProperty(lhs.name);
+            const core::PropertyInfo* rhsInfo = typeInfo->findProperty(rhs.name);
+            const int lhsOrder = lhsInfo != nullptr ? lhsInfo->applicationOrder : 0;
+            const int rhsOrder = rhsInfo != nullptr ? rhsInfo->applicationOrder : 0;
+            return lhsOrder < rhsOrder;
+        });
+
+    for (const auto& prop : applicationProperties) {
         const AstProperty resolvedProp = resolveScopedProperty(prop, scope);
         if (resolvedProp.name == "style") {
             continue;
@@ -371,11 +400,24 @@ std::vector<AstProperty> LayoutBuilder::normalizeImplicitProperties(
     std::vector<AstProperty> normalized;
     normalized.reserve(properties.size());
 
+    std::unordered_set<std::string> filledPositionalNames;
+    filledPositionalNames.reserve(positionalPropertyNames.size());
     std::size_t positionalIndex = 0;
     for (const auto& property : properties) {
         if (!property.hasImplicitName()) {
             normalized.push_back(property);
+            if (std::find(
+                    positionalPropertyNames.begin(),
+                    positionalPropertyNames.end(),
+                    property.name) != positionalPropertyNames.end()) {
+                filledPositionalNames.insert(property.name);
+            }
             continue;
+        }
+
+        while (positionalIndex < positionalPropertyNames.size()
+            && filledPositionalNames.contains(positionalPropertyNames[positionalIndex])) {
+            ++positionalIndex;
         }
 
         if (positionalIndex >= positionalPropertyNames.size()) {
@@ -389,6 +431,7 @@ std::vector<AstProperty> LayoutBuilder::normalizeImplicitProperties(
         AstProperty resolved = property;
         resolved.name = positionalPropertyNames[positionalIndex];
         resolved.implicitName = false;
+        filledPositionalNames.insert(resolved.name);
         normalized.push_back(std::move(resolved));
         ++positionalIndex;
     }
@@ -803,30 +846,61 @@ void LayoutBuilder::applyNodePropertyOverrides(
 
 AstProperty LayoutBuilder::resolveScopedProperty(
     const AstProperty& property,
-    const ScopeBindings& scope) const
+    const ScopeBindings& scope)
 {
-    AstProperty resolved = property;
-    if (property.hasObjectValue()) {
-        resolved.objectProperties.clear();
-        resolved.objectProperties.reserve(property.objectProperties.size());
-        for (const auto& childProperty : property.objectProperties) {
-            resolved.objectProperties.push_back(resolveScopedProperty(childProperty, scope));
+    std::function<AstProperty(const AstProperty&, std::unordered_set<std::string>&)> resolveRecursive;
+    resolveRecursive =
+        [this, &scope, &resolveRecursive](
+            const AstProperty& source,
+            std::unordered_set<std::string>& resolvingLets) -> AstProperty {
+        AstProperty resolved = source;
+        if (source.hasObjectValue()) {
+            resolved.objectProperties.clear();
+            resolved.objectProperties.reserve(source.objectProperties.size());
+            for (const auto& childProperty : source.objectProperties) {
+                resolved.objectProperties.push_back(resolveRecursive(childProperty, resolvingLets));
+            }
+            return resolved;
         }
+
+        if (!source.hasBinding() && source.value.type() == core::ValueType::Enum) {
+            const std::string letName = source.value.asString();
+            const auto letIt = letMap_.find(letName);
+            if (letIt != letMap_.end()) {
+                if (!resolvingLets.insert(letName).second) {
+                    warnings_.push_back("cyclic let reference '" + letName + "'");
+                    return resolved;
+                }
+
+                const AstProperty letValue =
+                    resolveRecursive(letIt->second, resolvingLets);
+                resolvingLets.erase(letName);
+
+                resolved.value = letValue.value;
+                resolved.objectProperties = letValue.objectProperties;
+                resolved.bindingPath = letValue.bindingPath;
+                resolved.objectValue = letValue.objectValue;
+            }
+        }
+
+        if (!resolved.hasBinding()) {
+            return resolved;
+        }
+
+        const std::optional<core::Value> constantValue =
+            tryEvaluateBindingToConstant(*resolved.bindingPath, scope);
+        if (constantValue.has_value()) {
+            resolved.bindingPath.reset();
+            resolved.value = *constantValue;
+            resolved.objectValue = false;
+            resolved.objectProperties.clear();
+        }
+
         return resolved;
-    }
+    };
 
-    if (!property.hasBinding()) {
-        return resolved;
-    }
-
-    const std::optional<core::Value> constantValue =
-        tryEvaluateBindingToConstant(*property.bindingPath, scope);
-    if (constantValue.has_value()) {
-        resolved.bindingPath.reset();
-        resolved.value = *constantValue;
-    }
-
-    return resolved;
+    std::unordered_set<std::string> resolvingLets;
+    return resolveRecursive(property, resolvingLets);
 }
 
 const ModelNode* LayoutBuilder::resolveScopedNode(
@@ -927,13 +1001,21 @@ std::optional<LayoutBuilder::PreparedBinding> LayoutBuilder::prepareBinding(
 
     binding.evaluate = [expression = std::move(expression),
                            localRoots = std::move(localRoots)](
-                           const std::shared_ptr<ViewModel>& viewModel) -> std::optional<core::Value> {
+                           const std::shared_ptr<ViewModel>& viewModel,
+                           const std::function<const ModelNode*(std::string_view)>& externalResolver)
+        -> std::optional<core::Value> {
         return expression->evaluateScalar(
-            [viewModel, &localRoots](std::string_view path) -> const ModelNode* {
+            [viewModel, &localRoots, &externalResolver](std::string_view path) -> const ModelNode* {
                 const std::string normalizedPath = normalizeScopedPath(path);
                 if (const ModelNode* localNode =
                         resolveLocalSnapshotNode(normalizedPath, localRoots)) {
                     return localNode;
+                }
+
+                if (externalResolver) {
+                    if (const ModelNode* externalNode = externalResolver(normalizedPath)) {
+                        return externalNode;
+                    }
                 }
 
                 return viewModel ? viewModel->findNode(normalizedPath) : nullptr;
@@ -1081,46 +1163,54 @@ void LayoutBuilder::applyStyleProperties(
     }
 
     for (const auto& styleProp : properties) {
-        if (styleProp.name == "style") {
-            if (styleProp.hasBinding()) {
+        const AstProperty resolvedStyleProp = resolveScopedProperty(styleProp, scope);
+
+        if (resolvedStyleProp.name == "style") {
+            if (resolvedStyleProp.hasBinding()) {
                 std::ostringstream oss;
                 oss << "dynamic style references are not supported in " << context
-                    << " at line " << styleProp.line;
+                    << " at line " << resolvedStyleProp.line;
                 warnings_.push_back(oss.str());
                 continue;
             }
 
-            if (styleProp.hasObjectValue()) {
-                applyStyleProperties(widget, nodeType, styleProp.objectProperties, context, scope);
+            if (resolvedStyleProp.hasObjectValue()) {
+                applyStyleProperties(
+                    widget,
+                    nodeType,
+                    resolvedStyleProp.objectProperties,
+                    context,
+                    scope);
             } else {
-                applyNamedStyle(widget, nodeType, styleProp, scope);
+                applyNamedStyle(widget, nodeType, resolvedStyleProp, scope);
             }
             continue;
         }
 
-        if (styleProp.hasObjectValue()) {
+        if (resolvedStyleProp.hasObjectValue()) {
             std::ostringstream oss;
-            oss << "nested object style property '" << styleProp.name << "' in " << context
-                << " at line " << styleProp.line << " is not supported";
+            oss << "nested object style property '" << resolvedStyleProp.name << "' in " << context
+                << " at line " << resolvedStyleProp.line << " is not supported";
             warnings_.push_back(oss.str());
             continue;
         }
 
-        const core::StylePropertyInfo* styleInfo = typeInfo->findStyleProperty(styleProp.name);
+        const core::StylePropertyInfo* styleInfo =
+            typeInfo->findStyleProperty(resolvedStyleProp.name);
         if (styleInfo == nullptr) {
             std::ostringstream oss;
-            oss << "unsupported style property '" << styleProp.name << "' in " << context
-                << " for '" << nodeType << "' at line " << styleProp.line;
+            oss << "unsupported style property '" << resolvedStyleProp.name << "' in " << context
+                << " for '" << nodeType << "' at line " << resolvedStyleProp.line;
             warnings_.push_back(oss.str());
             continue;
         }
 
-        if (styleProp.hasBinding()) {
+        if (resolvedStyleProp.hasBinding()) {
             auto preparedBinding = prepareBinding(
-                *styleProp.bindingPath,
+                *resolvedStyleProp.bindingPath,
                 scope,
-                styleProp.line,
-                "style property '" + styleProp.name + "' in " + context,
+                resolvedStyleProp.line,
+                "style property '" + resolvedStyleProp.name + "' in " + context,
                 false);
             if (!preparedBinding.has_value()) {
                 continue;
@@ -1128,7 +1218,7 @@ void LayoutBuilder::applyStyleProperties(
 
             registerBinding(
                 widget,
-                styleProp.name,
+                resolvedStyleProp.name,
                 std::move(preparedBinding->dependencyPaths),
                 std::move(preparedBinding->writeBackPath),
                 styleInfo->expectedType,
@@ -1146,7 +1236,7 @@ void LayoutBuilder::applyStyleProperties(
             continue;
         }
 
-        styleInfo->setter(*widget, styleProp.value, theme_);
+        styleInfo->setter(*widget, resolvedStyleProp.value, theme_);
     }
 }
 
@@ -1236,7 +1326,10 @@ void LayoutBuilder::applyStandardProperty(
             return;
         }
 
-        const std::optional<std::string> idValue = stringLikeValue(prop.value);
+        const std::optional<std::string> idValue =
+            prop.value.type() == core::ValueType::Enum
+            ? std::optional<std::string>(prop.value.asString())
+            : std::nullopt;
         if (idValue.has_value()) {
             widget->setId(*idValue);
             if (idMap_.contains(*idValue)) {
@@ -1297,6 +1390,47 @@ void LayoutBuilder::applyStandardProperty(
         return;
     }
 
+    if (prop.name == "enabled") {
+        if (prop.hasBinding()) {
+            auto preparedBinding = prepareBinding(
+                *prop.bindingPath,
+                scope,
+                prop.line,
+                "property '" + prop.name + "' on '" + nodeType + "'",
+                true);
+            if (!preparedBinding.has_value()) {
+                return;
+            }
+
+            registerBinding(
+                widget,
+                prop.name,
+                std::move(preparedBinding->dependencyPaths),
+                std::move(preparedBinding->writeBackPath),
+                core::ValueType::Bool,
+                std::move(preparedBinding->evaluate),
+                [weakWidget = std::weak_ptr<ui::Widget>(widget)](const core::Value& value) {
+                    auto lockedWidget = weakWidget.lock();
+                    if (!lockedWidget) {
+                        return;
+                    }
+
+                    lockedWidget->setEnabled(value.asBool());
+                });
+            return;
+        }
+
+        if (prop.value.type() == core::ValueType::Bool) {
+            widget->setEnabled(prop.value.asBool());
+        } else {
+            std::ostringstream oss;
+            oss << "property 'enabled' on '" << nodeType << "' expects a bool at line "
+                << prop.line;
+            warnings_.push_back(oss.str());
+        }
+        return;
+    }
+
     const core::PropertyInfo* propInfo = typeInfo.findProperty(prop.name);
     if (!propInfo) {
         std::ostringstream oss;
@@ -1307,6 +1441,14 @@ void LayoutBuilder::applyStandardProperty(
     }
 
     if (prop.hasBinding()) {
+        if (!propInfo->setter) {
+            std::ostringstream oss;
+            oss << "property '" << prop.name << "' on '" << nodeType
+                << "' is read-only and cannot be bound at line " << prop.line;
+            warnings_.push_back(oss.str());
+            return;
+        }
+
         auto preparedBinding = prepareBinding(
             *prop.bindingPath,
             scope,
@@ -1336,6 +1478,14 @@ void LayoutBuilder::applyStandardProperty(
         return;
     }
 
+    if (!propInfo->setter) {
+        std::ostringstream oss;
+        oss << "property '" << prop.name << "' on '" << nodeType
+            << "' is read-only and cannot be assigned at line " << prop.line;
+        warnings_.push_back(oss.str());
+        return;
+    }
+
     propInfo->setter(*widget, prop.value);
 }
 
@@ -1345,7 +1495,9 @@ void LayoutBuilder::registerBinding(
     std::vector<std::string> dependencyPaths,
     std::string writeBackPath,
     core::ValueType expectedType,
-    std::function<std::optional<core::Value>(const std::shared_ptr<ViewModel>&)> evaluate,
+    std::function<std::optional<core::Value>(
+        const std::shared_ptr<ViewModel>&,
+        const std::function<const ModelNode*(std::string_view)>&)> evaluate,
     std::function<void(const core::Value&)> apply)
 {
     bindings_.push_back(detail::BindingDescriptor {

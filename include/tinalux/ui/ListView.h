@@ -88,6 +88,7 @@ private:
     std::optional<float> spacingOverride_;
     std::optional<float> paddingOverride_;
     std::function<void(int)> onSelectionChanged_;
+    int requestedSelectedIndex_ = -1;
     int selectedIndex_ = -1;
     int pressedIndex_ = -1;
 };

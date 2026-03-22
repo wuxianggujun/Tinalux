@@ -43,6 +43,7 @@ bool isIdentifierText(const Token& token, std::string_view text)
 bool isTopLevelDirectiveToken(const Token& token)
 {
     return isIdentifierText(token, "import")
+        || isIdentifierText(token, "let")
         || isIdentifierText(token, "style")
         || isIdentifierText(token, "component");
 }
@@ -126,6 +127,11 @@ void Parser::parseDirective(AstDocument& document)
         }
         document.imports.push_back(current_.text);
         current_ = lexer_.next();
+        return;
+    }
+
+    if (directive == "let") {
+        document.lets.push_back(parseProperty());
         return;
     }
 
@@ -502,14 +508,15 @@ AstProperty Parser::parseProperty(bool allowImplicitName)
         return prop;
     }
 
+    if (prop.name == "id"
+        && (current_.type == TokenType::BindingLiteral || current_.type == TokenType::StringLiteral)) {
+        error("property 'id' expects a bare identifier");
+    }
+
     if (current_.type == TokenType::BindingLiteral) {
         prop.bindingPath = current_.text;
         current_ = lexer_.next();
         return prop;
-    }
-
-    if (prop.name == "id" && current_.type == TokenType::StringLiteral) {
-        error("property 'id' expects a bare identifier or binding expression");
     }
 
     prop.value = parseValue();

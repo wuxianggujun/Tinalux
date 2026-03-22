@@ -64,6 +64,7 @@ struct AstComponentDefinition {
 
 struct AstDocument {
     std::vector<std::string> imports;
+    std::vector<AstProperty> lets;
     std::vector<AstStyleDefinition> styles;
     std::vector<AstComponentDefinition> components;
     std::optional<AstNode> root;

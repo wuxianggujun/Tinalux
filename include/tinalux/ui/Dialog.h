@@ -38,6 +38,7 @@ public:
     void setCornerRadius(float radius);
     void setPadding(float padding);
     void setMaxSize(core::Size size);
+    core::Size maxSize() const;
     void setStyle(const DialogStyle& style);
     void clearStyle();
     const DialogStyle* style() const;

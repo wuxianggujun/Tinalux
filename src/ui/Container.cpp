@@ -120,6 +120,20 @@ void Container::setLayout(std::unique_ptr<Layout> layout)
     markLayoutDirty();
 }
 
+void Container::setEnabled(bool enabled)
+{
+    if (enabled_ == enabled) {
+        return;
+    }
+
+    Widget::setEnabled(enabled);
+    if (!enabled) {
+        for (const auto& child : children_) {
+            clearFocusRecursive(child.get());
+        }
+    }
+}
+
 core::Size Container::measure(const Constraints& constraints)
 {
     if (layout_ != nullptr) {
@@ -211,7 +225,7 @@ void Container::collectDirtyDrawRegions(std::vector<core::Rect>& regions) const
 
 Widget* Container::hitTest(float x, float y)
 {
-    if (!visible_) {
+    if (!visible_ || !isEnabledInHierarchy()) {
         return nullptr;
     }
 

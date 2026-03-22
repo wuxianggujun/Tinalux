@@ -188,6 +188,9 @@ const RadioStyle& Radio::resolvedStyle() const
 
 WidgetState Radio::currentState() const
 {
+    if (!isEnabledInHierarchy()) {
+        return WidgetState::Disabled;
+    }
     if (pressed_) {
         return WidgetState::Pressed;
     }
@@ -312,6 +315,10 @@ void Radio::onDraw(rendering::Canvas& canvas)
 
 bool Radio::onEvent(core::Event& event)
 {
+    if (!isEnabledInHierarchy()) {
+        return false;
+    }
+
     switch (event.type()) {
     case core::EventType::MouseEnter:
         updateHovered(true);

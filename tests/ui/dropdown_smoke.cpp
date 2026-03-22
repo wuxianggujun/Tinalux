@@ -93,6 +93,25 @@ int main()
     expect(dropdown.selectedIndex() == 1, "dropdown should keep selected index");
     expect(dropdown.selectedItem() == "Beta", "dropdown should expose selected item text");
 
+    ui::Dropdown deferredSelectionDropdown;
+    deferredSelectionDropdown.setSelectedIndex(2);
+    expect(deferredSelectionDropdown.selectedIndex() == -1, "dropdown should defer selection before items exist");
+    deferredSelectionDropdown.setItems({"Alpha", "Beta", "Gamma", "Delta"});
+    expect(
+        deferredSelectionDropdown.selectedIndex() == 2,
+        "dropdown should apply deferred selected index after items are attached");
+    expect(
+        deferredSelectionDropdown.selectedItem() == "Gamma",
+        "dropdown should expose deferred selected item text after items are attached");
+    deferredSelectionDropdown.setItems({"Only"});
+    expect(
+        deferredSelectionDropdown.selectedIndex() == -1,
+        "dropdown should clear realized selection when requested index is temporarily out of range");
+    deferredSelectionDropdown.setItems({"Zero", "One", "Two"});
+    expect(
+        deferredSelectionDropdown.selectedIndex() == 2,
+        "dropdown should restore deferred selection when items grow to include the requested index");
+
     ui::Dropdown fallbackDropdown({ "Alpha" });
     fallbackDropdown.arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 140.0f, 32.0f));
     canvas.clear(core::colorARGB(0, 0, 0, 0));

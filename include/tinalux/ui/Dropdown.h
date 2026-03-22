@@ -71,6 +71,7 @@ public:
     Widget* hitTest(float x, float y) override;
     
 private:
+    void applyRequestedSelection(bool emitCallback);
     void toggleExpanded();
     void selectItem(int index);
     int getItemAtY(float y) const;
@@ -78,6 +79,7 @@ private:
     
     std::vector<std::string> items_;
     std::string placeholder_ = "请选择...";
+    int requestedSelectedIndex_ = -1;
     int selectedIndex_ = -1;
     bool expanded_ = false;
     bool hovered_ = false;

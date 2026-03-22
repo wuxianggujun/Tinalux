@@ -57,6 +57,7 @@ const Theme& runtimeTheme();
 AnimationSink& runtimeAnimationSink();
 float runtimeDevicePixelRatio();
 std::uint64_t runtimeThemeGeneration();
+bool hasRuntimeState();
 
 class ScopedRuntimeState final {
 public:

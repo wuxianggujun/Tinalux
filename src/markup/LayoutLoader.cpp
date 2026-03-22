@@ -153,6 +153,57 @@ std::optional<core::Value> coerceBindingValue(
     return std::nullopt;
 }
 
+std::string_view rootPathSegment(std::string_view path)
+{
+    const std::size_t dot = path.find('.');
+    return dot == std::string_view::npos ? path : path.substr(0, dot);
+}
+
+std::string_view propertyPathSegment(std::string_view path)
+{
+    const std::size_t dot = path.find('.');
+    if (dot == std::string_view::npos || dot + 1 >= path.size()) {
+        return {};
+    }
+
+    const std::string_view remainder = path.substr(dot + 1);
+    if (remainder.find('.') != std::string_view::npos) {
+        return {};
+    }
+
+    return remainder;
+}
+
+std::optional<core::Value> readWidgetPropertyValue(
+    const ui::Widget& widget,
+    std::string_view propertyName)
+{
+    if (propertyName == "visible") {
+        return core::Value(widget.visible());
+    }
+
+    if (propertyName == "enabled") {
+        return core::Value(widget.enabled());
+    }
+
+    const std::string& typeName = widget.markupTypeName();
+    if (typeName.empty()) {
+        return std::nullopt;
+    }
+
+    const core::TypeInfo* typeInfo = core::TypeRegistry::instance().findType(typeName);
+    if (typeInfo == nullptr) {
+        return std::nullopt;
+    }
+
+    const core::PropertyInfo* propertyInfo = typeInfo->findProperty(propertyName);
+    if (propertyInfo == nullptr || !propertyInfo->getter) {
+        return std::nullopt;
+    }
+
+    return propertyInfo->getter(widget);
+}
+
 void writeInteractionValue(
     ViewModel& viewModel,
     std::string_view path,
@@ -165,37 +216,63 @@ void writeInteractionValue(
     viewModel.setValue(path, value);
 }
 
-void applyBindingValue(
+bool applyBindingValue(
     const detail::BindingDescriptor& binding,
     const core::Value& value)
 {
     if (!binding.apply) {
-        return;
+        return false;
     }
 
     const std::optional<core::Value> coercedValue =
         coerceBindingValue(value, binding.expectedType);
     if (!coercedValue.has_value()) {
-        return;
+        return false;
     }
 
     binding.apply(*coercedValue);
+    return true;
 }
 
-void evaluateAndApplyBinding(
+bool evaluateAndApplyBinding(
     const detail::BindingDescriptor& binding,
-    const std::shared_ptr<ViewModel>& viewModel)
+    const std::shared_ptr<ViewModel>& viewModel,
+    const std::function<const ModelNode*(std::string_view)>& widgetResolver)
 {
     if (!binding.evaluate) {
-        return;
+        return false;
     }
 
-    const std::optional<core::Value> value = binding.evaluate(viewModel);
+    const std::optional<core::Value> value = binding.evaluate(viewModel, widgetResolver);
     if (!value.has_value()) {
-        return;
+        return false;
     }
 
-    applyBindingValue(binding, *value);
+    return applyBindingValue(binding, *value);
+}
+
+void appendWidgetStructuralWarnings(
+    const std::vector<std::string>& structuralPaths,
+    const std::unordered_map<std::string, std::shared_ptr<ui::Widget>>& idMap,
+    std::vector<std::string>& warnings)
+{
+    for (const std::string& path : structuralPaths) {
+        const std::string_view root = rootPathSegment(path);
+        const std::string_view property = propertyPathSegment(path);
+        if (root.empty() || property.empty()) {
+            continue;
+        }
+
+        if (!idMap.contains(std::string(root))) {
+            continue;
+        }
+
+        std::ostringstream oss;
+        oss << "control-flow dependency '${" << path
+            << "}' references widget id '" << root
+            << "'; widget ids are currently supported only in property and style bindings";
+        warnings.push_back(oss.str());
+    }
 }
 
 struct LoadedDocumentResult {
@@ -265,6 +342,9 @@ LoadedDocumentResult loadDocumentFileRecursive(
                 + importPath.generic_string());
             continue;
         }
+        for (auto& letProperty : imported.document.lets) {
+            result.document.lets.push_back(std::move(letProperty));
+        }
         for (auto& style : imported.document.styles) {
             result.document.styles.push_back(std::move(style));
         }
@@ -273,6 +353,9 @@ LoadedDocumentResult loadDocumentFileRecursive(
         }
     }
 
+    for (auto& letProperty : parseResult.document.lets) {
+        result.document.lets.push_back(std::move(letProperty));
+    }
     for (auto& style : parseResult.document.styles) {
         result.document.styles.push_back(std::move(style));
     }
@@ -489,6 +572,45 @@ void LayoutHandle::bindInteraction(
     }
 }
 
+bool LayoutHandle::applyBindingNow(const detail::BindingDescriptor& binding)
+{
+    std::unordered_map<std::string, ModelNode> widgetNodeCache;
+    const auto widgetResolver =
+        [this, &widgetNodeCache](std::string_view path) -> const ModelNode* {
+            const std::string key(path);
+            const auto cachedIt = widgetNodeCache.find(key);
+            if (cachedIt != widgetNodeCache.end()) {
+                return &cachedIt->second;
+            }
+
+            std::optional<ModelNode> widgetNode = readWidgetBindingNode(path);
+            if (!widgetNode.has_value()) {
+                return nullptr;
+            }
+
+            auto [insertedIt, inserted] = widgetNodeCache.emplace(key, std::move(*widgetNode));
+            (void)inserted;
+            return &insertedIt->second;
+        };
+
+    const bool applied = evaluateAndApplyBinding(binding, viewModel_, widgetResolver);
+    if (!applied) {
+        return false;
+    }
+
+    const auto widget = binding.widget.lock();
+    if (!widget || widget->id().empty()) {
+        return true;
+    }
+
+    if (!readWidgetPropertyValue(*widget, binding.propertyName).has_value()) {
+        return true;
+    }
+
+    handleWidgetDependencyChange(widget->id() + "." + binding.propertyName);
+    return true;
+}
+
 void LayoutHandle::clearValueListeners()
 {
     if (viewModel_) {
@@ -515,14 +637,31 @@ void LayoutHandle::registerValueListeners()
         return;
     }
 
+    const std::shared_ptr<std::uint64_t> generationState = bindingGeneration_;
+    const std::uint64_t generation = generationState ? *generationState : 0;
+    const std::weak_ptr<detail::LayoutHandleState> weakState = runtimeState_;
+
     for (const auto& binding : bindings_) {
         const auto applyCurrentValue =
-            [binding, weakViewModel = std::weak_ptr<ViewModel>(viewModel_)]() {
-                evaluateAndApplyBinding(binding, weakViewModel.lock());
+            [binding, weakState, generationState, generation]() {
+                if (!generationState || *generationState != generation) {
+                    return;
+                }
+
+                const auto state = weakState.lock();
+                if (!state || state->owner == nullptr) {
+                    return;
+                }
+
+                state->owner->applyBindingNow(binding);
             };
 
         for (const std::string& dependencyPath : binding.dependencyPaths) {
             if (dependencyPath.empty()) {
+                continue;
+            }
+
+            if (isWidgetBindingPath(dependencyPath)) {
                 continue;
             }
 
@@ -548,6 +687,10 @@ void LayoutHandle::registerStructureListeners()
     const std::weak_ptr<detail::LayoutHandleState> weakState = runtimeState_;
 
     for (const std::string& path : structuralPaths_) {
+        if (isWidgetBindingPath(path)) {
+            continue;
+        }
+
         structureListenerIds_.push_back(viewModel_->addInvalidationListener(
             path,
             [weakState, generationState, generation]() {
@@ -591,6 +734,70 @@ void LayoutHandle::rebuildFromTemplate()
     idMap_ = std::move(buildResult.idMap);
     bindings_ = std::move(buildResult.bindings);
     structuralPaths_ = std::move(buildResult.structuralPaths);
+}
+
+bool LayoutHandle::isWidgetBindingPath(std::string_view path) const
+{
+    const std::string_view root = rootPathSegment(path);
+    const std::string_view property = propertyPathSegment(path);
+    if (root.empty() || property.empty()) {
+        return false;
+    }
+
+    const auto widgetIt = idMap_.find(std::string(root));
+    if (widgetIt == idMap_.end() || widgetIt->second == nullptr) {
+        return false;
+    }
+
+    return readWidgetPropertyValue(*widgetIt->second, property).has_value();
+}
+
+std::optional<ModelNode> LayoutHandle::readWidgetBindingNode(std::string_view path) const
+{
+    const std::string_view root = rootPathSegment(path);
+    const std::string_view property = propertyPathSegment(path);
+    if (root.empty() || property.empty()) {
+        return std::nullopt;
+    }
+
+    const auto widgetIt = idMap_.find(std::string(root));
+    if (widgetIt == idMap_.end() || widgetIt->second == nullptr) {
+        return std::nullopt;
+    }
+
+    const std::optional<core::Value> value =
+        readWidgetPropertyValue(*widgetIt->second, property);
+    if (!value.has_value()) {
+        return std::nullopt;
+    }
+
+    return ModelNode(*value);
+}
+
+bool LayoutHandle::bindingDependsOnWidgetPath(
+    const detail::BindingDescriptor& binding,
+    std::string_view path) const
+{
+    for (const std::string& dependencyPath : binding.dependencyPaths) {
+        if (dependencyPath == path && isWidgetBindingPath(dependencyPath)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void LayoutHandle::handleWidgetDependencyChange(std::string_view path)
+{
+    if (path.empty() || rebuildInProgress_) {
+        return;
+    }
+
+    for (const auto& binding : bindings_) {
+        if (bindingDependsOnWidgetPath(binding, path)) {
+            applyBindingNow(binding);
+        }
+    }
 }
 
 void LayoutHandle::refreshInteractionBindings()
@@ -649,19 +856,26 @@ void LayoutHandle::refreshInteractionBinding(
     }
 
     const std::string path = binding ? binding->writeBackPath : std::string();
+    const std::string changedPath =
+        (!widget.id().empty() && !interaction.boundProperty.empty())
+        ? (widget.id() + "." + interaction.boundProperty)
+        : std::string();
     const core::ValueType payloadType = interaction.payloadType;
     const std::shared_ptr<std::uint64_t> generationState = bindingGeneration_;
     const std::uint64_t generation = generationState ? *generationState : 0;
     const std::weak_ptr<ViewModel> weakViewModel = viewModel_;
+    const std::weak_ptr<detail::LayoutHandleState> weakState = runtimeState_;
 
     interaction.bind(
         widget,
         [userHandler = std::move(userHandler),
             path,
+            changedPath,
             payloadType,
             generationState,
             generation,
-            weakViewModel](const core::Value& value) {
+            weakViewModel,
+            weakState](const core::Value& value) {
             if (payloadType != core::ValueType::None && value.type() != payloadType) {
                 return;
             }
@@ -670,12 +884,25 @@ void LayoutHandle::refreshInteractionBinding(
                 userHandler(value);
             }
 
-            if (path.empty() || !generationState || *generationState != generation) {
+            if (!generationState || *generationState != generation) {
                 return;
             }
 
-            if (auto viewModel = weakViewModel.lock()) {
-                writeInteractionValue(*viewModel, path, value);
+            const auto state = weakState.lock();
+            if (!state || state->owner == nullptr) {
+                return;
+            }
+
+            LayoutHandle& owner = *state->owner;
+
+            if (!path.empty() && !owner.isWidgetBindingPath(path)) {
+                if (auto viewModel = weakViewModel.lock()) {
+                    writeInteractionValue(*viewModel, path, value);
+                }
+            }
+
+            if (!changedPath.empty()) {
+                owner.handleWidgetDependencyChange(changedPath);
             }
         });
 }
@@ -720,6 +947,10 @@ LoadResult LayoutLoader::load(std::string_view source, const ui::Theme& theme)
 
     auto documentTemplate = std::make_shared<AstDocument>(std::move(parseResult.document));
     auto buildResult = LayoutBuilder::build(*documentTemplate, theme);
+    appendWidgetStructuralWarnings(
+        buildResult.structuralPaths,
+        buildResult.idMap,
+        buildResult.warnings);
     result.handle = LayoutHandle(
         std::move(buildResult.root),
         std::move(buildResult.idMap),
@@ -750,6 +981,10 @@ LoadResult LayoutLoader::loadFile(const std::string& path, const ui::Theme& them
 
     auto documentTemplate = std::make_shared<AstDocument>(std::move(loadedDocument.document));
     auto buildResult = LayoutBuilder::build(*documentTemplate, theme);
+    appendWidgetStructuralWarnings(
+        buildResult.structuralPaths,
+        buildResult.idMap,
+        buildResult.warnings);
     result.handle = LayoutHandle(
         std::move(buildResult.root),
         std::move(buildResult.idMap),

@@ -94,7 +94,7 @@ bool Checkbox::checked() const
 
 void Checkbox::setChecked(bool checked)
 {
-    updateChecked(checked, false);
+    updateChecked(checked, true);
 }
 
 void Checkbox::setCheckmarkIcon(rendering::Image icon)
@@ -200,6 +200,9 @@ const CheckboxStyle& Checkbox::resolvedStyle() const
 
 WidgetState Checkbox::currentState() const
 {
+    if (!isEnabledInHierarchy()) {
+        return WidgetState::Disabled;
+    }
     if (pressed_) {
         return WidgetState::Pressed;
     }
@@ -336,6 +339,10 @@ void Checkbox::onDraw(rendering::Canvas& canvas)
 
 bool Checkbox::onEvent(core::Event& event)
 {
+    if (!isEnabledInHierarchy()) {
+        return false;
+    }
+
     switch (event.type()) {
     case core::EventType::MouseEnter:
         updateHovered(true);
