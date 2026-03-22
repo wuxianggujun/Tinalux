@@ -65,9 +65,9 @@ int main()
     const ui::Theme theme = ui::Theme::light();
     const std::string source = R"(
 component ActionField(value: ""): TextInput(text: value)
-VBox(id: "root") {
+VBox(id: root) {
     if(${model.showAdvanced}) {
-        TextInput(id: "advancedQuery", text: ${model.advancedQuery})
+        TextInput(id: advancedQuery, text: ${model.advancedQuery})
     },
     for(item in ${model.actions}) {
         if(${item.visible && model.showVisibleActions}) {
@@ -241,13 +241,13 @@ VBox(id: "root") {
 
     {
         const std::string branchSource = R"(
-VBox(id: "root") {
+VBox(id: root) {
     if(${model.primary}) {
-        Label(id: "primaryLabel", text: "Primary")
+        Label(id: primaryLabel, text: "Primary")
     } elseif(${model.secondary}) {
-        Label(id: "secondaryLabel", text: "Secondary")
+        Label(id: secondaryLabel, text: "Secondary")
     } else {
-        Label(id: "fallbackLabel", text: "Fallback")
+        Label(id: fallbackLabel, text: "Fallback")
     }
 }
 )";

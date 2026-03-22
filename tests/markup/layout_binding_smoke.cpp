@@ -56,14 +56,14 @@ int main()
 
     {
         const std::string source = R"(
-VBox(id: "root") {
-    TextInput(id: "queryInput", text: ${model.query}),
-    Checkbox(id: "remember", label: ${model.userPrefix + model.username}, checked: ${model.rememberMe}),
-    Toggle(id: "autoRefresh", label: "Auto Refresh", on: ${model.autoRefresh}),
-    Slider(id: "volume", min: 0, max: 100, step: 0.5, value: ${model.volume}),
-    Dropdown(id: "choice", placeholder: ${model.choicePrefix + model.choicePlaceholder}, selectedIndex: ${model.choiceIndex}),
-    Panel(id: "status", visible: ${model.showStatus && model.statusCount > 0}),
-    Button(id: "cta", text: ${model.ctaPrefix + model.ctaSuffix}, style: { borderRadius: ${model.radius * model.scale} })
+VBox(id: root) {
+    TextInput(id: queryInput, text: ${model.query}),
+    Checkbox(id: remember, label: ${model.userPrefix + model.username}, checked: ${model.rememberMe}),
+    Toggle(id: autoRefresh, label: "Auto Refresh", on: ${model.autoRefresh}),
+    Slider(id: volume, min: 0, max: 100, step: 0.5, value: ${model.volume}),
+    Dropdown(id: choice, placeholder: ${model.choicePrefix + model.choicePlaceholder}, selectedIndex: ${model.choiceIndex}),
+    Panel(id: status, visible: ${model.showStatus && model.statusCount > 0}),
+    Button(id: cta, text: ${model.ctaPrefix + model.ctaSuffix}, style: { borderRadius: ${model.radius * model.scale} })
 }
 )";
 
@@ -176,8 +176,8 @@ VBox(id: "root") {
     {
         const std::string source = R"(
 component MirrorField(currentText: ${model.query}): TextInput(text: currentText)
-VBox(id: "root") {
-    MirrorField(id: "mirror")
+VBox(id: root) {
+    MirrorField(id: mirror)
 }
 )";
 

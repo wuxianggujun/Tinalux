@@ -44,10 +44,10 @@ int main()
 
     const ui::Theme theme = ui::Theme::light();
     const std::string source = R"(
-VBox(id: "root") {
+VBox(id: root) {
     if(${model.showQuery}) {
-        TextInput(id: "queryInput", text: ${model.query}),
-        Button(id: "applyButton", text: "Apply")
+        TextInput(id: queryInput, text: ${model.query}),
+        Button(id: applyButton, text: "Apply")
     }
 }
 )";

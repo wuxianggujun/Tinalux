@@ -112,10 +112,10 @@ VBox(id: root, 12, 8) {
 
     {
         const std::string source = R"(
-VBox(id: "root") {
-    Button(id: "cta", text: "Ship", icon: res("assets/icons/ship.png")),
-    TextInput(id: "query", placeholder: "Search", leadingIcon: res("assets/icons/search.png")),
-    ImageWidget(id: "hero", source: res("assets/images/hero.png"), fit: Cover, opacity: 0.75)
+VBox(id: root) {
+    Button(id: cta, text: "Ship", icon: res("assets/icons/ship.png")),
+    TextInput(id: query, placeholder: "Search", leadingIcon: res("assets/icons/search.png")),
+    ImageWidget(id: hero, source: res("assets/images/hero.png"), fit: Cover, opacity: 0.75)
 }
 )";
 
@@ -162,13 +162,13 @@ style searchField: TextInput(
     borderRadius: 18,
     minWidth: 320
 )
-VBox(id: "root") {
-    Button(id: "cta", text: "Ship", style: {
+VBox(id: root) {
+    Button(id: cta, text: "Ship", style: {
         style: primaryAction,
         borderRadius: 24
     }),
-    TextInput(id: "query", placeholder: "Search", style: searchField),
-    Dropdown(id: "picker", placeholder: "Pick one", maxVisibleItems: 7, selectedIndex: -1)
+    TextInput(id: query, placeholder: "Search", style: searchField),
+    Dropdown(id: picker, placeholder: "Pick one", maxVisibleItems: 7, selectedIndex: -1)
 }
 )";
 
@@ -246,17 +246,17 @@ component SharedPicker: Dropdown(placeholder: "Shared choice", maxVisibleItems: 
             std::ofstream layout(layoutPath);
             layout << R"(
 import "components/shared.tui"
-VBox(id: "root") {
-    Panel(id: "card", style: importedPanel),
-    SharedSearchButton(id: "searchButton"),
-    SearchCard(id: "searchCard"),
-    SharedPicker(id: "sharedPicker"),
-    SharedPicker(id: "sharedPickerOverride", placeholder: "Overridden choice", maxVisibleItems: 9),
-    Dialog(id: "dialog", title: "Hello", padding: 18) {
-        Panel(id: "dialogBody")
+VBox(id: root) {
+    Panel(id: card, style: importedPanel),
+    SharedSearchButton(id: searchButton),
+    SearchCard(id: searchCard),
+    SharedPicker(id: sharedPicker),
+    SharedPicker(id: sharedPickerOverride, placeholder: "Overridden choice", maxVisibleItems: 9),
+    Dialog(id: dialog, title: "Hello", padding: 18) {
+        Panel(id: dialogBody)
     },
-    ScrollView(id: "scroll", preferredHeight: 180) {
-        Panel(id: "scrollContent")
+    ScrollView(id: scroll, preferredHeight: 180) {
+        Panel(id: scrollContent)
     }
 }
 )";
@@ -342,9 +342,9 @@ component FormField(placeholder: "Base placeholder", maxVisibleItems: 5): Dropdo
     maxVisibleItems: maxVisibleItems,
     selectedIndex: -1
 )
-VBox(id: "root") {
-    FormField(id: "username"),
-    FormField(id: "email", placeholder: "Email address", maxVisibleItems: 8)
+VBox(id: root) {
+    FormField(id: username),
+    FormField(id: email, placeholder: "Email address", maxVisibleItems: 8)
 }
 )";
 
@@ -381,9 +381,9 @@ component AccentButton(accent: #FF336699): Button(
         borderRadius: 14
     }
 )
-VBox(id: "root") {
-    AccentButton(id: "primary"),
-    AccentButton(id: "danger", accent: #FFC0392B)
+VBox(id: root) {
+    AccentButton(id: primary),
+    AccentButton(id: danger, accent: #FFC0392B)
 }
 )";
 
@@ -411,11 +411,11 @@ VBox(id: "root") {
 
     {
         const std::string source = R"(
-component CardShell: Panel(id: "shell") {
+component CardShell: Panel(id: shell) {
     Slot()
 }
-CardShell(id: "card") {
-    Button(id: "inside", text: "OK")
+CardShell(id: card) {
+    Button(id: inside, text: "OK")
 }
 )";
 
@@ -431,9 +431,9 @@ CardShell(id: "card") {
 
     {
         const std::string source = R"(
-component StaticShell: Panel(id: "shell")
-StaticShell(id: "card") {
-    Button(id: "inside", text: "OK")
+component StaticShell: Panel(id: shell)
+StaticShell(id: card) {
+    Button(id: inside, text: "OK")
 }
 )";
 
@@ -454,17 +454,17 @@ StaticShell(id: "card") {
 
     {
         const std::string source = R"(
-component DialogFrame: Panel(id: "frame") {
-    Panel(id: "bodyHost") {
+component DialogFrame: Panel(id: frame) {
+    Panel(id: bodyHost) {
         Slot(name: body)
     },
-    Panel(id: "footerHost") {
+    Panel(id: footerHost) {
         Slot(name: "footer")
     }
 }
-DialogFrame(id: "dialog") {
-    Panel(slot: body, id: "content"),
-    Button(slot: footer, id: "ok", text: "OK")
+DialogFrame(id: dialog) {
+    Panel(slot: body, id: content),
+    Button(slot: footer, id: ok, text: "OK")
 }
 )";
 
@@ -489,12 +489,12 @@ DialogFrame(id: "dialog") {
 
     {
         const std::string source = R"(
-component FooterShell: Panel(id: "shell") {
+component FooterShell: Panel(id: shell) {
     Slot(name: footer) {
-        Button(id: "fallbackBtn", text: "Cancel")
+        Button(id: fallbackBtn, text: "Cancel")
     }
 }
-FooterShell(id: "withoutOverride")
+FooterShell(id: withoutOverride)
 )";
 
         const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
@@ -509,17 +509,17 @@ FooterShell(id: "withoutOverride")
 
     {
         const std::string source = R"(
-VBox(id: "root") {
-    Dialog(id: "dialog", title: "Warn") {
-        Panel(id: "dialogFirst"),
-        Panel(id: "dialogSecond")
+VBox(id: root) {
+    Dialog(id: dialog, title: "Warn") {
+        Panel(id: dialogFirst),
+        Panel(id: dialogSecond)
     },
-    ScrollView(id: "scroll") {
-        Panel(id: "scrollFirst"),
-        Panel(id: "scrollSecond")
+    ScrollView(id: scroll) {
+        Panel(id: scrollFirst),
+        Panel(id: scrollSecond)
     },
-    Button(id: "invalid", text: "Oops") {
-        Label(id: "nested", text: "Should not exist")
+    Button(id: invalid, text: "Oops") {
+        Label(id: nested, text: "Should not exist")
     }
 }
 )";
@@ -567,6 +567,24 @@ VBox(id: "root") {
         expect(
             result.handle.findById<ui::Label>("nested") == nullptr,
             "non-container children should not materialize");
+    }
+
+    {
+        const std::string source = R"(
+VBox(id: root) {
+    Button(id: "legacyButton", text: "Legacy")
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "string id markup should still parse");
+        expect(result.warnings.size() == 1, "string id markup should emit one warning");
+        expect(
+            result.warnings.front().find("expects an identifier") != std::string::npos,
+            "string id warning should explain identifier-only id syntax");
+        expect(
+            result.handle.findById<ui::Button>("legacyButton") == nullptr,
+            "legacy string id should no longer register in id map");
     }
 
     return 0;

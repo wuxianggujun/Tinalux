@@ -66,9 +66,9 @@ int main()
 import "components/shared.tui"
 style primaryAction: Button(backgroundColor: #FF336699, borderRadius: 12)
 component ActionChip(text: ${model.title}): Button(text: text)
-VBox(id: "root") {
+VBox(id: root) {
     if(${model.showAdvanced}) {
-        TextInput(id: "advancedQuery", text: ${model.query})
+        TextInput(id: advancedQuery, text: ${model.query})
     },
     for(item in ${model.items}) {
         Button(id: ${item.id}, text: ${item.label})
@@ -139,14 +139,14 @@ VBox(id: "root") {
 
     {
         const std::string expressionSource = R"(
-VBox(id: "root") {
+VBox(id: root) {
     Button(
-        id: "cta",
+        id: cta,
         text: ${model.prefix + model.suffix},
         style: { borderRadius: ${model.radius * model.scale} }
     ),
     if(${model.count > 0 && model.enabled}) {
-        Button(id: "active", text: "Active")
+        Button(id: active, text: "Active")
     }
 }
 )";
@@ -258,7 +258,7 @@ VBox(id: root, 12, 8) {
 
     {
         const std::string invalidIfSource = R"(
-VBox(id: "root") {
+VBox(id: root) {
     if(true) {
         Button(text: "broken")
     }
@@ -284,13 +284,13 @@ VBox(id: "root") {
 
     {
         const std::string source = R"(
-VBox(id: "root") {
+VBox(id: root) {
     if(${model.primary}) {
-        Button(id: "primary", text: "Primary")
+        Button(id: primary, text: "Primary")
     } elseif(${model.secondary}) {
-        Button(id: "secondary", text: "Secondary")
+        Button(id: secondary, text: "Secondary")
     } else {
-        Button(id: "fallback", text: "Fallback")
+        Button(id: fallback, text: "Fallback")
     }
 }
 )";
@@ -325,7 +325,7 @@ VBox(id: "root") {
 
     {
         const std::string invalidForSource = R"(
-VBox(id: "root") {
+VBox(id: root) {
     for(item ${model.items}) {
         Button(text: "broken")
     }

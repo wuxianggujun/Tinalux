@@ -1236,8 +1236,7 @@ void LayoutBuilder::applyStandardProperty(
             return;
         }
 
-        if (prop.value.type() == core::ValueType::String
-            || prop.value.type() == core::ValueType::Enum) {
+        if (prop.value.type() == core::ValueType::Enum) {
             const std::string& idValue = prop.value.asString();
             widget->setId(idValue);
             if (idMap_.contains(idValue)) {
@@ -1250,7 +1249,7 @@ void LayoutBuilder::applyStandardProperty(
         } else {
             std::ostringstream oss;
             oss << "property 'id' on '" << nodeType
-                << "' expects a string or identifier at line "
+                << "' expects an identifier at line "
                 << prop.line;
             warnings_.push_back(oss.str());
         }
