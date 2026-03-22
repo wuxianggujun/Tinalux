@@ -70,8 +70,8 @@ VBox(id: "root") {
         TextInput(id: "advancedQuery", text: ${model.advancedQuery})
     },
     @for(item in ${model.actions}) {
-        @if(${item.visible}) {
-            ActionField(id: ${item.id}, value: ${item.label})
+        @if(${item.visible && model.showVisibleActions}) {
+            ActionField(id: ${item.id}, value: ${item.label + model.actionSuffix})
         }
     }
 }
@@ -93,7 +93,9 @@ VBox(id: "root") {
 
     auto viewModel = markup::ViewModel::create();
     viewModel->setBool("showAdvanced", false);
+    viewModel->setBool("showVisibleActions", true);
     viewModel->setString("advancedQuery", "hidden");
+    viewModel->setString("actionSuffix", "");
     viewModel->setArray(
         "actions",
         {
@@ -117,11 +119,18 @@ VBox(id: "root") {
         result.handle.findById<ui::TextInput>("advancedQuery") == nullptr,
         "@if block should stay absent until enabled");
 
+    viewModel->setString("actionSuffix", "!");
+    alphaField = result.handle.findById<ui::TextInput>("alphaField");
+    expect(alphaField != nullptr, "visible loop item should stay mounted after global binding update");
+    expect(
+        alphaField->text() == "Alpha!",
+        "mixed local/global expression should live-update without rebuilding the loop");
+
     viewModel->setString("actions.0.label", "Alpha Updated");
     alphaField = result.handle.findById<ui::TextInput>("alphaField");
     expect(alphaField != nullptr, "updated visible loop item should still exist");
     expect(
-        alphaField->text() == "Alpha Updated",
+        alphaField->text() == "Alpha Updated!",
         "child path update should rebuild loop-scoped local bindings");
 
     viewModel->setBool("actions.1.visible", true);
@@ -131,13 +140,15 @@ VBox(id: "root") {
 
     ui::TextInput* betaField = result.handle.findById<ui::TextInput>("betaField");
     expect(betaField != nullptr, "newly visible loop item should materialize after nested update");
-    expect(betaField->text() == "Beta", "loop-local visible item should preserve original text");
+    expect(
+        betaField->text() == "Beta!",
+        "loop-local visible item should preserve original text and global suffix");
 
     viewModel->setString("actions.1.label", "Beta Updated");
     betaField = result.handle.findById<ui::TextInput>("betaField");
     expect(betaField != nullptr, "renamed loop item should still exist");
     expect(
-        betaField->text() == "Beta Updated",
+        betaField->text() == "Beta Updated!",
         "descendant text update should refresh local loop binding");
 
     viewModel->setBool("showAdvanced", true);
@@ -165,6 +176,29 @@ VBox(id: "root") {
     expect(
         lastAdvancedText == "typed once",
         "stored text-change handler should observe rebuilt widget updates");
+
+    viewModel->setBool("showVisibleActions", false);
+    root = dynamic_cast<ui::VBox*>(result.handle.root().get());
+    expect(root != nullptr, "root should stay valid after global nested-condition rebuild");
+    expect(root->children().size() == 1, "global nested-condition should remove loop items while keeping advanced input");
+    expect(
+        result.handle.findById<ui::TextInput>("alphaField") == nullptr,
+        "global nested-condition should remove previously visible loop item");
+    expect(
+        result.handle.findById<ui::TextInput>("betaField") == nullptr,
+        "global nested-condition should remove all visible loop items");
+
+    viewModel->setBool("showVisibleActions", true);
+    alphaField = result.handle.findById<ui::TextInput>("alphaField");
+    betaField = result.handle.findById<ui::TextInput>("betaField");
+    expect(alphaField != nullptr, "global nested-condition should rematerialize first loop item");
+    expect(betaField != nullptr, "global nested-condition should rematerialize second loop item");
+    expect(
+        alphaField->text() == "Alpha Updated!",
+        "rematerialized loop item should preserve mixed local/global expression value");
+    expect(
+        betaField->text() == "Beta Updated!",
+        "rematerialized loop item should preserve suffix expression after rebuild");
 
     viewModel->setBool("showAdvanced", false);
     expect(
@@ -202,7 +236,7 @@ VBox(id: "root") {
     ui::TextInput* gammaField = result.handle.findById<ui::TextInput>("gammaField");
     expect(gammaField != nullptr, "array replacement should materialize new loop widget");
     expect(
-        gammaField->text() == "Gamma",
+        gammaField->text() == "Gamma!",
         "newly materialized loop widget should resolve local component parameters");
 
     {

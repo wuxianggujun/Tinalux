@@ -5,6 +5,7 @@
 #include <optional>
 #include <sstream>
 
+#include "BindingExpression.h"
 #include "tinalux/core/Reflect.h"
 #include "tinalux/ui/Button.h"
 #include "tinalux/ui/Container.h"
@@ -99,6 +100,148 @@ bool truthyScalar(const core::Value& value)
     return false;
 }
 
+bool isArrayIndexSegment(std::string_view segment)
+{
+    if (segment.empty()) {
+        return false;
+    }
+
+    for (char ch : segment) {
+        if (ch < '0' || ch > '9') {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+std::optional<std::size_t> parseArrayIndex(std::string_view segment)
+{
+    if (!isArrayIndexSegment(segment)) {
+        return std::nullopt;
+    }
+
+    std::size_t value = 0;
+    for (char ch : segment) {
+        value = value * 10 + static_cast<std::size_t>(ch - '0');
+    }
+
+    return value;
+}
+
+const ModelNode* findChildNode(const ModelNode* node, std::string_view segment)
+{
+    if (node == nullptr) {
+        return nullptr;
+    }
+
+    if (node->isObject()) {
+        return node->child(segment);
+    }
+
+    if (!node->isArray()) {
+        return nullptr;
+    }
+
+    const std::optional<std::size_t> index = parseArrayIndex(segment);
+    const ModelNode::Array* array = node->arrayValue();
+    if (!index.has_value() || array == nullptr || *index >= array->size()) {
+        return nullptr;
+    }
+
+    return &(*array)[*index];
+}
+
+const ModelNode* resolveLocalNode(
+    std::string_view normalizedPath,
+    const std::unordered_map<std::string, const ModelNode*>& scope)
+{
+    if (normalizedPath.empty()) {
+        return nullptr;
+    }
+
+    const std::vector<std::string_view> parts = splitScopedPath(normalizedPath);
+    if (parts.empty()) {
+        return nullptr;
+    }
+
+    const auto localIt = scope.find(std::string(parts.front()));
+    if (localIt == scope.end()) {
+        return nullptr;
+    }
+
+    const ModelNode* currentNode = localIt->second;
+    for (std::size_t index = 1; currentNode != nullptr && index < parts.size(); ++index) {
+        currentNode = findChildNode(currentNode, parts[index]);
+    }
+
+    return currentNode;
+}
+
+const ModelNode* resolveLocalSnapshotNode(
+    std::string_view normalizedPath,
+    const std::unordered_map<std::string, ModelNode>& scope)
+{
+    if (normalizedPath.empty()) {
+        return nullptr;
+    }
+
+    const std::vector<std::string_view> parts = splitScopedPath(normalizedPath);
+    if (parts.empty()) {
+        return nullptr;
+    }
+
+    const auto localIt = scope.find(std::string(parts.front()));
+    if (localIt == scope.end()) {
+        return nullptr;
+    }
+
+    const ModelNode* currentNode = &localIt->second;
+    for (std::size_t index = 1; currentNode != nullptr && index < parts.size(); ++index) {
+        currentNode = findChildNode(currentNode, parts[index]);
+    }
+
+    return currentNode;
+}
+
+void appendUniquePath(std::vector<std::string>& paths, std::string path)
+{
+    if (path.empty()) {
+        return;
+    }
+
+    if (std::find(paths.begin(), paths.end(), path) == paths.end()) {
+        paths.push_back(std::move(path));
+    }
+}
+
+std::shared_ptr<const detail::BindingExpression> compileBindingExpression(
+    std::string_view expressionText,
+    int line,
+    std::string_view context,
+    std::vector<std::string>* warnings)
+{
+    std::string errorMessage;
+    auto expression = detail::BindingExpression::compile(expressionText, &errorMessage);
+    if (expression || warnings == nullptr) {
+        return expression;
+    }
+
+    std::ostringstream oss;
+    oss << "invalid binding expression '${" << expressionText << "}'";
+    if (!context.empty()) {
+        oss << " in " << context;
+    }
+    if (line > 0) {
+        oss << " at line " << line;
+    }
+    if (!errorMessage.empty()) {
+        oss << ": " << errorMessage;
+    }
+    warnings->push_back(oss.str());
+    return {};
+}
+
 } // namespace
 
 LayoutBuilder::LayoutBuilder(const ui::Theme& theme, std::shared_ptr<ViewModel> viewModel)
@@ -190,9 +333,9 @@ std::shared_ptr<ui::Widget> LayoutBuilder::buildNode(
         const AstProperty resolvedProp = resolveScopedProperty(prop, scope);
         if (resolvedProp.name == "style") {
             if (resolvedProp.hasObjectValue()) {
-                applyInlineStyle(widget, node.typeName, resolvedProp);
+                applyInlineStyle(widget, node.typeName, resolvedProp, scope);
             } else {
-                applyNamedStyle(widget, node.typeName, resolvedProp);
+                applyNamedStyle(widget, node.typeName, resolvedProp, scope);
             }
         }
     }
@@ -202,7 +345,7 @@ std::shared_ptr<ui::Widget> LayoutBuilder::buildNode(
         if (resolvedProp.name == "style") {
             continue;
         }
-        applyStandardProperty(widget, *typeInfo, node.typeName, resolvedProp);
+        applyStandardProperty(widget, *typeInfo, node.typeName, resolvedProp, scope);
     }
 
     if (!attachChildren(widget, *typeInfo, node, scope) && !node.children.empty()) {
@@ -362,36 +505,36 @@ void LayoutBuilder::appendExpandedNodes(
         }
 
         if (node.isIfBlock()) {
-            const auto trackBranchPath = [&](const std::optional<std::string>& controlPath) {
-                if (!controlPath.has_value() || controlPath->empty()) {
-                    return;
-                }
-
-                const std::string normalizedPath = normalizeScopedPath(*controlPath);
-                if (normalizedPath.empty()) {
-                    return;
-                }
-
-                const auto pathParts = splitScopedPath(normalizedPath);
-                if (!pathParts.empty() && !scope.contains(std::string(pathParts.front()))) {
-                    trackStructuralPath(normalizedPath);
-                }
-            };
-
-            trackBranchPath(node.controlPath);
+            if (node.controlPath.has_value() && !node.controlPath->empty()) {
+                trackStructuralDependencies(*node.controlPath, node.line, "@if condition", scope);
+            }
             for (const auto& conditionalBranch : node.conditionalBranches) {
-                trackBranchPath(conditionalBranch.controlPath);
+                if (conditionalBranch.controlPath.has_value() && !conditionalBranch.controlPath->empty()) {
+                    trackStructuralDependencies(
+                        *conditionalBranch.controlPath,
+                        conditionalBranch.line,
+                        "@elseif condition",
+                        scope);
+                }
             }
 
             if (node.controlPath.has_value()
-                && evaluateConditionPath(*node.controlPath, scope)) {
+                && evaluateConditionExpression(
+                    *node.controlPath,
+                    node.line,
+                    "@if condition",
+                    scope)) {
                 appendExpandedNodes(node.children, scope, outNodes);
                 continue;
             }
 
             for (const auto& conditionalBranch : node.conditionalBranches) {
                 if (conditionalBranch.controlPath.has_value()
-                    && !evaluateConditionPath(*conditionalBranch.controlPath, scope)) {
+                    && !evaluateConditionExpression(
+                        *conditionalBranch.controlPath,
+                        conditionalBranch.line,
+                        "@elseif condition",
+                        scope)) {
                     continue;
                 }
 
@@ -402,21 +545,30 @@ void LayoutBuilder::appendExpandedNodes(
         }
 
         if (node.isForBlock()) {
-            if (node.controlPath.has_value() && !node.controlPath->empty()) {
-                const std::string normalizedPath = normalizeScopedPath(*node.controlPath);
-                if (!normalizedPath.empty()) {
-                    const auto pathParts = splitScopedPath(normalizedPath);
-                    if (!pathParts.empty() && !scope.contains(std::string(pathParts.front()))) {
-                        trackStructuralPath(normalizedPath);
-                    }
-                }
-            }
-
             if (!node.controlPath.has_value()) {
                 continue;
             }
 
-            const ModelNode* collectionNode = resolveScopedNode(*node.controlPath, scope);
+            trackStructuralDependencies(*node.controlPath, node.line, "@for source", scope);
+
+            auto expression = compileBindingExpression(
+                *node.controlPath,
+                node.line,
+                "@for source",
+                &warnings_);
+            if (!expression) {
+                continue;
+            }
+
+            if (!expression->isDirectPath()) {
+                std::ostringstream oss;
+                oss << "@for source '${" << *node.controlPath << "}' at line " << node.line
+                    << " must be a direct array path";
+                warnings_.push_back(oss.str());
+                continue;
+            }
+
+            const ModelNode* collectionNode = resolveScopedNode(expression->directPath(), scope);
             const ModelNode::Array* array = collectionNode != nullptr
                 ? collectionNode->arrayValue()
                 : nullptr;
@@ -617,16 +769,11 @@ AstProperty LayoutBuilder::resolveScopedProperty(
         return resolved;
     }
 
-    const std::string normalizedPath = normalizeScopedPath(*property.bindingPath);
-    const std::vector<std::string_view> parts = splitScopedPath(normalizedPath);
-    if (parts.empty() || !scope.contains(std::string(parts.front()))) {
-        return resolved;
-    }
-
-    const core::Value* localValue = resolveScopedValue(normalizedPath, scope);
-    if (localValue != nullptr) {
+    const std::optional<core::Value> constantValue =
+        tryEvaluateBindingToConstant(*property.bindingPath, scope);
+    if (constantValue.has_value()) {
         resolved.bindingPath.reset();
-        resolved.value = *localValue;
+        resolved.value = *constantValue;
     }
 
     return resolved;
@@ -646,13 +793,8 @@ const ModelNode* LayoutBuilder::resolveScopedNode(
         return nullptr;
     }
 
-    const auto localIt = scope.find(std::string(parts.front()));
-    if (localIt != scope.end()) {
-        const ModelNode* currentNode = localIt->second;
-        for (std::size_t index = 1; currentNode != nullptr && index < parts.size(); ++index) {
-            currentNode = currentNode->child(parts[index]);
-        }
-        return currentNode;
+    if (const ModelNode* localNode = resolveLocalNode(normalizedPath, scope)) {
+        return localNode;
     }
 
     return viewModel_ ? viewModel_->findNode(normalizedPath) : nullptr;
@@ -666,28 +808,127 @@ const core::Value* LayoutBuilder::resolveScopedValue(
     return node != nullptr ? node->scalar() : nullptr;
 }
 
-bool LayoutBuilder::evaluateConditionPath(
-    std::string_view path,
+std::optional<core::Value> LayoutBuilder::tryEvaluateBindingToConstant(
+    std::string_view expressionText,
     const ScopeBindings& scope) const
 {
-    const ModelNode* node = resolveScopedNode(path, scope);
-    if (node == nullptr) {
+    auto expression = compileBindingExpression(expressionText, 0, {}, nullptr);
+    if (!expression) {
+        return std::nullopt;
+    }
+
+    for (const std::string& dependency : expression->dependencies()) {
+        const std::string normalizedPath = normalizeScopedPath(dependency);
+        const std::vector<std::string_view> parts = splitScopedPath(normalizedPath);
+        if (parts.empty() || !scope.contains(std::string(parts.front()))) {
+            return std::nullopt;
+        }
+    }
+
+    return expression->evaluateScalar([this, &scope](std::string_view path) {
+        return resolveScopedNode(path, scope);
+    });
+}
+
+std::optional<LayoutBuilder::PreparedBinding> LayoutBuilder::prepareBinding(
+    std::string_view expressionText,
+    const ScopeBindings& scope,
+    int line,
+    std::string_view context,
+    bool allowWriteBack)
+{
+    auto expression =
+        compileBindingExpression(expressionText, line, context, &warnings_);
+    if (!expression) {
+        return std::nullopt;
+    }
+
+    PreparedBinding binding;
+    std::unordered_map<std::string, ModelNode> localRoots;
+
+    for (const std::string& dependency : expression->dependencies()) {
+        const std::string normalizedPath = normalizeScopedPath(dependency);
+        const std::vector<std::string_view> parts = splitScopedPath(normalizedPath);
+        if (parts.empty()) {
+            continue;
+        }
+
+        const std::string rootName(parts.front());
+        const auto localIt = scope.find(rootName);
+        if (localIt != scope.end()) {
+            if (localIt->second != nullptr && !localRoots.contains(rootName)) {
+                localRoots.emplace(rootName, *localIt->second);
+            }
+            continue;
+        }
+
+        appendUniquePath(binding.dependencyPaths, normalizedPath);
+    }
+
+    if (allowWriteBack && expression->isDirectPath()) {
+        const std::string normalizedPath = normalizeScopedPath(expression->directPath());
+        const std::vector<std::string_view> parts = splitScopedPath(normalizedPath);
+        if (!normalizedPath.empty()
+            && !parts.empty()
+            && !scope.contains(std::string(parts.front()))) {
+            binding.writeBackPath = normalizedPath;
+        }
+    }
+
+    binding.evaluate = [expression = std::move(expression),
+                           localRoots = std::move(localRoots)](
+                           const std::shared_ptr<ViewModel>& viewModel) -> std::optional<core::Value> {
+        return expression->evaluateScalar(
+            [viewModel, &localRoots](std::string_view path) -> const ModelNode* {
+                const std::string normalizedPath = normalizeScopedPath(path);
+                if (const ModelNode* localNode =
+                        resolveLocalSnapshotNode(normalizedPath, localRoots)) {
+                    return localNode;
+                }
+
+                return viewModel ? viewModel->findNode(normalizedPath) : nullptr;
+            });
+    };
+    return binding;
+}
+
+bool LayoutBuilder::evaluateConditionExpression(
+    std::string_view expressionText,
+    int line,
+    std::string_view context,
+    const ScopeBindings& scope)
+{
+    auto expression =
+        compileBindingExpression(expressionText, line, context, &warnings_);
+    if (!expression) {
         return false;
     }
 
-    if (const core::Value* value = node->scalar()) {
-        return truthyScalar(*value);
+    return expression->evaluateTruthy([this, &scope](std::string_view path) {
+        return resolveScopedNode(path, scope);
+    });
+}
+
+void LayoutBuilder::trackStructuralDependencies(
+    std::string_view expressionText,
+    int line,
+    std::string_view context,
+    const ScopeBindings& scope)
+{
+    auto expression = compileBindingExpression(expressionText, line, context, nullptr);
+    if (!expression) {
+        return;
     }
 
-    if (const auto* object = node->objectValue()) {
-        return !object->empty();
-    }
+    for (const std::string& dependency : expression->dependencies()) {
+        const std::string normalizedPath = normalizeScopedPath(dependency);
+        const std::vector<std::string_view> parts = splitScopedPath(normalizedPath);
+        if (parts.empty() || scope.contains(std::string(parts.front()))) {
+            continue;
+        }
 
-    if (const auto* array = node->arrayValue()) {
-        return !array->empty();
+        trackStructuralPath(normalizedPath);
     }
-
-    return false;
 }
 
 void LayoutBuilder::trackStructuralPath(std::string_view path)
@@ -697,10 +938,7 @@ void LayoutBuilder::trackStructuralPath(std::string_view path)
         return;
     }
 
-    if (std::find(structuralPaths_.begin(), structuralPaths_.end(), normalizedPath)
-        == structuralPaths_.end()) {
-        structuralPaths_.push_back(normalizedPath);
-    }
+    appendUniquePath(structuralPaths_, normalizedPath);
 }
 
 bool LayoutBuilder::containsSlotNode(const AstNode& node) const
@@ -765,20 +1003,23 @@ std::string LayoutBuilder::resolveSlotName(
 void LayoutBuilder::applyInlineStyle(
     const std::shared_ptr<ui::Widget>& widget,
     const std::string& nodeType,
-    const AstProperty& prop)
+    const AstProperty& prop,
+    const ScopeBindings& scope)
 {
     applyStyleProperties(
         widget,
         nodeType,
         prop.objectProperties,
-        "inline style on '" + nodeType + "'");
+        "inline style on '" + nodeType + "'",
+        scope);
 }
 
 void LayoutBuilder::applyStyleProperties(
     const std::shared_ptr<ui::Widget>& widget,
     const std::string& nodeType,
     const std::vector<AstProperty>& properties,
-    const std::string& context)
+    const std::string& context,
+    const ScopeBindings& scope)
 {
     auto& registry = core::TypeRegistry::instance();
     const core::TypeInfo* typeInfo = registry.findType(nodeType);
@@ -800,9 +1041,9 @@ void LayoutBuilder::applyStyleProperties(
             }
 
             if (styleProp.hasObjectValue()) {
-                applyStyleProperties(widget, nodeType, styleProp.objectProperties, context);
+                applyStyleProperties(widget, nodeType, styleProp.objectProperties, context, scope);
             } else {
-                applyNamedStyle(widget, nodeType, styleProp);
+                applyNamedStyle(widget, nodeType, styleProp, scope);
             }
             continue;
         }
@@ -825,11 +1066,23 @@ void LayoutBuilder::applyStyleProperties(
         }
 
         if (styleProp.hasBinding()) {
+            auto preparedBinding = prepareBinding(
+                *styleProp.bindingPath,
+                scope,
+                styleProp.line,
+                "style property '" + styleProp.name + "' in " + context,
+                false);
+            if (!preparedBinding.has_value()) {
+                continue;
+            }
+
             registerBinding(
                 widget,
                 styleProp.name,
-                *styleProp.bindingPath,
+                std::move(preparedBinding->dependencyPaths),
+                std::move(preparedBinding->writeBackPath),
                 styleInfo->expectedType,
+                std::move(preparedBinding->evaluate),
                 [weakWidget = std::weak_ptr<ui::Widget>(widget),
                  theme = theme_,
                  setter = styleInfo->setter](const core::Value& value) {
@@ -850,7 +1103,8 @@ void LayoutBuilder::applyStyleProperties(
 void LayoutBuilder::applyNamedStyle(
     const std::shared_ptr<ui::Widget>& widget,
     const std::string& nodeType,
-    const AstProperty& prop)
+    const AstProperty& prop,
+    const ScopeBindings& scope)
 {
     if (prop.hasObjectValue()) {
         std::ostringstream oss;
@@ -904,7 +1158,7 @@ void LayoutBuilder::applyNamedStyle(
     }
 
     styleStack_.push_back(style.name);
-    applyStyleProperties(widget, nodeType, style.properties, "style '" + style.name + "'");
+    applyStyleProperties(widget, nodeType, style.properties, "style '" + style.name + "'", scope);
     styleStack_.pop_back();
 }
 
@@ -912,7 +1166,8 @@ void LayoutBuilder::applyStandardProperty(
     const std::shared_ptr<ui::Widget>& widget,
     const core::TypeInfo& typeInfo,
     const std::string& nodeType,
-    const AstProperty& prop)
+    const AstProperty& prop,
+    const ScopeBindings& scope)
 {
     if (prop.hasObjectValue()) {
         std::ostringstream oss;
@@ -951,11 +1206,23 @@ void LayoutBuilder::applyStandardProperty(
 
     if (prop.name == "visible") {
         if (prop.hasBinding()) {
+            auto preparedBinding = prepareBinding(
+                *prop.bindingPath,
+                scope,
+                prop.line,
+                "property '" + prop.name + "' on '" + nodeType + "'",
+                true);
+            if (!preparedBinding.has_value()) {
+                return;
+            }
+
             registerBinding(
                 widget,
                 prop.name,
-                *prop.bindingPath,
+                std::move(preparedBinding->dependencyPaths),
+                std::move(preparedBinding->writeBackPath),
                 core::ValueType::Bool,
+                std::move(preparedBinding->evaluate),
                 [weakWidget = std::weak_ptr<ui::Widget>(widget)](const core::Value& value) {
                     auto lockedWidget = weakWidget.lock();
                     if (!lockedWidget) {
@@ -988,11 +1255,23 @@ void LayoutBuilder::applyStandardProperty(
     }
 
     if (prop.hasBinding()) {
+        auto preparedBinding = prepareBinding(
+            *prop.bindingPath,
+            scope,
+            prop.line,
+            "property '" + prop.name + "' on '" + nodeType + "'",
+            true);
+        if (!preparedBinding.has_value()) {
+            return;
+        }
+
         registerBinding(
             widget,
             prop.name,
-            *prop.bindingPath,
+            std::move(preparedBinding->dependencyPaths),
+            std::move(preparedBinding->writeBackPath),
             propInfo->expectedType,
+            std::move(preparedBinding->evaluate),
             [weakWidget = std::weak_ptr<ui::Widget>(widget),
              setter = propInfo->setter](const core::Value& value) {
                 auto lockedWidget = weakWidget.lock();
@@ -1011,15 +1290,19 @@ void LayoutBuilder::applyStandardProperty(
 void LayoutBuilder::registerBinding(
     const std::shared_ptr<ui::Widget>& widget,
     std::string propertyName,
-    std::string path,
+    std::vector<std::string> dependencyPaths,
+    std::string writeBackPath,
     core::ValueType expectedType,
+    std::function<std::optional<core::Value>(const std::shared_ptr<ViewModel>&)> evaluate,
     std::function<void(const core::Value&)> apply)
 {
     bindings_.push_back(detail::BindingDescriptor {
         .widget = widget,
         .propertyName = std::move(propertyName),
-        .path = std::move(path),
+        .dependencyPaths = std::move(dependencyPaths),
+        .writeBackPath = std::move(writeBackPath),
         .expectedType = expectedType,
+        .evaluate = std::move(evaluate),
         .apply = std::move(apply),
     });
 }

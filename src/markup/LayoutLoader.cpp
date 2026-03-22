@@ -182,6 +182,22 @@ void applyBindingValue(
     binding.apply(*coercedValue);
 }
 
+void evaluateAndApplyBinding(
+    const detail::BindingDescriptor& binding,
+    const std::shared_ptr<ViewModel>& viewModel)
+{
+    if (!binding.evaluate) {
+        return;
+    }
+
+    const std::optional<core::Value> value = binding.evaluate(viewModel);
+    if (!value.has_value()) {
+        return;
+    }
+
+    applyBindingValue(binding, *value);
+}
+
 struct LoadedDocumentResult {
     AstDocument document;
     std::vector<std::string> errors;
@@ -500,20 +516,24 @@ void LayoutHandle::registerValueListeners()
     }
 
     for (const auto& binding : bindings_) {
-        if (binding.path.empty()) {
-            continue;
+        const auto applyCurrentValue =
+            [binding, weakViewModel = std::weak_ptr<ViewModel>(viewModel_)]() {
+                evaluateAndApplyBinding(binding, weakViewModel.lock());
+            };
+
+        for (const std::string& dependencyPath : binding.dependencyPaths) {
+            if (dependencyPath.empty()) {
+                continue;
+            }
+
+            valueListenerIds_.push_back(viewModel_->addInvalidationListener(
+                dependencyPath,
+                [applyCurrentValue]() {
+                    applyCurrentValue();
+                }));
         }
 
-        valueListenerIds_.push_back(viewModel_->addListener(
-            binding.path,
-            [binding](const core::Value& value) {
-                applyBindingValue(binding, value);
-            }));
-
-        const core::Value* currentValue = viewModel_->findValue(binding.path);
-        if (currentValue != nullptr) {
-            applyBindingValue(binding, *currentValue);
-        }
+        applyCurrentValue();
     }
 }
 
@@ -628,7 +648,7 @@ void LayoutHandle::refreshInteractionBinding(
         }
     }
 
-    const std::string path = binding ? binding->path : std::string();
+    const std::string path = binding ? binding->writeBackPath : std::string();
     const core::ValueType payloadType = interaction.payloadType;
     const std::shared_ptr<std::uint64_t> generationState = bindingGeneration_;
     const std::uint64_t generation = generationState ? *generationState : 0;

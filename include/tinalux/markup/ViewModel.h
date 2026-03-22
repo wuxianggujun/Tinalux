@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -102,8 +103,10 @@ namespace detail {
 struct BindingDescriptor {
     std::weak_ptr<ui::Widget> widget;
     std::string propertyName;
-    std::string path;
+    std::vector<std::string> dependencyPaths;
+    std::string writeBackPath;
     core::ValueType expectedType = core::ValueType::None;
+    std::function<std::optional<core::Value>(const std::shared_ptr<ViewModel>&)> evaluate;
     std::function<void(const core::Value&)> apply;
 };
 

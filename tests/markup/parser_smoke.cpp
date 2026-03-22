@@ -42,6 +42,19 @@ const tinalux::markup::AstProperty* findProperty(
     return nullptr;
 }
 
+const tinalux::markup::AstProperty* findObjectProperty(
+    const tinalux::markup::AstProperty& property,
+    const char* name)
+{
+    for (const auto& child : property.objectProperties) {
+        if (child.name == name) {
+            return &child;
+        }
+    }
+
+    return nullptr;
+}
+
 } // namespace
 
 int main()
@@ -122,6 +135,53 @@ VBox(id: "root") {
         expect(
             textProp->bindingPath.has_value() && *textProp->bindingPath == "item.label",
             "@for child text binding should preserve loop-scoped path");
+    }
+
+    {
+        const std::string expressionSource = R"(
+VBox(id: "root") {
+    Button(
+        id: "cta",
+        text: ${model.prefix + model.suffix},
+        style: { borderRadius: ${model.radius * model.scale} }
+    ),
+    @if(${model.count > 0 && model.enabled}) {
+        Button(id: "active", text: "Active")
+    }
+}
+)";
+
+        const markup::DocumentParseResult result = markup::Parser::parseDocument(expressionSource);
+        expectParseOk(result, "expression document should parse");
+        expect(result.document.root.has_value(), "expression document root should exist");
+
+        const markup::AstNode& root = *result.document.root;
+        expect(root.children.size() == 2, "expression document should keep widget and @if nodes");
+
+        const markup::AstNode& buttonNode = root.children.front();
+        const markup::AstProperty* textProp = findProperty(buttonNode, "text");
+        const markup::AstProperty* styleProp = findProperty(buttonNode, "style");
+        expect(textProp != nullptr, "expression button should preserve text property");
+        expect(styleProp != nullptr, "expression button should preserve style property");
+        expect(
+            textProp->bindingPath.has_value()
+                && *textProp->bindingPath == "model.prefix + model.suffix",
+            "parser should preserve raw string expression text");
+        expect(styleProp->hasObjectValue(), "style property should preserve nested object");
+
+        const markup::AstProperty* borderRadiusProp = findObjectProperty(*styleProp, "borderRadius");
+        expect(borderRadiusProp != nullptr, "style object should preserve expression child property");
+        expect(
+            borderRadiusProp->bindingPath.has_value()
+                && *borderRadiusProp->bindingPath == "model.radius * model.scale",
+            "parser should preserve raw arithmetic expression text");
+
+        const markup::AstNode& ifNode = root.children.back();
+        expect(ifNode.isIfBlock(), "expression document second child should stay @if");
+        expect(
+            ifNode.controlPath.has_value()
+                && *ifNode.controlPath == "model.count > 0 && model.enabled",
+            "parser should preserve raw conditional expression text");
     }
 
     {

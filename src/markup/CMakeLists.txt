@@ -1,4 +1,5 @@
 add_library(TinaluxMarkup STATIC
+    BindingExpression.cpp
     Lexer.cpp
     Parser.cpp
     ViewModel.cpp

@@ -58,12 +58,12 @@ int main()
         const std::string source = R"(
 VBox(id: "root") {
     TextInput(id: "queryInput", text: ${model.query}),
-    Checkbox(id: "remember", label: ${model.username}, checked: ${model.rememberMe}),
+    Checkbox(id: "remember", label: ${model.userPrefix + model.username}, checked: ${model.rememberMe}),
     Toggle(id: "autoRefresh", label: "Auto Refresh", on: ${model.autoRefresh}),
     Slider(id: "volume", min: 0, max: 100, step: 0.5, value: ${model.volume}),
-    Dropdown(id: "choice", placeholder: ${model.choicePlaceholder}, selectedIndex: ${model.choiceIndex}),
-    Panel(id: "status", visible: ${model.showStatus}),
-    Button(id: "cta", text: "Apply", style: { borderRadius: ${model.radius} })
+    Dropdown(id: "choice", placeholder: ${model.choicePrefix + model.choicePlaceholder}, selectedIndex: ${model.choiceIndex}),
+    Panel(id: "status", visible: ${model.showStatus && model.statusCount > 0}),
+    Button(id: "cta", text: ${model.ctaPrefix + model.ctaSuffix}, style: { borderRadius: ${model.radius * model.scale} })
 }
 )";
 
@@ -74,14 +74,20 @@ VBox(id: "root") {
 
         auto viewModel = markup::ViewModel::create();
         viewModel->setString("query", "initial query");
+        viewModel->setString("userPrefix", "@");
         viewModel->setString("username", "alice");
         viewModel->setBool("rememberMe", true);
         viewModel->setBool("autoRefresh", true);
         viewModel->setFloat("volume", 72.5f);
+        viewModel->setString("choicePrefix", "Pick: ");
         viewModel->setString("choicePlaceholder", "Pick a value");
         viewModel->setInt("choiceIndex", 2);
         viewModel->setBool("showStatus", false);
-        viewModel->setInt("radius", 18);
+        viewModel->setInt("statusCount", 0);
+        viewModel->setString("ctaPrefix", "Ap");
+        viewModel->setString("ctaSuffix", "ply");
+        viewModel->setInt("radius", 9);
+        viewModel->setFloat("scale", 2.0f);
 
         ui::TextInput* queryInput = result.handle.findById<ui::TextInput>("queryInput");
         ui::Checkbox* remember = result.handle.findById<ui::Checkbox>("remember");
@@ -103,7 +109,7 @@ VBox(id: "root") {
         result.handle.bindViewModel(viewModel);
 
         expect(queryInput->text() == "initial query", "TextInput should receive initial bound text");
-        expect(remember->label() == "alice", "Checkbox should receive initial bound label");
+        expect(remember->label() == "@alice", "Checkbox should evaluate initial string expression");
         expect(remember->checked(), "Checkbox should receive initial bound checked state");
         expect(autoRefresh->on(), "Toggle should receive initial bound state");
         if (!nearlyEqual(volume->value(), 72.5f)) {
@@ -113,24 +119,30 @@ VBox(id: "root") {
                 << "range: [" << volume->minimum() << ", " << volume->maximum() << "]\n";
             std::exit(1);
         }
-        expect(choice->placeholder() == "Pick a value", "Dropdown should receive initial placeholder");
+        expect(choice->placeholder() == "Pick: Pick a value", "Dropdown should evaluate initial string expression");
         expect(choice->selectedIndex() == 2, "Dropdown should receive initial selection");
-        expect(!status->visible(), "Panel should receive initial visible binding");
+        expect(!status->visible(), "Panel should evaluate initial boolean expression");
         expect(cta->style() != nullptr, "Button style binding should materialize a custom style");
-        expect(nearlyEqual(cta->style()->borderRadius, 18.0f), "Button style binding should coerce int to float");
+        expect(nearlyEqual(cta->style()->borderRadius, 18.0f), "Button style binding should evaluate arithmetic expression");
 
         viewModel->setString("query", "updated query");
+        viewModel->setString("userPrefix", "User: ");
         viewModel->setString("username", "bob");
         viewModel->setBool("rememberMe", false);
         viewModel->setBool("autoRefresh", false);
         viewModel->setFloat("volume", 33.0f);
+        viewModel->setString("choicePrefix", "Choose: ");
         viewModel->setString("choicePlaceholder", "Choose again");
         viewModel->setInt("choiceIndex", 1);
         viewModel->setBool("showStatus", true);
-        viewModel->setFloat("radius", 24.0f);
+        viewModel->setInt("statusCount", 2);
+        viewModel->setString("ctaPrefix", "Run ");
+        viewModel->setString("ctaSuffix", "Now");
+        viewModel->setFloat("radius", 8.0f);
+        viewModel->setFloat("scale", 3.0f);
 
         expect(queryInput->text() == "updated query", "TextInput should live-update from ViewModel");
-        expect(remember->label() == "bob", "Checkbox label should live-update from ViewModel");
+        expect(remember->label() == "User: bob", "Checkbox label expression should live-update from ViewModel");
         expect(!remember->checked(), "Checkbox checked should live-update from ViewModel");
         expect(!autoRefresh->on(), "Toggle should live-update from ViewModel");
         if (!nearlyEqual(volume->value(), 33.0f)) {
@@ -140,11 +152,11 @@ VBox(id: "root") {
                 << "range: [" << volume->minimum() << ", " << volume->maximum() << "]\n";
             std::exit(1);
         }
-        expect(choice->placeholder() == "Choose again", "Dropdown placeholder should live-update");
+        expect(choice->placeholder() == "Choose: Choose again", "Dropdown placeholder expression should live-update");
         expect(choice->selectedIndex() == 1, "Dropdown selection should live-update");
-        expect(status->visible(), "Panel visible should live-update");
+        expect(status->visible(), "Panel visible expression should live-update");
         expect(cta->style() != nullptr, "Button style binding should keep custom style installed");
-        expect(nearlyEqual(cta->style()->borderRadius, 24.0f), "Button style binding should live-update");
+        expect(nearlyEqual(cta->style()->borderRadius, 24.0f), "Button style expression should live-update");
 
         queryInput->setText("typed text");
         const core::Value* queryValue = viewModel->findValue("query");

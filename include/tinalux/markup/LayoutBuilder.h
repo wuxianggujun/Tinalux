@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -45,6 +46,11 @@ private:
         AstNode node;
         ScopeBindings scope;
     };
+    struct PreparedBinding {
+        std::vector<std::string> dependencyPaths;
+        std::string writeBackPath;
+        std::function<std::optional<core::Value>(const std::shared_ptr<ViewModel>&)> evaluate;
+    };
 
     LayoutBuilder(const ui::Theme& theme, std::shared_ptr<ViewModel> viewModel);
 
@@ -85,6 +91,15 @@ private:
     AstProperty resolveScopedProperty(
         const AstProperty& property,
         const ScopeBindings& scope) const;
+    std::optional<core::Value> tryEvaluateBindingToConstant(
+        std::string_view expressionText,
+        const ScopeBindings& scope) const;
+    std::optional<PreparedBinding> prepareBinding(
+        std::string_view expressionText,
+        const ScopeBindings& scope,
+        int line,
+        std::string_view context,
+        bool allowWriteBack);
     bool containsSlotNode(const AstNode& node) const;
     const ModelNode* resolveScopedNode(
         std::string_view path,
@@ -92,9 +107,16 @@ private:
     const core::Value* resolveScopedValue(
         std::string_view path,
         const ScopeBindings& scope) const;
-    bool evaluateConditionPath(
-        std::string_view path,
-        const ScopeBindings& scope) const;
+    bool evaluateConditionExpression(
+        std::string_view expressionText,
+        int line,
+        std::string_view context,
+        const ScopeBindings& scope);
+    void trackStructuralDependencies(
+        std::string_view expressionText,
+        int line,
+        std::string_view context,
+        const ScopeBindings& scope);
     void trackStructuralPath(std::string_view path);
     std::string resolveSlotName(
         const AstNode& slotNode,
@@ -102,26 +124,32 @@ private:
     void applyInlineStyle(
         const std::shared_ptr<ui::Widget>& widget,
         const std::string& nodeType,
-        const AstProperty& prop);
+        const AstProperty& prop,
+        const ScopeBindings& scope);
     void applyStyleProperties(
         const std::shared_ptr<ui::Widget>& widget,
         const std::string& nodeType,
         const std::vector<AstProperty>& properties,
-        const std::string& context);
+        const std::string& context,
+        const ScopeBindings& scope);
     void applyNamedStyle(
         const std::shared_ptr<ui::Widget>& widget,
         const std::string& nodeType,
-        const AstProperty& prop);
+        const AstProperty& prop,
+        const ScopeBindings& scope);
     void applyStandardProperty(
         const std::shared_ptr<ui::Widget>& widget,
         const core::TypeInfo& typeInfo,
         const std::string& nodeType,
-        const AstProperty& prop);
+        const AstProperty& prop,
+        const ScopeBindings& scope);
     void registerBinding(
         const std::shared_ptr<ui::Widget>& widget,
         std::string propertyName,
-        std::string path,
+        std::vector<std::string> dependencyPaths,
+        std::string writeBackPath,
         core::ValueType expectedType,
+        std::function<std::optional<core::Value>(const std::shared_ptr<ViewModel>&)> evaluate,
         std::function<void(const core::Value&)> apply);
     bool attachChildren(
         const std::shared_ptr<ui::Widget>& widget,
