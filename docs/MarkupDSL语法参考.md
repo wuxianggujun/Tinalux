@@ -266,6 +266,16 @@ if(${query.text}) {
 }
 ```
 
+组件参数也可以直接驱动结构控制：
+
+```tui
+component SearchPanel(showAdvanced: ${model.showAdvanced}): VBox {
+    if(${showAdvanced}) {
+        TextInput(id: advancedQuery, text: ${model.advancedQuery})
+    }
+}
+```
+
 ### `switch / case / else`
 
 多分支枚举场景可以直接写 `switch`：
@@ -311,6 +321,16 @@ for(item in ${model.items}) {
 ```tui
 for(item, index in ${model.items}) {
     Label(text: ${index + ": " + item.title})
+}
+```
+
+组件参数同样可以作为 `for` 的数据源：
+
+```tui
+component ActionList(source: ${model.actions}): VBox {
+    for(item in ${source}) {
+        Label(text: ${item.title})
+    }
 }
 ```
 

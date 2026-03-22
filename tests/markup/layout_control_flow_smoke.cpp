@@ -441,6 +441,124 @@ VBox(id: root) {
     }
 
     {
+        const std::string componentBranchSource = R"(
+component StatusBanner(
+    showPrimary: ${model.primary},
+    showSecondary: ${model.secondary}
+): VBox {
+    if(${showPrimary}) {
+        Label(id: primaryLabel, text: "Primary")
+    } elseif(${showSecondary}) {
+        Label(id: secondaryLabel, text: "Secondary")
+    } else {
+        Label(id: fallbackLabel, text: "Fallback")
+    }
+}
+StatusBanner(id: root)
+)";
+
+        markup::LoadResult componentBranchResult =
+            markup::LayoutLoader::load(componentBranchSource, theme);
+        expectLoadOk(componentBranchResult, "component control-flow branch markup should load");
+        expect(
+            componentBranchResult.warnings.empty(),
+            "component control-flow branch markup should not emit warnings");
+
+        auto componentBranchViewModel = markup::ViewModel::create();
+        componentBranchViewModel->setBool("primary", false);
+        componentBranchViewModel->setBool("secondary", false);
+        componentBranchResult.handle.bindViewModel(componentBranchViewModel);
+
+        expect(
+            componentBranchResult.handle.findById<ui::Label>("fallbackLabel") != nullptr,
+            "component fallback branch should materialize from default parameter bindings");
+        expect(
+            componentBranchResult.handle.findById<ui::Label>("primaryLabel") == nullptr,
+            "component primary branch should stay hidden when default binding is false");
+
+        componentBranchViewModel->setBool("secondary", true);
+        expect(
+            componentBranchResult.handle.findById<ui::Label>("secondaryLabel") != nullptr,
+            "component elseif branch should materialize after parameter-driven update");
+        expect(
+            componentBranchResult.handle.findById<ui::Label>("fallbackLabel") == nullptr,
+            "component fallback branch should disappear when elseif matches");
+
+        componentBranchViewModel->setBool("primary", true);
+        expect(
+            componentBranchResult.handle.findById<ui::Label>("primaryLabel") != nullptr,
+            "component primary branch should materialize after parameter-driven update");
+        expect(
+            componentBranchResult.handle.findById<ui::Label>("secondaryLabel") == nullptr,
+            "component elseif branch should disappear when the primary branch wins");
+    }
+
+    {
+        const std::string componentLoopSource = R"(
+component ActionList(source: ${model.primaryActions}): VBox {
+    for(item in ${source}) {
+        TextInput(text: ${item.label})
+    }
+}
+ActionList(id: root, source: ${model.secondaryActions})
+)";
+
+        markup::LoadResult componentLoopResult = markup::LayoutLoader::load(componentLoopSource, theme);
+        expectLoadOk(componentLoopResult, "component control-flow loop markup should load");
+        expect(
+            componentLoopResult.warnings.empty(),
+            "component control-flow loop markup should not emit warnings");
+
+        auto componentLoopViewModel = markup::ViewModel::create();
+        componentLoopViewModel->setArray(
+            "primaryActions",
+            {
+                actionNode("primaryField", "Primary", true),
+            });
+        componentLoopViewModel->setArray(
+            "secondaryActions",
+            {
+                actionNode("secondaryField", "Secondary", true),
+            });
+        componentLoopResult.handle.bindViewModel(componentLoopViewModel);
+
+        ui::VBox* componentLoopRoot = dynamic_cast<ui::VBox*>(componentLoopResult.handle.root().get());
+        expect(componentLoopRoot != nullptr, "component loop root should materialize as VBox");
+        expect(
+            findDirectTextInputByText(componentLoopRoot, "Secondary") != nullptr,
+            "component for source override should materialize override array items");
+        expect(
+            findDirectTextInputByText(componentLoopRoot, "Primary") == nullptr,
+            "component for source override should ignore the default source binding");
+
+        componentLoopViewModel->setArray(
+            "primaryActions",
+            {
+                actionNode("primaryChangedField", "Primary Changed", true),
+            });
+        componentLoopRoot = dynamic_cast<ui::VBox*>(componentLoopResult.handle.root().get());
+        expect(
+            findDirectTextInputByText(componentLoopRoot, "Secondary") != nullptr,
+            "changing the unused default source should not affect the resolved override loop");
+        expect(
+            findDirectTextInputByText(componentLoopRoot, "Primary Changed") == nullptr,
+            "unused default source updates should not leak into the override loop");
+
+        componentLoopViewModel->setArray(
+            "secondaryActions",
+            {
+                actionNode("gammaField", "Gamma", true),
+            });
+        componentLoopRoot = dynamic_cast<ui::VBox*>(componentLoopResult.handle.root().get());
+        expect(
+            findDirectTextInputByText(componentLoopRoot, "Gamma") != nullptr,
+            "component for source override should rebuild when the resolved source changes");
+        expect(
+            findDirectTextInputByText(componentLoopRoot, "Secondary") == nullptr,
+            "component for source override should discard stale items after rebuild");
+    }
+
+    {
         const std::string widgetDrivenSource = R"(
 VBox(id: root) {
     TextInput(id: query, text: ${model.query}),

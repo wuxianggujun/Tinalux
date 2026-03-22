@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <iomanip>
 #include <optional>
 #include <sstream>
 
@@ -588,6 +589,170 @@ void appendUniquePath(std::vector<std::string>& paths, std::string path)
     }
 }
 
+bool isBindingIdentifierStart(char ch)
+{
+    return std::isalpha(static_cast<unsigned char>(ch)) || ch == '_';
+}
+
+bool isBindingIdentifierChar(char ch)
+{
+    return std::isalnum(static_cast<unsigned char>(ch)) || ch == '_' || ch == '.';
+}
+
+std::string escapeBindingStringLiteral(std::string_view value)
+{
+    std::string escaped;
+    escaped.reserve(value.size() + 2);
+    escaped.push_back('"');
+    for (char ch : value) {
+        switch (ch) {
+        case '\\':
+            escaped += "\\\\";
+            break;
+        case '"':
+            escaped += "\\\"";
+            break;
+        case '\n':
+            escaped += "\\n";
+            break;
+        case '\r':
+            escaped += "\\r";
+            break;
+        case '\t':
+            escaped += "\\t";
+            break;
+        default:
+            escaped.push_back(ch);
+            break;
+        }
+    }
+    escaped.push_back('"');
+    return escaped;
+}
+
+std::optional<std::string> componentControlLiteral(const core::Value& value)
+{
+    switch (value.type()) {
+    case core::ValueType::None:
+        return std::nullopt;
+    case core::ValueType::Bool:
+        return value.asBool() ? "true" : "false";
+    case core::ValueType::Int:
+        return std::to_string(value.asInt());
+    case core::ValueType::Float: {
+        std::ostringstream oss;
+        oss << value.asFloat();
+        return oss.str();
+    }
+    case core::ValueType::String:
+    case core::ValueType::Enum:
+        return escapeBindingStringLiteral(value.asString());
+    case core::ValueType::Color: {
+        std::ostringstream oss;
+        oss << '#'
+            << std::uppercase
+            << std::hex
+            << std::setw(8)
+            << std::setfill('0')
+            << value.asColor().value();
+        return oss.str();
+    }
+    }
+
+    return std::nullopt;
+}
+
+std::optional<std::string> resolveComponentControlToken(
+    std::string_view token,
+    const std::unordered_map<std::string, AstProperty>& parameterValues)
+{
+    const std::size_t suffixOffset = token.find('.');
+    const std::string_view root = token.substr(0, suffixOffset);
+    const auto parameterIt = parameterValues.find(std::string(root));
+    if (parameterIt == parameterValues.end()) {
+        return std::nullopt;
+    }
+
+    const std::string_view suffix = suffixOffset == std::string_view::npos
+        ? std::string_view {}
+        : token.substr(suffixOffset);
+    const AstProperty& parameter = parameterIt->second;
+    if (parameter.hasBinding()) {
+        if (suffix.empty()) {
+            return "(" + *parameter.bindingPath + ")";
+        }
+
+        const auto bindingExpression =
+            detail::BindingExpression::compile(*parameter.bindingPath, nullptr);
+        if (!bindingExpression || !bindingExpression->isDirectPath()) {
+            return std::nullopt;
+        }
+
+        return "(" + std::string(bindingExpression->directPath()) + std::string(suffix) + ")";
+    }
+
+    if (parameter.hasObjectValue() || parameter.hasArrayValue() || !suffix.empty()) {
+        return std::nullopt;
+    }
+
+    const std::optional<std::string> literal = componentControlLiteral(parameter.value);
+    if (!literal.has_value()) {
+        return std::nullopt;
+    }
+
+    return "(" + *literal + ")";
+}
+
+std::string resolveComponentControlExpression(
+    std::string_view expressionText,
+    const std::unordered_map<std::string, AstProperty>& parameterValues)
+{
+    std::string resolved;
+    resolved.reserve(expressionText.size());
+
+    for (std::size_t index = 0; index < expressionText.size();) {
+        const char ch = expressionText[index];
+        if (ch == '"') {
+            resolved.push_back(expressionText[index++]);
+            while (index < expressionText.size()) {
+                const char stringChar = expressionText[index++];
+                resolved.push_back(stringChar);
+                if (stringChar == '\\' && index < expressionText.size()) {
+                    resolved.push_back(expressionText[index++]);
+                    continue;
+                }
+                if (stringChar == '"') {
+                    break;
+                }
+            }
+            continue;
+        }
+
+        if (!isBindingIdentifierStart(ch)) {
+            resolved.push_back(ch);
+            ++index;
+            continue;
+        }
+
+        const std::size_t start = index;
+        ++index;
+        while (index < expressionText.size() && isBindingIdentifierChar(expressionText[index])) {
+            ++index;
+        }
+
+        const std::string_view token = expressionText.substr(start, index - start);
+        const std::optional<std::string> replacement =
+            resolveComponentControlToken(token, parameterValues);
+        if (replacement.has_value()) {
+            resolved += *replacement;
+        } else {
+            resolved.append(token);
+        }
+    }
+
+    return resolved;
+}
+
 std::shared_ptr<const detail::BindingExpression> compileBindingExpression(
     std::string_view expressionText,
     int line,
@@ -1073,6 +1238,10 @@ AstNode LayoutBuilder::resolveComponentTemplateNode(
     std::unordered_set<std::string>& declaredSlots)
 {
     AstNode resolved = templateNode;
+    if (templateNode.controlPath.has_value()) {
+        resolved.controlPath =
+            resolveComponentControlExpression(*templateNode.controlPath, parameterValues);
+    }
     resolved.properties.clear();
     resolved.properties.reserve(templateNode.properties.size());
     for (const auto& property : templateNode.properties) {
@@ -1093,6 +1262,11 @@ AstNode LayoutBuilder::resolveComponentTemplateNode(
     resolved.conditionalBranches.reserve(templateNode.conditionalBranches.size());
     for (const auto& conditionalBranch : templateNode.conditionalBranches) {
         AstNode resolvedBranch = conditionalBranch;
+        if (conditionalBranch.controlPath.has_value()) {
+            resolvedBranch.controlPath = resolveComponentControlExpression(
+                *conditionalBranch.controlPath,
+                parameterValues);
+        }
         resolvedBranch.children.clear();
         for (const auto& branchChild : conditionalBranch.children) {
             appendResolvedComponentChild(
