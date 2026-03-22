@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -8,10 +9,40 @@
 
 namespace tinalux::markup {
 
+enum class ParseDiagnosticSeverity : std::uint8_t {
+    Warning,
+    Error,
+};
+
+struct ParseDiagnostic {
+    ParseDiagnosticSeverity severity = ParseDiagnosticSeverity::Error;
+    std::string message;
+    int line = 0;
+    int column = 0;
+
+    [[nodiscard]] bool isError() const
+    {
+        return severity == ParseDiagnosticSeverity::Error;
+    }
+
+    [[nodiscard]] std::string format() const
+    {
+        std::string formatted =
+            severity == ParseDiagnosticSeverity::Error ? "error" : "warning";
+        if (line > 0) {
+            formatted += " [" + std::to_string(line) + ":" + std::to_string(column) + "]";
+        }
+        if (!message.empty()) {
+            formatted += ": " + message;
+        }
+        return formatted;
+    }
+};
+
 struct DocumentParseResult {
     AstDocument document;
-    std::vector<std::string> errors;
-    bool ok() const { return errors.empty(); }
+    std::vector<ParseDiagnostic> diagnostics;
+    bool ok() const;
 };
 
 class Parser {
@@ -46,12 +77,15 @@ private:
     core::Value parseValueDirective();
     void skipNodeBoundary();
     Token expect(TokenType type, const char* context);
-    void error(const std::string& message);
+    void error(
+        const std::string& message,
+        int line = -1,
+        int column = -1);
 
     Lexer lexer_;
     Token current_;
     std::string baseDirectory_;
-    std::vector<std::string> errors_;
+    std::vector<ParseDiagnostic> diagnostics_;
 };
 
 } // namespace tinalux::markup

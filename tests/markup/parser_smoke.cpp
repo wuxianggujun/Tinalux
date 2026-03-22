@@ -23,8 +23,8 @@ void expectParseOk(
     }
 
     std::cerr << context << '\n';
-    for (const auto& error : result.errors) {
-        std::cerr << "error: " << error << '\n';
+    for (const auto& diagnostic : result.diagnostics) {
+        std::cerr << diagnostic.format() << '\n';
     }
     std::exit(1);
 }
@@ -392,6 +392,16 @@ VBox(id: root) {
         const markup::DocumentParseResult result =
             markup::Parser::parseDocument(invalidIfSource);
         expect(!result.ok(), "if should reject non-binding conditions");
+        expect(!result.diagnostics.empty(), "invalid if should report a structured diagnostic");
+        expect(
+            result.diagnostics.front().severity == markup::ParseDiagnosticSeverity::Error,
+            "invalid if should report error severity");
+        expect(
+            result.diagnostics.front().line == 3 && result.diagnostics.front().column == 8,
+            "invalid if diagnostic should report the offending token location");
+        expect(
+            result.diagnostics.front().message == "expected binding expression inside if(...)",
+            "invalid if diagnostic should preserve the raw parser message");
     }
 
     {

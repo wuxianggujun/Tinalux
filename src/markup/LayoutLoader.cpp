@@ -65,6 +65,20 @@ std::optional<core::Color> parseColorText(std::string_view text)
     return core::Color(rawValue);
 }
 
+std::vector<std::string> formatParseDiagnostics(
+    const std::vector<ParseDiagnostic>& diagnostics)
+{
+    std::vector<std::string> messages;
+    messages.reserve(diagnostics.size());
+    for (const ParseDiagnostic& diagnostic : diagnostics) {
+        if (!diagnostic.isError()) {
+            continue;
+        }
+        messages.push_back(diagnostic.format());
+    }
+    return messages;
+}
+
 std::optional<core::Value> coerceBindingValue(
     const core::Value& value,
     core::ValueType expectedType)
@@ -326,7 +340,7 @@ LoadedDocumentResult loadDocumentFileRecursive(
         resolvedPath.parent_path().generic_string());
     if (!parseResult.ok()) {
         activeDocuments.erase(activeKey);
-        result.errors = std::move(parseResult.errors);
+        result.errors = formatParseDiagnostics(parseResult.diagnostics);
         return result;
     }
 
@@ -1024,7 +1038,7 @@ LoadResult LayoutLoader::load(std::string_view source, const ui::Theme& theme)
 
     auto parseResult = Parser::parseDocument(source);
     if (!parseResult.ok()) {
-        result.errors = std::move(parseResult.errors);
+        result.errors = formatParseDiagnostics(parseResult.diagnostics);
         return result;
     }
 

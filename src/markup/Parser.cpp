@@ -101,6 +101,16 @@ Parser::Parser(Lexer lexer, std::string baseDirectory)
     current_ = lexer_.next();
 }
 
+bool DocumentParseResult::ok() const
+{
+    for (const ParseDiagnostic& diagnostic : diagnostics) {
+        if (diagnostic.isError()) {
+            return false;
+        }
+    }
+    return true;
+}
+
 DocumentParseResult Parser::parseDocument(
     std::string_view source,
     std::string_view baseDirectory)
@@ -115,7 +125,7 @@ DocumentParseResult Parser::parseDocument(
         parser.error("unexpected tokens after root node");
     }
 
-    result.errors = std::move(parser.errors_);
+    result.diagnostics = std::move(parser.diagnostics_);
     return result;
 }
 
@@ -811,9 +821,8 @@ Token Parser::expect(TokenType type, const char* context)
 {
     if (current_.type != type) {
         std::ostringstream oss;
-        oss << "expected token in " << context << " at line " << current_.line
-            << ":" << current_.column << ", got '" << current_.text << "'";
-        error(oss.str());
+        oss << "expected token in " << context << ", got '" << current_.text << "'";
+        error(oss.str(), current_.line, current_.column);
         return current_;
     }
     Token tok = current_;
@@ -821,11 +830,14 @@ Token Parser::expect(TokenType type, const char* context)
     return tok;
 }
 
-void Parser::error(const std::string& message)
+void Parser::error(const std::string& message, int line, int column)
 {
-    std::ostringstream oss;
-    oss << "[" << current_.line << ":" << current_.column << "] " << message;
-    errors_.push_back(oss.str());
+    ParseDiagnostic diagnostic;
+    diagnostic.severity = ParseDiagnosticSeverity::Error;
+    diagnostic.message = message;
+    diagnostic.line = line >= 0 ? line : current_.line;
+    diagnostic.column = column >= 0 ? column : current_.column;
+    diagnostics_.push_back(std::move(diagnostic));
 }
 
 } // namespace tinalux::markup
