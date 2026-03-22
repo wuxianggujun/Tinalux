@@ -12,14 +12,7 @@
 
 #include "tinalux/markup/LayoutBuilder.h"
 #include "tinalux/markup/Parser.h"
-#include "tinalux/ui/Button.h"
-#include "tinalux/ui/Checkbox.h"
-#include "tinalux/ui/Dropdown.h"
-#include "tinalux/ui/Radio.h"
-#include "tinalux/ui/Slider.h"
-#include "tinalux/ui/TextInput.h"
 #include "tinalux/ui/Theme.h"
-#include "tinalux/ui/Toggle.h"
 
 namespace tinalux::markup {
 
@@ -158,6 +151,18 @@ std::optional<core::Value> coerceBindingValue(
     }
 
     return std::nullopt;
+}
+
+void writeInteractionValue(
+    ViewModel& viewModel,
+    std::string_view path,
+    const core::Value& value)
+{
+    if (path.empty() || value.isNone()) {
+        return;
+    }
+
+    viewModel.setValue(path, value);
 }
 
 void applyBindingValue(
@@ -299,11 +304,7 @@ LayoutHandle::LayoutHandle(LayoutHandle&& other) noexcept
     , rebuildInProgress_(other.rebuildInProgress_)
     , bindingGeneration_(std::move(other.bindingGeneration_))
     , runtimeState_(std::move(other.runtimeState_))
-    , clickHandlers_(std::move(other.clickHandlers_))
-    , toggleHandlers_(std::move(other.toggleHandlers_))
-    , textChangedHandlers_(std::move(other.textChangedHandlers_))
-    , valueChangedHandlers_(std::move(other.valueChangedHandlers_))
-    , selectionChangedHandlers_(std::move(other.selectionChangedHandlers_))
+    , interactionHandlers_(std::move(other.interactionHandlers_))
 {
     if (!bindingGeneration_) {
         bindingGeneration_ = std::make_shared<std::uint64_t>(0);
@@ -341,11 +342,7 @@ LayoutHandle& LayoutHandle::operator=(LayoutHandle&& other) noexcept
     rebuildInProgress_ = other.rebuildInProgress_;
     bindingGeneration_ = std::move(other.bindingGeneration_);
     runtimeState_ = std::move(other.runtimeState_);
-    clickHandlers_ = std::move(other.clickHandlers_);
-    toggleHandlers_ = std::move(other.toggleHandlers_);
-    textChangedHandlers_ = std::move(other.textChangedHandlers_);
-    valueChangedHandlers_ = std::move(other.valueChangedHandlers_);
-    selectionChangedHandlers_ = std::move(other.selectionChangedHandlers_);
+    interactionHandlers_ = std::move(other.interactionHandlers_);
 
     if (!bindingGeneration_) {
         bindingGeneration_ = std::make_shared<std::uint64_t>(0);
@@ -405,45 +402,74 @@ std::shared_ptr<ViewModel> LayoutHandle::viewModel() const
 
 void LayoutHandle::bindClick(const std::string& id, std::function<void()> handler)
 {
-    clickHandlers_[id] = std::move(handler);
-    if (auto* btn = findById<ui::Button>(id)) {
-        refreshButtonBinding(*btn);
-    }
+    bindInteraction(
+        id,
+        "click",
+        [handler = std::move(handler)](const core::Value&) {
+            if (handler) {
+                handler();
+            }
+        });
 }
 
 void LayoutHandle::bindToggle(const std::string& id, std::function<void(bool)> handler)
 {
-    toggleHandlers_[id] = std::move(handler);
-    if (auto* cb = findById<ui::Checkbox>(id)) {
-        refreshCheckboxBinding(*cb);
-        return;
-    }
-    if (auto* tgl = findById<ui::Toggle>(id)) {
-        refreshToggleBinding(*tgl);
-    }
+    bindInteraction(
+        id,
+        "toggle",
+        [handler = std::move(handler)](const core::Value& value) {
+            if (handler) {
+                handler(value.asBool());
+            }
+        });
 }
 
 void LayoutHandle::bindTextChanged(const std::string& id, std::function<void(const std::string&)> handler)
 {
-    textChangedHandlers_[id] = std::move(handler);
-    if (auto* input = findById<ui::TextInput>(id)) {
-        refreshTextInputBinding(*input);
-    }
+    bindInteraction(
+        id,
+        "textChanged",
+        [handler = std::move(handler)](const core::Value& value) {
+            if (handler) {
+                handler(value.asString());
+            }
+        });
 }
 
 void LayoutHandle::bindValueChanged(const std::string& id, std::function<void(float)> handler)
 {
-    valueChangedHandlers_[id] = std::move(handler);
-    if (auto* slider = findById<ui::Slider>(id)) {
-        refreshSliderBinding(*slider);
-    }
+    bindInteraction(
+        id,
+        "valueChanged",
+        [handler = std::move(handler)](const core::Value& value) {
+            if (handler) {
+                handler(value.asFloat());
+            }
+        });
 }
 
 void LayoutHandle::bindSelectionChanged(const std::string& id, std::function<void(int)> handler)
 {
-    selectionChangedHandlers_[id] = std::move(handler);
-    if (auto* dd = findById<ui::Dropdown>(id)) {
-        refreshDropdownBinding(*dd);
+    bindInteraction(
+        id,
+        "selectionChanged",
+        [handler = std::move(handler)](const core::Value& value) {
+            if (handler) {
+                handler(value.asInt());
+            }
+        });
+}
+
+void LayoutHandle::bindInteraction(
+    const std::string& id,
+    std::string_view interactionName,
+    core::InteractionHandler handler)
+{
+    interactionHandlers_[id][std::string(interactionName)] = std::move(handler);
+
+    auto widgetIt = idMap_.find(id);
+    if (widgetIt != idMap_.end() && widgetIt->second != nullptr) {
+        refreshWidgetInteractionBindings(*widgetIt->second);
     }
 }
 
@@ -555,28 +581,7 @@ void LayoutHandle::refreshInteractionBindings()
         if (widget == nullptr || !refreshedWidgets.insert(widget).second) {
             return;
         }
-
-        if (auto* button = dynamic_cast<ui::Button*>(widget)) {
-            refreshButtonBinding(*button);
-        }
-        if (auto* input = dynamic_cast<ui::TextInput*>(widget)) {
-            refreshTextInputBinding(*input);
-        }
-        if (auto* dropdown = dynamic_cast<ui::Dropdown*>(widget)) {
-            refreshDropdownBinding(*dropdown);
-        }
-        if (auto* checkbox = dynamic_cast<ui::Checkbox*>(widget)) {
-            refreshCheckboxBinding(*checkbox);
-        }
-        if (auto* toggle = dynamic_cast<ui::Toggle*>(widget)) {
-            refreshToggleBinding(*toggle);
-        }
-        if (auto* slider = dynamic_cast<ui::Slider*>(widget)) {
-            refreshSliderBinding(*slider);
-        }
-        if (auto* radio = dynamic_cast<ui::Radio*>(widget)) {
-            refreshRadioBinding(*radio);
-        }
+        refreshWidgetInteractionBindings(*widget);
     };
 
     for (const auto& [id, widget] : idMap_) {
@@ -587,6 +592,72 @@ void LayoutHandle::refreshInteractionBindings()
     for (const auto& binding : bindings_) {
         refreshWidget(binding.widget.lock().get());
     }
+}
+
+void LayoutHandle::refreshWidgetInteractionBindings(ui::Widget& widget)
+{
+    const std::string& typeName = widget.markupTypeName();
+    if (typeName.empty()) {
+        return;
+    }
+
+    const core::TypeInfo* typeInfo = core::TypeRegistry::instance().findType(typeName);
+    if (typeInfo == nullptr) {
+        return;
+    }
+
+    for (const auto& interaction : typeInfo->interactions) {
+        refreshInteractionBinding(widget, interaction);
+    }
+}
+
+void LayoutHandle::refreshInteractionBinding(
+    ui::Widget& widget,
+    const core::InteractionInfo& interaction)
+{
+    const detail::BindingDescriptor* binding = interaction.boundProperty.empty()
+        ? nullptr
+        : findBinding(&widget, interaction.boundProperty);
+
+    core::InteractionHandler userHandler;
+    const auto widgetHandlersIt = interactionHandlers_.find(widget.id());
+    if (widgetHandlersIt != interactionHandlers_.end()) {
+        const auto handlerIt = widgetHandlersIt->second.find(interaction.name);
+        if (handlerIt != widgetHandlersIt->second.end()) {
+            userHandler = handlerIt->second;
+        }
+    }
+
+    const std::string path = binding ? binding->path : std::string();
+    const core::ValueType payloadType = interaction.payloadType;
+    const std::shared_ptr<std::uint64_t> generationState = bindingGeneration_;
+    const std::uint64_t generation = generationState ? *generationState : 0;
+    const std::weak_ptr<ViewModel> weakViewModel = viewModel_;
+
+    interaction.bind(
+        widget,
+        [userHandler = std::move(userHandler),
+            path,
+            payloadType,
+            generationState,
+            generation,
+            weakViewModel](const core::Value& value) {
+            if (payloadType != core::ValueType::None && value.type() != payloadType) {
+                return;
+            }
+
+            if (userHandler) {
+                userHandler(value);
+            }
+
+            if (path.empty() || !generationState || *generationState != generation) {
+                return;
+            }
+
+            if (auto viewModel = weakViewModel.lock()) {
+                writeInteractionValue(*viewModel, path, value);
+            }
+        });
 }
 
 const detail::BindingDescriptor* LayoutHandle::findBinding(
@@ -601,179 +672,6 @@ const detail::BindingDescriptor* LayoutHandle::findBinding(
     }
 
     return nullptr;
-}
-
-void LayoutHandle::refreshButtonBinding(ui::Button& button)
-{
-    const auto userHandlerIt = clickHandlers_.find(button.id());
-    if (userHandlerIt != clickHandlers_.end()) {
-        button.onClick(userHandlerIt->second);
-    }
-}
-
-void LayoutHandle::refreshTextInputBinding(ui::TextInput& input)
-{
-    const auto* binding = findBinding(&input, "text");
-    const auto userHandlerIt = textChangedHandlers_.find(input.id());
-    const std::function<void(const std::string&)> userHandler =
-        userHandlerIt != textChangedHandlers_.end()
-            ? userHandlerIt->second
-            : std::function<void(const std::string&)>{};
-    const std::string path = binding ? binding->path : std::string();
-    const std::shared_ptr<std::uint64_t> generationState = bindingGeneration_;
-    const std::uint64_t generation = generationState ? *generationState : 0;
-    const std::weak_ptr<ViewModel> weakViewModel = viewModel_;
-
-    input.onTextChanged(
-        [userHandler, path, generationState, generation, weakViewModel](const std::string& text) {
-            if (userHandler) {
-                userHandler(text);
-            }
-
-            if (path.empty() || !generationState || *generationState != generation) {
-                return;
-            }
-
-            if (auto viewModel = weakViewModel.lock()) {
-                viewModel->setString(path, text);
-            }
-        });
-}
-
-void LayoutHandle::refreshDropdownBinding(ui::Dropdown& dropdown)
-{
-    const auto* binding = findBinding(&dropdown, "selectedIndex");
-    const auto userHandlerIt = selectionChangedHandlers_.find(dropdown.id());
-    const std::function<void(int)> userHandler =
-        userHandlerIt != selectionChangedHandlers_.end()
-            ? userHandlerIt->second
-            : std::function<void(int)>{};
-    const std::string path = binding ? binding->path : std::string();
-    const std::shared_ptr<std::uint64_t> generationState = bindingGeneration_;
-    const std::uint64_t generation = generationState ? *generationState : 0;
-    const std::weak_ptr<ViewModel> weakViewModel = viewModel_;
-
-    dropdown.onSelectionChanged(
-        [userHandler, path, generationState, generation, weakViewModel](int index) {
-            if (userHandler) {
-                userHandler(index);
-            }
-
-            if (path.empty() || !generationState || *generationState != generation) {
-                return;
-            }
-
-            if (auto viewModel = weakViewModel.lock()) {
-                viewModel->setInt(path, index);
-            }
-        });
-}
-
-void LayoutHandle::refreshCheckboxBinding(ui::Checkbox& checkbox)
-{
-    const auto* binding = findBinding(&checkbox, "checked");
-    const auto userHandlerIt = toggleHandlers_.find(checkbox.id());
-    const std::function<void(bool)> userHandler =
-        userHandlerIt != toggleHandlers_.end()
-            ? userHandlerIt->second
-            : std::function<void(bool)>{};
-    const std::string path = binding ? binding->path : std::string();
-    const std::shared_ptr<std::uint64_t> generationState = bindingGeneration_;
-    const std::uint64_t generation = generationState ? *generationState : 0;
-    const std::weak_ptr<ViewModel> weakViewModel = viewModel_;
-
-    checkbox.onToggle(
-        [userHandler, path, generationState, generation, weakViewModel](bool checked) {
-            if (userHandler) {
-                userHandler(checked);
-            }
-
-            if (path.empty() || !generationState || *generationState != generation) {
-                return;
-            }
-
-            if (auto viewModel = weakViewModel.lock()) {
-                viewModel->setBool(path, checked);
-            }
-        });
-}
-
-void LayoutHandle::refreshToggleBinding(ui::Toggle& toggle)
-{
-    const auto* binding = findBinding(&toggle, "on");
-    const auto userHandlerIt = toggleHandlers_.find(toggle.id());
-    const std::function<void(bool)> userHandler =
-        userHandlerIt != toggleHandlers_.end()
-            ? userHandlerIt->second
-            : std::function<void(bool)>{};
-    const std::string path = binding ? binding->path : std::string();
-    const std::shared_ptr<std::uint64_t> generationState = bindingGeneration_;
-    const std::uint64_t generation = generationState ? *generationState : 0;
-    const std::weak_ptr<ViewModel> weakViewModel = viewModel_;
-
-    toggle.onToggle(
-        [userHandler, path, generationState, generation, weakViewModel](bool on) {
-            if (userHandler) {
-                userHandler(on);
-            }
-
-            if (path.empty() || !generationState || *generationState != generation) {
-                return;
-            }
-
-            if (auto viewModel = weakViewModel.lock()) {
-                viewModel->setBool(path, on);
-            }
-        });
-}
-
-void LayoutHandle::refreshSliderBinding(ui::Slider& slider)
-{
-    const auto* binding = findBinding(&slider, "value");
-    const auto userHandlerIt = valueChangedHandlers_.find(slider.id());
-    const std::function<void(float)> userHandler =
-        userHandlerIt != valueChangedHandlers_.end()
-            ? userHandlerIt->second
-            : std::function<void(float)>{};
-    const std::string path = binding ? binding->path : std::string();
-    const std::shared_ptr<std::uint64_t> generationState = bindingGeneration_;
-    const std::uint64_t generation = generationState ? *generationState : 0;
-    const std::weak_ptr<ViewModel> weakViewModel = viewModel_;
-
-    slider.onValueChanged(
-        [userHandler, path, generationState, generation, weakViewModel](float value) {
-            if (userHandler) {
-                userHandler(value);
-            }
-
-            if (path.empty() || !generationState || *generationState != generation) {
-                return;
-            }
-
-            if (auto viewModel = weakViewModel.lock()) {
-                viewModel->setFloat(path, value);
-            }
-        });
-}
-
-void LayoutHandle::refreshRadioBinding(ui::Radio& radio)
-{
-    const auto* binding = findBinding(&radio, "selected");
-    const std::string path = binding ? binding->path : std::string();
-    const std::shared_ptr<std::uint64_t> generationState = bindingGeneration_;
-    const std::uint64_t generation = generationState ? *generationState : 0;
-    const std::weak_ptr<ViewModel> weakViewModel = viewModel_;
-
-    radio.onChanged(
-        [path, generationState, generation, weakViewModel](bool selected) {
-            if (path.empty() || !generationState || *generationState != generation) {
-                return;
-            }
-
-            if (auto viewModel = weakViewModel.lock()) {
-                viewModel->setBool(path, selected);
-            }
-        });
 }
 
 // ---- LayoutLoader ----

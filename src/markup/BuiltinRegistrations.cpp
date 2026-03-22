@@ -61,6 +61,23 @@ core::StylePropertyInfo makeDirectStyleProperty(
     };
 }
 
+template <typename WidgetT, typename Binder>
+core::InteractionInfo makeInteraction(
+    const char* name,
+    const char* boundProperty,
+    core::ValueType payloadType,
+    Binder binder)
+{
+    return core::InteractionInfo {
+        .name = name,
+        .boundProperty = boundProperty,
+        .payloadType = payloadType,
+        .bind = [binder](ui::Widget& widget, core::InteractionHandler handler) {
+            binder(static_cast<WidgetT&>(widget), std::move(handler));
+        },
+    };
+}
+
 } // namespace
 
 void registerBuiltinTypes()
@@ -562,6 +579,19 @@ void registerBuiltinTypes()
                     style.textStyle.bold = value.asBool();
                 }),
         },
+        .interactions = {
+            makeInteraction<ui::Button>(
+                "click",
+                "",
+                core::ValueType::None,
+                [](ui::Button& button, core::InteractionHandler handler) {
+                    button.onClick([handler = std::move(handler)] {
+                        if (handler) {
+                            handler(core::Value());
+                        }
+                    });
+                }),
+        },
     });
 
     reg.registerType(core::TypeInfo {
@@ -711,6 +741,20 @@ void registerBuiltinTypes()
                     style.textStyle.bold = value.asBool();
                 }),
         },
+        .interactions = {
+            makeInteraction<ui::TextInput>(
+                "textChanged",
+                "text",
+                core::ValueType::String,
+                [](ui::TextInput& input, core::InteractionHandler handler) {
+                    input.onTextChanged(
+                        [handler = std::move(handler)](const std::string& text) {
+                            if (handler) {
+                                handler(core::Value(text));
+                            }
+                        });
+                }),
+        },
     });
 
     reg.registerType(core::TypeInfo {
@@ -735,6 +779,20 @@ void registerBuiltinTypes()
                     static_cast<ui::Dropdown&>(w).loadIndicatorIconAsync(v.asString());
                 }},
         },
+        .interactions = {
+            makeInteraction<ui::Dropdown>(
+                "selectionChanged",
+                "selectedIndex",
+                core::ValueType::Int,
+                [](ui::Dropdown& dropdown, core::InteractionHandler handler) {
+                    dropdown.onSelectionChanged(
+                        [handler = std::move(handler)](int index) {
+                            if (handler) {
+                                handler(core::Value(index));
+                            }
+                        });
+                }),
+        },
     });
 
     reg.registerType(core::TypeInfo {
@@ -754,6 +812,20 @@ void registerBuiltinTypes()
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Checkbox&>(w).loadCheckmarkIconAsync(v.asString());
                 }},
+        },
+        .interactions = {
+            makeInteraction<ui::Checkbox>(
+                "toggle",
+                "checked",
+                core::ValueType::Bool,
+                [](ui::Checkbox& checkbox, core::InteractionHandler handler) {
+                    checkbox.onToggle(
+                        [handler = std::move(handler)](bool checked) {
+                            if (handler) {
+                                handler(core::Value(checked));
+                            }
+                        });
+                }),
         },
     });
 
@@ -778,6 +850,20 @@ void registerBuiltinTypes()
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Radio&>(w).loadSelectionIconAsync(v.asString());
                 }},
+        },
+        .interactions = {
+            makeInteraction<ui::Radio>(
+                "changed",
+                "selected",
+                core::ValueType::Bool,
+                [](ui::Radio& radio, core::InteractionHandler handler) {
+                    radio.onChanged(
+                        [handler = std::move(handler)](bool selected) {
+                            if (handler) {
+                                handler(core::Value(selected));
+                            }
+                        });
+                }),
         },
     });
 
@@ -820,6 +906,20 @@ void registerBuiltinTypes()
                     static_cast<ui::Toggle&>(w).setOn(v.asBool());
                 }},
         },
+        .interactions = {
+            makeInteraction<ui::Toggle>(
+                "toggle",
+                "on",
+                core::ValueType::Bool,
+                [](ui::Toggle& toggle, core::InteractionHandler handler) {
+                    toggle.onToggle(
+                        [handler = std::move(handler)](bool on) {
+                            if (handler) {
+                                handler(core::Value(on));
+                            }
+                        });
+                }),
+        },
     });
 
     reg.registerType(core::TypeInfo {
@@ -845,6 +945,20 @@ void registerBuiltinTypes()
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Slider&>(w).setStep(v.asNumber());
                 }},
+        },
+        .interactions = {
+            makeInteraction<ui::Slider>(
+                "valueChanged",
+                "value",
+                core::ValueType::Float,
+                [](ui::Slider& slider, core::InteractionHandler handler) {
+                    slider.onValueChanged(
+                        [handler = std::move(handler)](float value) {
+                            if (handler) {
+                                handler(core::Value(value));
+                            }
+                        });
+                }),
         },
     });
 

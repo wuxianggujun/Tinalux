@@ -73,6 +73,8 @@ public:
 
     void setId(const std::string& id);
     const std::string& id() const;
+    void setMarkupTypeName(const std::string& typeName);
+    const std::string& markupTypeName() const;
 
 protected:
     friend class Container;
@@ -103,6 +105,7 @@ protected:
     std::uint64_t layoutVersion_ = 1;
     Widget* parent_ = nullptr;
     std::string id_;
+    std::string markupTypeName_;
 };
 
 }  // namespace tinalux::ui

@@ -184,6 +184,7 @@ std::shared_ptr<ui::Widget> LayoutBuilder::buildNode(
         warnings_.push_back("factory returned null for '" + node.typeName + "'");
         return nullptr;
     }
+    widget->setMarkupTypeName(node.typeName);
 
     for (const auto& prop : node.properties) {
         const AstProperty resolvedProp = resolveScopedProperty(prop, scope);

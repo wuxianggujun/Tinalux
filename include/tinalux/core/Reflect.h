@@ -114,6 +114,15 @@ struct StylePropertyInfo {
     std::function<void(ui::Widget&, const Value&, const ui::Theme&)> setter;
 };
 
+using InteractionHandler = std::function<void(const Value&)>;
+
+struct InteractionInfo {
+    std::string name;
+    std::string boundProperty;
+    ValueType payloadType = ValueType::None;
+    std::function<void(ui::Widget&, InteractionHandler)> bind;
+};
+
 // ---------------------------------------------------------------------------
 // TypeInfo — describes a widget type for the registry
 // ---------------------------------------------------------------------------
@@ -124,6 +133,7 @@ struct TypeInfo {
     std::function<std::shared_ptr<ui::Widget>()> factory;
     std::vector<PropertyInfo> properties;
     std::vector<StylePropertyInfo> styleProperties;
+    std::vector<InteractionInfo> interactions;
 
     const PropertyInfo* findProperty(std::string_view propName) const
     {
@@ -139,6 +149,16 @@ struct TypeInfo {
         for (const auto& p : styleProperties) {
             if (p.name == propName)
                 return &p;
+        }
+        return nullptr;
+    }
+
+    const InteractionInfo* findInteraction(std::string_view interactionName) const
+    {
+        for (const auto& interaction : interactions) {
+            if (interaction.name == interactionName) {
+                return &interaction;
+            }
         }
         return nullptr;
     }

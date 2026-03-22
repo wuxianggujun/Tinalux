@@ -2,8 +2,11 @@
 #include <iostream>
 #include <string>
 
+#include "tinalux/core/KeyCodes.h"
+#include "tinalux/core/events/Event.h"
 #include "tinalux/markup/LayoutLoader.h"
 #include "tinalux/markup/ViewModel.h"
+#include "tinalux/ui/Button.h"
 #include "tinalux/ui/TextInput.h"
 #include "tinalux/ui/Theme.h"
 #include "tinalux/ui/VBox.h"
@@ -43,7 +46,8 @@ int main()
     const std::string source = R"(
 VBox(id: "root") {
     @if(${model.showQuery}) {
-        TextInput(id: "queryInput", text: ${model.query})
+        TextInput(id: "queryInput", text: ${model.query}),
+        Button(id: "applyButton", text: "Apply")
     }
 }
 )";
@@ -53,6 +57,9 @@ VBox(id: "root") {
     expect(result.warnings.empty(), "rebind markup should not emit warnings");
     expect(dynamic_cast<ui::VBox*>(result.handle.root().get()) != nullptr, "root should be VBox");
 
+    int applyClicks = 0;
+    result.handle.bindClick("applyButton", [&] { ++applyClicks; });
+
     auto firstViewModel = markup::ViewModel::create();
     firstViewModel->setBool("showQuery", true);
     firstViewModel->setString("query", "first");
@@ -61,6 +68,12 @@ VBox(id: "root") {
     ui::TextInput* queryInput = result.handle.findById<ui::TextInput>("queryInput");
     expect(queryInput != nullptr, "first ViewModel should materialize query input");
     expect(queryInput->text() == "first", "first ViewModel should seed initial query text");
+    ui::Button* applyButton = result.handle.findById<ui::Button>("applyButton");
+    expect(applyButton != nullptr, "first ViewModel should materialize apply button");
+    applyButton->setFocused(true);
+    core::KeyEvent clickButtonOnce(core::keys::kSpace, 0, 0, core::EventType::KeyPress);
+    applyButton->onEvent(clickButtonOnce);
+    expect(applyClicks == 1, "stored click handler should attach when button first appears");
 
     auto secondViewModel = markup::ViewModel::create();
     secondViewModel->setBool("showQuery", true);
@@ -70,6 +83,11 @@ VBox(id: "root") {
     queryInput = result.handle.findById<ui::TextInput>("queryInput");
     expect(queryInput != nullptr, "rebinding should keep query input materialized");
     expect(queryInput->text() == "second", "rebinding should refresh query text from second ViewModel");
+    applyButton = result.handle.findById<ui::Button>("applyButton");
+    expect(applyButton != nullptr, "rebinding should keep apply button materialized");
+    applyButton->setFocused(true);
+    applyButton->onEvent(clickButtonOnce);
+    expect(applyClicks == 2, "stored click handler should reattach after ViewModel rebinding");
 
     firstViewModel->setString("query", "stale");
     queryInput = result.handle.findById<ui::TextInput>("queryInput");
@@ -119,6 +137,11 @@ VBox(id: "root") {
     expect(
         queryInput->text() == "return",
         "rematerialized input should receive latest active ViewModel text");
+    applyButton = result.handle.findById<ui::Button>("applyButton");
+    expect(applyButton != nullptr, "active ViewModel should rematerialize apply button");
+    applyButton->setFocused(true);
+    applyButton->onEvent(clickButtonOnce);
+    expect(applyClicks == 3, "stored click handler should reattach after structural rebuild");
 
     return 0;
 }

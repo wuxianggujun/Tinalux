@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <fstream>
 #include <functional>
 #include <memory>
 #include <string>
@@ -14,13 +13,6 @@
 
 namespace tinalux::ui {
 struct Theme;
-class Button;
-class TextInput;
-class Checkbox;
-class Toggle;
-class Slider;
-class Dropdown;
-class Radio;
 } // namespace tinalux::ui
 
 namespace tinalux::markup {
@@ -75,18 +67,19 @@ private:
     void clearStructureListeners();
     void registerValueListeners();
     void registerStructureListeners();
+    void bindInteraction(
+        const std::string& id,
+        std::string_view interactionName,
+        core::InteractionHandler handler);
     void rebuildFromTemplate();
     void refreshInteractionBindings();
+    void refreshWidgetInteractionBindings(ui::Widget& widget);
+    void refreshInteractionBinding(
+        ui::Widget& widget,
+        const core::InteractionInfo& interaction);
     const detail::BindingDescriptor* findBinding(
         const ui::Widget* widget,
         std::string_view propertyName) const;
-    void refreshButtonBinding(ui::Button& button);
-    void refreshTextInputBinding(ui::TextInput& input);
-    void refreshDropdownBinding(ui::Dropdown& dropdown);
-    void refreshCheckboxBinding(ui::Checkbox& checkbox);
-    void refreshToggleBinding(ui::Toggle& toggle);
-    void refreshSliderBinding(ui::Slider& slider);
-    void refreshRadioBinding(ui::Radio& radio);
 
     std::shared_ptr<ui::Widget> root_;
     std::unordered_map<std::string, std::shared_ptr<ui::Widget>> idMap_;
@@ -100,11 +93,8 @@ private:
     bool rebuildInProgress_ = false;
     std::shared_ptr<std::uint64_t> bindingGeneration_ = std::make_shared<std::uint64_t>(0);
     std::shared_ptr<detail::LayoutHandleState> runtimeState_;
-    std::unordered_map<std::string, std::function<void()>> clickHandlers_;
-    std::unordered_map<std::string, std::function<void(bool)>> toggleHandlers_;
-    std::unordered_map<std::string, std::function<void(const std::string&)>> textChangedHandlers_;
-    std::unordered_map<std::string, std::function<void(float)>> valueChangedHandlers_;
-    std::unordered_map<std::string, std::function<void(int)>> selectionChangedHandlers_;
+    std::unordered_map<std::string, std::unordered_map<std::string, core::InteractionHandler>>
+        interactionHandlers_;
 };
 
 struct LoadResult {

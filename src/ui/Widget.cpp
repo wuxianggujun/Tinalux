@@ -357,6 +357,16 @@ const std::string& Widget::id() const
     return id_;
 }
 
+void Widget::setMarkupTypeName(const std::string& typeName)
+{
+    markupTypeName_ = typeName;
+}
+
+const std::string& Widget::markupTypeName() const
+{
+    return markupTypeName_;
+}
+
 void Widget::markDirtyRect(const core::Rect& rect)
 {
     if (rect.isEmpty()) {
