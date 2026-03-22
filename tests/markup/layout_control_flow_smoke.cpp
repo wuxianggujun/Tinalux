@@ -364,5 +364,80 @@ VBox(id: root) {
             "primary branch should disappear after disabling conditions");
     }
 
+    {
+        const std::string switchSource = R"(
+VBox(id: root) {
+    switch(${model.phase}) {
+        case(Idle) {
+            Label(id: idleLabel, text: "Idle")
+        }
+        case("running") {
+            Label(id: runningLabel, text: "Running")
+        }
+        case(${model.donePhase}) {
+            Label(id: doneLabel, text: "Done")
+        }
+        else {
+            Label(id: fallbackLabel, text: "Fallback")
+        }
+    }
+}
+)";
+
+        markup::LoadResult switchResult = markup::LayoutLoader::load(switchSource, theme);
+        expectLoadOk(switchResult, "switch/case markup should load");
+        expect(switchResult.warnings.empty(), "switch/case markup should not emit warnings");
+
+        auto switchViewModel = markup::ViewModel::create();
+        switchViewModel->setEnum("phase", "Idle");
+        switchViewModel->setString("donePhase", "done");
+        switchResult.handle.bindViewModel(switchViewModel);
+
+        expect(
+            switchResult.handle.findById<ui::Label>("idleLabel") != nullptr,
+            "enum-backed switch branch should materialize the first matching case");
+        expect(
+            switchResult.handle.findById<ui::Label>("runningLabel") == nullptr,
+            "non-matching switch branch should stay absent");
+        expect(
+            switchResult.handle.findById<ui::Label>("doneLabel") == nullptr,
+            "dynamic switch case should stay absent until matched");
+        expect(
+            switchResult.handle.findById<ui::Label>("fallbackLabel") == nullptr,
+            "fallback switch branch should stay absent while a case matches");
+
+        switchViewModel->setString("phase", "running");
+        expect(
+            switchResult.handle.findById<ui::Label>("runningLabel") != nullptr,
+            "string-backed switch branch should materialize after model update");
+        expect(
+            switchResult.handle.findById<ui::Label>("idleLabel") == nullptr,
+            "previous switch branch should disappear after branch replacement");
+
+        switchViewModel->setString("phase", "done");
+        expect(
+            switchResult.handle.findById<ui::Label>("doneLabel") != nullptr,
+            "dynamic switch case should materialize when branch expression matches");
+        expect(
+            switchResult.handle.findById<ui::Label>("runningLabel") == nullptr,
+            "previous switch case should disappear after dynamic match");
+
+        switchViewModel->setString("donePhase", "complete");
+        expect(
+            switchResult.handle.findById<ui::Label>("fallbackLabel") != nullptr,
+            "updating the dynamic case expression should rebuild switch branches");
+        expect(
+            switchResult.handle.findById<ui::Label>("doneLabel") == nullptr,
+            "obsolete dynamic switch match should disappear after dependency update");
+
+        switchViewModel->setString("phase", "complete");
+        expect(
+            switchResult.handle.findById<ui::Label>("doneLabel") != nullptr,
+            "switch should rematerialize the dynamic case after the source value changes");
+        expect(
+            switchResult.handle.findById<ui::Label>("fallbackLabel") == nullptr,
+            "fallback switch branch should disappear after a later case matches");
+    }
+
     return 0;
 }

@@ -766,6 +766,14 @@ bool looseEquals(const EvaluatedValue& lhs, const EvaluatedValue& rhs)
         return truthyNode(lhs.node) == truthyNode(rhs.node);
     }
 
+    const bool lhsStringLike = lhs.scalar->type() == core::ValueType::String
+        || lhs.scalar->type() == core::ValueType::Enum;
+    const bool rhsStringLike = rhs.scalar->type() == core::ValueType::String
+        || rhs.scalar->type() == core::ValueType::Enum;
+    if (lhsStringLike && rhsStringLike) {
+        return lhs.scalar->asString() == rhs.scalar->asString();
+    }
+
     if (lhs.scalar->type() != rhs.scalar->type()) {
         return false;
     }

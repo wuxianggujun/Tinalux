@@ -460,6 +460,47 @@ VBox(id: root) {
     }
 
     {
+        const std::string source = R"(
+VBox(id: root) {
+    switch(${model.state}) {
+        case(Primary) {
+            Button(id: primary, text: "Primary")
+        }
+        case(${model.secondaryState}) {
+            Button(id: secondary, text: "Secondary")
+        }
+        else {
+            Button(id: fallback, text: "Fallback")
+        }
+    }
+}
+)";
+
+        const markup::DocumentParseResult result = markup::Parser::parseDocument(source);
+        expect(result.ok(), "switch/case markup should parse");
+        expect(result.document.root.has_value(), "switch/case parse should keep root");
+
+        const markup::AstNode& root = *result.document.root;
+        expect(root.children.size() == 1, "switch/case chain should remain a single root child");
+
+        const markup::AstNode& switchNode = root.children.front();
+        expect(switchNode.isIfBlock(), "switch/case should lower into if block AST");
+        expect(
+            switchNode.controlPath.has_value()
+                && *switchNode.controlPath == "(model.state) == (\"Primary\")",
+            "switch primary case should lower into equality expression");
+        expect(switchNode.conditionalBranches.size() == 2, "switch should keep secondary case and else branch");
+        expect(
+            switchNode.conditionalBranches.front().controlPath.has_value()
+                && *switchNode.conditionalBranches.front().controlPath
+                    == "(model.state) == (model.secondaryState)",
+            "switch dynamic case should preserve binding expression text");
+        expect(
+            !switchNode.conditionalBranches.back().controlPath.has_value(),
+            "switch else branch should lower into unconditional fallback");
+    }
+
+    {
         const std::string invalidForSource = R"(
 VBox(id: root) {
     for(item ${model.items}) {
@@ -471,6 +512,22 @@ VBox(id: root) {
         const markup::DocumentParseResult result =
             markup::Parser::parseDocument(invalidForSource);
         expect(!result.ok(), "for should reject missing 'in' keyword");
+    }
+
+    {
+        const std::string invalidSwitchSource = R"(
+VBox(id: root) {
+    switch(${model.state}) {
+        else {
+            Button(text: "broken")
+        }
+    }
+}
+)";
+
+        const markup::DocumentParseResult result =
+            markup::Parser::parseDocument(invalidSwitchSource);
+        expect(!result.ok(), "switch should reject else without any case branch");
     }
 
     return 0;

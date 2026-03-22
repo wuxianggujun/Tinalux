@@ -31,11 +31,17 @@ private:
     AstNode parseControlNode();
     AstNode parseIfNode(int line, int column);
     AstNode parseForNode(int line, int column);
+    AstNode parseSwitchNode(int line, int column);
+    AstNode parseSwitchCaseBranch(
+        const std::string& switchExpression,
+        int line,
+        int column);
     std::vector<AstNode> parseControlBlockChildren(const char* context);
     AstNode parseElseIfBranch(int line, int column);
     AstNode parseElseBranch(int line, int column);
     AstProperty parseProperty(bool allowImplicitName = false);
     void parseArrayValue(AstProperty& prop);
+    std::optional<std::string> parseSwitchCaseExpression();
     core::Value parseValue();
     core::Value parseValueDirective();
     void skipNodeBoundary();

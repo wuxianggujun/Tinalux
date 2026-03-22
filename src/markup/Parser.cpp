@@ -40,6 +40,35 @@ bool isIdentifierText(const Token& token, std::string_view text)
     return token.type == TokenType::Identifier && token.text == text;
 }
 
+std::string escapeBindingStringLiteral(std::string_view text)
+{
+    std::string escaped;
+    escaped.reserve(text.size());
+    for (char ch : text) {
+        switch (ch) {
+        case '\\':
+            escaped += "\\\\";
+            break;
+        case '"':
+            escaped += "\\\"";
+            break;
+        case '\n':
+            escaped += "\\n";
+            break;
+        case '\r':
+            escaped += "\\r";
+            break;
+        case '\t':
+            escaped += "\\t";
+            break;
+        default:
+            escaped += ch;
+            break;
+        }
+    }
+    return escaped;
+}
+
 bool isTopLevelDirectiveToken(const Token& token)
 {
     return isIdentifierText(token, "import")
@@ -52,6 +81,7 @@ bool isControlDirectiveToken(const Token& token)
 {
     return isIdentifierText(token, "if")
         || isIdentifierText(token, "for")
+        || isIdentifierText(token, "switch")
         || isIdentifierText(token, "elseif")
         || isIdentifierText(token, "else");
 }
@@ -313,6 +343,10 @@ AstNode Parser::parseControlNode()
         return parseForNode(directiveToken.line, directiveToken.column);
     }
 
+    if (directive == "switch") {
+        return parseSwitchNode(directiveToken.line, directiveToken.column);
+    }
+
     if (directive == "else" || directive == "elseif") {
         error("'" + directive + "' must appear immediately after an if block");
         return {};
@@ -416,6 +450,78 @@ AstNode Parser::parseForNode(int line, int column)
     return node;
 }
 
+AstNode Parser::parseSwitchNode(int line, int column)
+{
+    AstNode node;
+    node.kind = AstNodeKind::IfBlock;
+    node.line = line;
+    node.column = column;
+
+    expect(TokenType::LeftParen, "switch directive");
+    if (current_.type != TokenType::BindingLiteral) {
+        error("expected binding expression inside switch(...)");
+        return node;
+    }
+
+    const std::string switchExpression = current_.text;
+    current_ = lexer_.next();
+    expect(TokenType::RightParen, "switch directive");
+    expect(TokenType::LeftBrace, "switch body");
+
+    bool hasCaseBranch = false;
+    bool hasFallbackBranch = false;
+
+    while (current_.type != TokenType::RightBrace
+        && current_.type != TokenType::EndOfFile) {
+        if (isIdentifierText(current_, "case")) {
+            if (hasFallbackBranch) {
+                error("case cannot appear after else in switch block");
+                return node;
+            }
+
+            const Token directiveToken = current_;
+            current_ = lexer_.next();
+            AstNode branch =
+                parseSwitchCaseBranch(switchExpression, directiveToken.line, directiveToken.column);
+            if (!hasCaseBranch) {
+                hasCaseBranch = true;
+                node.controlPath = std::move(branch.controlPath);
+                node.children = std::move(branch.children);
+            } else {
+                node.conditionalBranches.push_back(std::move(branch));
+            }
+        } else if (isIdentifierText(current_, "else")) {
+            if (hasFallbackBranch) {
+                error("duplicate else branch for switch block");
+                return node;
+            }
+            if (!hasCaseBranch) {
+                error("switch block requires at least one case branch before else");
+                return node;
+            }
+
+            const Token directiveToken = current_;
+            current_ = lexer_.next();
+            node.conditionalBranches.push_back(
+                parseElseBranch(directiveToken.line, directiveToken.column));
+            hasFallbackBranch = true;
+        } else {
+            error("expected case(...) or else inside switch block");
+            return node;
+        }
+
+        if (current_.type == TokenType::Comma) {
+            current_ = lexer_.next();
+        }
+    }
+
+    expect(TokenType::RightBrace, "switch body");
+    if (!hasCaseBranch) {
+        error("switch block requires at least one case branch");
+    }
+    return node;
+}
+
 std::vector<AstNode> Parser::parseControlBlockChildren(const char* context)
 {
     std::vector<AstNode> children;
@@ -460,6 +566,29 @@ AstNode Parser::parseElseBranch(int line, int column)
     node.line = line;
     node.column = column;
     node.children = parseControlBlockChildren("else body");
+    return node;
+}
+
+AstNode Parser::parseSwitchCaseBranch(
+    const std::string& switchExpression,
+    int line,
+    int column)
+{
+    AstNode node;
+    node.kind = AstNodeKind::IfBlock;
+    node.line = line;
+    node.column = column;
+
+    expect(TokenType::LeftParen, "switch case");
+    const std::optional<std::string> caseExpression = parseSwitchCaseExpression();
+    if (!caseExpression.has_value()) {
+        return node;
+    }
+
+    expect(TokenType::RightParen, "switch case");
+    node.controlPath =
+        "(" + switchExpression + ") == (" + *caseExpression + ")";
+    node.children = parseControlBlockChildren("switch case body");
     return node;
 }
 
@@ -572,6 +701,40 @@ void Parser::parseArrayValue(AstProperty& prop)
     }
 
     expect(TokenType::RightBracket, "array property value");
+}
+
+std::optional<std::string> Parser::parseSwitchCaseExpression()
+{
+    Token tok = current_;
+    switch (tok.type) {
+    case TokenType::BindingLiteral:
+        current_ = lexer_.next();
+        return tok.text;
+
+    case TokenType::StringLiteral:
+        current_ = lexer_.next();
+        return "\"" + escapeBindingStringLiteral(tok.text) + "\"";
+
+    case TokenType::IntLiteral:
+    case TokenType::FloatLiteral:
+        current_ = lexer_.next();
+        return tok.text;
+
+    case TokenType::ColorLiteral:
+        current_ = lexer_.next();
+        return "#" + tok.text;
+
+    case TokenType::Identifier:
+        current_ = lexer_.next();
+        if (tok.text == "true" || tok.text == "false") {
+            return tok.text;
+        }
+        return "\"" + escapeBindingStringLiteral(tok.text) + "\"";
+
+    default:
+        error("expected switch case value");
+        return std::nullopt;
+    }
 }
 
 core::Value Parser::parseValue()

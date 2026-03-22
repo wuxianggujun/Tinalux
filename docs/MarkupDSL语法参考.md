@@ -11,7 +11,7 @@ Tinalux 的 Markup DSL 用来写界面布局文件，不是通用配置文件格
 - 典型用途：声明控件树、样式、组件复用、属性绑定、条件分支、循环展开
 - 不适用场景：普通应用配置、构建配置、运行参数文件
 
-像 `if / elseif / else / for` 这样的关键字，作用是控制界面节点是否生成，不是给普通配置项做分支判断用的。
+像 `if / elseif / else / switch / case / for` 这样的关键字，作用是控制界面节点是否生成，不是给普通配置项做分支判断用的。
 
 ## 2. 当前顶层语法
 
@@ -238,6 +238,34 @@ if(${model.loggedIn}) {
 - `else`：兜底分支
 
 它们是给布局文件用的，不是给普通配置文件用的。
+
+### `switch / case / else`
+
+多分支枚举场景可以直接写 `switch`：
+
+```tui
+switch(${model.phase}) {
+    case(Idle) {
+        Label("Idle")
+    }
+    case("running") {
+        Label("Running")
+    }
+    case(${model.donePhase}) {
+        Label("Done")
+    }
+    else {
+        Label("Fallback")
+    }
+}
+```
+
+规则：
+
+- `switch(...)` 里必须是绑定表达式，也就是 `${...}`
+- `case(...)` 支持字符串、数字、布尔、颜色、裸标识符、`${...}` 动态表达式
+- 裸标识符会按文本常量处理，适合写 `case(Idle)` 这种枚举风格分支
+- `else` 是可选兜底分支
 
 ### `for`
 
