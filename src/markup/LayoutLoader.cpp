@@ -709,7 +709,7 @@ LoadResult LayoutLoader::load(std::string_view source, const ui::Theme& theme)
     }
 
     if (!parseResult.document.imports.empty()) {
-        result.errors.push_back("inline markup source cannot use @import; use loadFile instead");
+        result.errors.push_back("inline markup source cannot use import; use loadFile instead");
         return result;
     }
 

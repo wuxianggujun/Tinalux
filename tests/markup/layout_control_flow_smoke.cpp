@@ -64,13 +64,13 @@ int main()
 
     const ui::Theme theme = ui::Theme::light();
     const std::string source = R"(
-@component ActionField(value: ""): TextInput(text: value)
+component ActionField(value: ""): TextInput(text: value)
 VBox(id: "root") {
-    @if(${model.showAdvanced}) {
+    if(${model.showAdvanced}) {
         TextInput(id: "advancedQuery", text: ${model.advancedQuery})
     },
-    @for(item in ${model.actions}) {
-        @if(${item.visible && model.showVisibleActions}) {
+    for(item in ${model.actions}) {
+        if(${item.visible && model.showVisibleActions}) {
             ActionField(id: ${item.id}, value: ${item.label + model.actionSuffix})
         }
     }
@@ -117,7 +117,7 @@ VBox(id: "root") {
         "hidden loop item should not materialize");
     expect(
         result.handle.findById<ui::TextInput>("advancedQuery") == nullptr,
-        "@if block should stay absent until enabled");
+        "if block should stay absent until enabled");
 
     viewModel->setString("actionSuffix", "!");
     alphaField = result.handle.findById<ui::TextInput>("alphaField");
@@ -153,14 +153,14 @@ VBox(id: "root") {
 
     viewModel->setBool("showAdvanced", true);
     root = dynamic_cast<ui::VBox*>(result.handle.root().get());
-    expect(root != nullptr, "root should stay valid after @if expansion");
-    expect(root->children().size() == 3, "@if expansion should add advanced input to layout");
+    expect(root != nullptr, "root should stay valid after if expansion");
+    expect(root->children().size() == 3, "if expansion should add advanced input to layout");
 
     ui::TextInput* advancedQuery = result.handle.findById<ui::TextInput>("advancedQuery");
-    expect(advancedQuery != nullptr, "advanced input should materialize after enabling @if");
+    expect(advancedQuery != nullptr, "advanced input should materialize after enabling if");
     expect(
         advancedQuery->text() == "hidden",
-        "@if-controlled input should receive initial model text after rebuild");
+        "if-controlled input should receive initial model text after rebuild");
 
     const int textEventsBeforeFirstTyping = advancedTextEvents;
     advancedQuery->setText("typed once");
@@ -203,7 +203,7 @@ VBox(id: "root") {
     viewModel->setBool("showAdvanced", false);
     expect(
         result.handle.findById<ui::TextInput>("advancedQuery") == nullptr,
-        "@if-controlled widget should disappear after disabling");
+        "if-controlled widget should disappear after disabling");
 
     viewModel->setBool("showAdvanced", true);
     advancedQuery = result.handle.findById<ui::TextInput>("advancedQuery");
@@ -242,19 +242,19 @@ VBox(id: "root") {
     {
         const std::string branchSource = R"(
 VBox(id: "root") {
-    @if(${model.primary}) {
+    if(${model.primary}) {
         Label(id: "primaryLabel", text: "Primary")
-    } @elseif(${model.secondary}) {
+    } elseif(${model.secondary}) {
         Label(id: "secondaryLabel", text: "Secondary")
-    } @else {
+    } else {
         Label(id: "fallbackLabel", text: "Fallback")
     }
 }
 )";
 
         markup::LoadResult branchResult = markup::LayoutLoader::load(branchSource, theme);
-        expectLoadOk(branchResult, "@elseif/@else markup should load");
-        expect(branchResult.warnings.empty(), "@elseif/@else markup should not emit warnings");
+        expectLoadOk(branchResult, "elseif/else markup should load");
+        expect(branchResult.warnings.empty(), "elseif/else markup should not emit warnings");
 
         auto branchViewModel = markup::ViewModel::create();
         branchViewModel->setBool("primary", false);
@@ -272,17 +272,17 @@ VBox(id: "root") {
 
         branchViewModel->setBool("secondary", true);
         ui::Label* secondaryLabel = branchResult.handle.findById<ui::Label>("secondaryLabel");
-        expect(secondaryLabel != nullptr, "@elseif branch should materialize after condition change");
+        expect(secondaryLabel != nullptr, "elseif branch should materialize after condition change");
         expect(
             branchResult.handle.findById<ui::Label>("fallbackLabel") == nullptr,
-            "@elseif branch should replace fallback content");
+            "elseif branch should replace fallback content");
 
         branchViewModel->setBool("primary", true);
         ui::Label* primaryLabel = branchResult.handle.findById<ui::Label>("primaryLabel");
-        expect(primaryLabel != nullptr, "@if branch should win over @elseif when enabled");
+        expect(primaryLabel != nullptr, "if branch should win over elseif when enabled");
         expect(
             branchResult.handle.findById<ui::Label>("secondaryLabel") == nullptr,
-            "@if branch should replace @elseif content");
+            "if branch should replace elseif content");
 
         branchViewModel->setBool("primary", false);
         branchViewModel->setBool("secondary", false);

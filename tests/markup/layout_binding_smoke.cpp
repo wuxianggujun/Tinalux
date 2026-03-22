@@ -175,7 +175,7 @@ VBox(id: "root") {
 
     {
         const std::string source = R"(
-@component MirrorField(currentText: ${model.query}): TextInput(text: currentText)
+component MirrorField(currentText: ${model.query}): TextInput(text: currentText)
 VBox(id: "root") {
     MirrorField(id: "mirror")
 }

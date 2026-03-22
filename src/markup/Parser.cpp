@@ -35,6 +35,32 @@ std::string resolveResourcePath(
     return candidate.lexically_normal().generic_string();
 }
 
+bool isIdentifierText(const Token& token, std::string_view text)
+{
+    return token.type == TokenType::Identifier && token.text == text;
+}
+
+bool isTopLevelDirectiveToken(const Token& token)
+{
+    return isIdentifierText(token, "import")
+        || isIdentifierText(token, "style")
+        || isIdentifierText(token, "component");
+}
+
+bool isControlDirectiveToken(const Token& token)
+{
+    return isIdentifierText(token, "if")
+        || isIdentifierText(token, "for")
+        || isIdentifierText(token, "elseif")
+        || isIdentifierText(token, "else");
+}
+
+bool isConditionalBranchToken(const Token& token)
+{
+    return isIdentifierText(token, "elseif")
+        || isIdentifierText(token, "else");
+}
+
 } // namespace
 
 Parser::Parser(Lexer lexer, std::string baseDirectory)
@@ -67,7 +93,7 @@ AstDocument Parser::parseDocumentInternal()
     AstDocument document;
 
     while (current_.type != TokenType::EndOfFile) {
-        if (current_.type == TokenType::At) {
+        if (isTopLevelDirectiveToken(current_)) {
             parseDirective(document);
             continue;
         }
@@ -85,10 +111,8 @@ AstDocument Parser::parseDocumentInternal()
 
 void Parser::parseDirective(AstDocument& document)
 {
-    expect(TokenType::At, "directive");
-
-    if (current_.type != TokenType::Identifier) {
-        error("expected directive name after '@'");
+    if (!isTopLevelDirectiveToken(current_)) {
+        error("expected top-level directive");
         return;
     }
 
@@ -97,7 +121,7 @@ void Parser::parseDirective(AstDocument& document)
 
     if (directive == "import") {
         if (current_.type != TokenType::StringLiteral) {
-            error("expected string literal after '@import'");
+            error("expected string literal after 'import'");
             return;
         }
         document.imports.push_back(current_.text);
@@ -115,7 +139,7 @@ void Parser::parseDirective(AstDocument& document)
         return;
     }
 
-    error("unknown directive '@" + directive + "'");
+    error("unknown directive '" + directive + "'");
 }
 
 AstStyleDefinition Parser::parseStyleDefinition()
@@ -125,7 +149,7 @@ AstStyleDefinition Parser::parseStyleDefinition()
     style.column = current_.column;
 
     if (current_.type != TokenType::Identifier) {
-        error("expected style name after '@style'");
+        error("expected style name after 'style'");
         return style;
     }
 
@@ -169,7 +193,7 @@ AstComponentDefinition Parser::parseComponentDefinition()
     component.column = current_.column;
 
     if (current_.type != TokenType::Identifier) {
-        error("expected component name after '@component'");
+        error("expected component name after 'component'");
         return component;
     }
 
@@ -199,7 +223,7 @@ AstComponentDefinition Parser::parseComponentDefinition()
 
 AstNode Parser::parseNode()
 {
-    if (current_.type == TokenType::At) {
+    if (isControlDirectiveToken(current_)) {
         return parseControlNode();
     }
 
@@ -266,29 +290,29 @@ void Parser::skipNodeBoundary()
 
 AstNode Parser::parseControlNode()
 {
-    const Token atToken = expect(TokenType::At, "control node");
-    if (current_.type != TokenType::Identifier) {
-        error("expected control directive name after '@'");
+    if (!isControlDirectiveToken(current_)) {
+        error("expected control directive");
         return {};
     }
 
-    const std::string directive = current_.text;
+    const Token directiveToken = current_;
+    const std::string directive = directiveToken.text;
     current_ = lexer_.next();
 
     if (directive == "if") {
-        return parseIfNode(atToken.line, atToken.column);
+        return parseIfNode(directiveToken.line, directiveToken.column);
     }
 
     if (directive == "for") {
-        return parseForNode(atToken.line, atToken.column);
+        return parseForNode(directiveToken.line, directiveToken.column);
     }
 
     if (directive == "else" || directive == "elseif") {
-        error("'@" + directive + "' must appear immediately after an @if block");
+        error("'" + directive + "' must appear immediately after an if block");
         return {};
     }
 
-    error("unknown control directive '@" + directive + "'");
+    error("unknown control directive '" + directive + "'");
     return {};
 }
 
@@ -299,51 +323,42 @@ AstNode Parser::parseIfNode(int line, int column)
     node.line = line;
     node.column = column;
 
-    expect(TokenType::LeftParen, "@if directive");
+    expect(TokenType::LeftParen, "if directive");
     if (current_.type != TokenType::BindingLiteral) {
-        error("expected binding expression inside @if(...)");
+        error("expected binding expression inside if(...)");
         return node;
     }
 
     node.controlPath = current_.text;
     current_ = lexer_.next();
-    expect(TokenType::RightParen, "@if directive");
-    node.children = parseControlBlockChildren("@if body");
+    expect(TokenType::RightParen, "if directive");
+    node.children = parseControlBlockChildren("if body");
 
-    while (current_.type == TokenType::At) {
-        const int branchLine = current_.line;
-        const int branchColumn = current_.column;
-        const Token directiveToken = lexer_.peek();
-        if (directiveToken.type != TokenType::Identifier) {
-            break;
-        }
-
-        if (directiveToken.text != "elseif" && directiveToken.text != "else") {
-            break;
-        }
-
-        current_ = lexer_.next();
-        const std::string directive = current_.text;
+    while (isConditionalBranchToken(current_)) {
+        const Token directiveToken = current_;
+        const std::string directive = directiveToken.text;
         current_ = lexer_.next();
 
         if (directive == "elseif") {
             if (!node.conditionalBranches.empty()
                 && !node.conditionalBranches.back().controlPath.has_value()) {
-                error("@elseif cannot appear after @else");
+                error("elseif cannot appear after else");
                 return node;
             }
 
-            node.conditionalBranches.push_back(parseElseIfBranch(branchLine, branchColumn));
+            node.conditionalBranches.push_back(
+                parseElseIfBranch(directiveToken.line, directiveToken.column));
             continue;
         }
 
         if (!node.conditionalBranches.empty()
             && !node.conditionalBranches.back().controlPath.has_value()) {
-            error("duplicate @else branch for @if block");
+            error("duplicate else branch for if block");
             return node;
         }
 
-        node.conditionalBranches.push_back(parseElseBranch(branchLine, branchColumn));
+        node.conditionalBranches.push_back(
+            parseElseBranch(directiveToken.line, directiveToken.column));
         break;
     }
 
@@ -357,30 +372,30 @@ AstNode Parser::parseForNode(int line, int column)
     node.line = line;
     node.column = column;
 
-    expect(TokenType::LeftParen, "@for directive");
+    expect(TokenType::LeftParen, "for directive");
     if (current_.type != TokenType::Identifier) {
-        error("expected loop variable name inside @for(...)");
+        error("expected loop variable name inside for(...)");
         return node;
     }
 
     node.loopVariable = current_.text;
     current_ = lexer_.next();
 
-    if (current_.type != TokenType::Identifier || current_.text != "in") {
-        error("expected 'in' inside @for(...)");
+    if (!isIdentifierText(current_, "in")) {
+        error("expected 'in' inside for(...)");
         return node;
     }
     current_ = lexer_.next();
 
     if (current_.type != TokenType::BindingLiteral) {
-        error("expected binding expression after 'in' inside @for(...)");
+        error("expected binding expression after 'in' inside for(...)");
         return node;
     }
 
     node.controlPath = current_.text;
     current_ = lexer_.next();
-    expect(TokenType::RightParen, "@for directive");
-    node.children = parseControlBlockChildren("@for body");
+    expect(TokenType::RightParen, "for directive");
+    node.children = parseControlBlockChildren("for body");
     return node;
 }
 
@@ -408,16 +423,16 @@ AstNode Parser::parseElseIfBranch(int line, int column)
     node.line = line;
     node.column = column;
 
-    expect(TokenType::LeftParen, "@elseif directive");
+    expect(TokenType::LeftParen, "elseif directive");
     if (current_.type != TokenType::BindingLiteral) {
-        error("expected binding expression inside @elseif(...)");
+        error("expected binding expression inside elseif(...)");
         return node;
     }
 
     node.controlPath = current_.text;
     current_ = lexer_.next();
-    expect(TokenType::RightParen, "@elseif directive");
-    node.children = parseControlBlockChildren("@elseif body");
+    expect(TokenType::RightParen, "elseif directive");
+    node.children = parseControlBlockChildren("elseif body");
     return node;
 }
 
@@ -427,7 +442,7 @@ AstNode Parser::parseElseBranch(int line, int column)
     node.kind = AstNodeKind::IfBlock;
     node.line = line;
     node.column = column;
-    node.children = parseControlBlockChildren("@else body");
+    node.children = parseControlBlockChildren("else body");
     return node;
 }
 
@@ -483,7 +498,7 @@ AstProperty Parser::parseProperty()
 
 core::Value Parser::parseValue()
 {
-    if (current_.type == TokenType::At) {
+    if (isIdentifierText(current_, "res") && lexer_.peek().type == TokenType::LeftParen) {
         return parseValueDirective();
     }
 
@@ -524,10 +539,8 @@ core::Value Parser::parseValue()
 
 core::Value Parser::parseValueDirective()
 {
-    expect(TokenType::At, "value directive");
-
-    if (current_.type != TokenType::Identifier) {
-        error("expected value directive name after '@'");
+    if (!isIdentifierText(current_, "res")) {
+        error("expected value directive");
         return core::Value();
     }
 
@@ -535,14 +548,14 @@ core::Value Parser::parseValueDirective()
     current_ = lexer_.next();
 
     if (directive != "res") {
-        error("unknown value directive '@" + directive + "'");
+        error("unknown value directive '" + directive + "'");
         return core::Value();
     }
 
     expect(TokenType::LeftParen, "resource directive");
 
     if (current_.type != TokenType::StringLiteral) {
-        error("expected string literal inside @res(...)");
+        error("expected string literal inside res(...)");
         return core::Value();
     }
 

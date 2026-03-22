@@ -506,14 +506,14 @@ void LayoutBuilder::appendExpandedNodes(
 
         if (node.isIfBlock()) {
             if (node.controlPath.has_value() && !node.controlPath->empty()) {
-                trackStructuralDependencies(*node.controlPath, node.line, "@if condition", scope);
+                trackStructuralDependencies(*node.controlPath, node.line, "if condition", scope);
             }
             for (const auto& conditionalBranch : node.conditionalBranches) {
                 if (conditionalBranch.controlPath.has_value() && !conditionalBranch.controlPath->empty()) {
                     trackStructuralDependencies(
                         *conditionalBranch.controlPath,
                         conditionalBranch.line,
-                        "@elseif condition",
+                        "elseif condition",
                         scope);
                 }
             }
@@ -522,7 +522,7 @@ void LayoutBuilder::appendExpandedNodes(
                 && evaluateConditionExpression(
                     *node.controlPath,
                     node.line,
-                    "@if condition",
+                    "if condition",
                     scope)) {
                 appendExpandedNodes(node.children, scope, outNodes);
                 continue;
@@ -533,7 +533,7 @@ void LayoutBuilder::appendExpandedNodes(
                     && !evaluateConditionExpression(
                         *conditionalBranch.controlPath,
                         conditionalBranch.line,
-                        "@elseif condition",
+                        "elseif condition",
                         scope)) {
                     continue;
                 }
@@ -549,12 +549,12 @@ void LayoutBuilder::appendExpandedNodes(
                 continue;
             }
 
-            trackStructuralDependencies(*node.controlPath, node.line, "@for source", scope);
+            trackStructuralDependencies(*node.controlPath, node.line, "for source", scope);
 
             auto expression = compileBindingExpression(
                 *node.controlPath,
                 node.line,
-                "@for source",
+                "for source",
                 &warnings_);
             if (!expression) {
                 continue;
@@ -562,7 +562,7 @@ void LayoutBuilder::appendExpandedNodes(
 
             if (!expression->isDirectPath()) {
                 std::ostringstream oss;
-                oss << "@for source '${" << *node.controlPath << "}' at line " << node.line
+                oss << "for source '${" << *node.controlPath << "}' at line " << node.line
                     << " must be a direct array path";
                 warnings_.push_back(oss.str());
                 continue;
@@ -575,7 +575,7 @@ void LayoutBuilder::appendExpandedNodes(
             if (array == nullptr) {
                 if (collectionNode != nullptr) {
                     std::ostringstream oss;
-                    oss << "@for source '" << *node.controlPath << "' at line "
+                    oss << "for source '" << *node.controlPath << "' at line "
                         << node.line << " is not an array";
                     warnings_.push_back(oss.str());
                 }

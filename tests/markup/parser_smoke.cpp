@@ -63,14 +63,14 @@ int main()
 
     {
         const std::string source = R"(
-@import "components/shared.tui"
-@style primaryAction: Button(backgroundColor: #FF336699, borderRadius: 12)
-@component ActionChip(text: ${model.title}): Button(text: text)
+import "components/shared.tui"
+style primaryAction: Button(backgroundColor: #FF336699, borderRadius: 12)
+component ActionChip(text: ${model.title}): Button(text: text)
 VBox(id: "root") {
-    @if(${model.showAdvanced}) {
+    if(${model.showAdvanced}) {
         TextInput(id: "advancedQuery", text: ${model.query})
     },
-    @for(item in ${model.items}) {
+    for(item in ${model.items}) {
         Button(id: ${item.id}, text: ${item.label})
     }
 }
@@ -105,36 +105,36 @@ VBox(id: "root") {
         expect(root.children.size() == 2, "root should contain if/for control nodes");
 
         const markup::AstNode& ifNode = root.children[0];
-        expect(ifNode.isIfBlock(), "first child should be @if block");
+        expect(ifNode.isIfBlock(), "first child should be if block");
         expect(
             ifNode.controlPath.has_value() && *ifNode.controlPath == "model.showAdvanced",
-            "@if control path should preserve model binding");
-        expect(ifNode.children.size() == 1, "@if should keep one child widget");
+            "if control path should preserve model binding");
+        expect(ifNode.children.size() == 1, "if should keep one child widget");
         const markup::AstProperty* ifTextProp = findProperty(ifNode.children.front(), "text");
-        expect(ifTextProp != nullptr, "@if child should preserve text property");
+        expect(ifTextProp != nullptr, "if child should preserve text property");
         expect(
             ifTextProp->bindingPath.has_value() && *ifTextProp->bindingPath == "model.query",
-            "@if child text binding should preserve path");
+            "if child text binding should preserve path");
 
         const markup::AstNode& forNode = root.children[1];
-        expect(forNode.isForBlock(), "second child should be @for block");
-        expect(forNode.loopVariable == "item", "@for loop variable should be preserved");
+        expect(forNode.isForBlock(), "second child should be for block");
+        expect(forNode.loopVariable == "item", "for loop variable should be preserved");
         expect(
             forNode.controlPath.has_value() && *forNode.controlPath == "model.items",
-            "@for control path should preserve collection binding");
-        expect(forNode.children.size() == 1, "@for should keep one template child");
+            "for control path should preserve collection binding");
+        expect(forNode.children.size() == 1, "for should keep one template child");
         const markup::AstNode& loopChild = forNode.children.front();
-        expect(loopChild.isWidget(), "@for child should remain a widget node");
+        expect(loopChild.isWidget(), "for child should remain a widget node");
         const markup::AstProperty* idProp = findProperty(loopChild, "id");
         const markup::AstProperty* textProp = findProperty(loopChild, "text");
-        expect(idProp != nullptr, "@for child should preserve id property");
-        expect(textProp != nullptr, "@for child should preserve text property");
+        expect(idProp != nullptr, "for child should preserve id property");
+        expect(textProp != nullptr, "for child should preserve text property");
         expect(
             idProp->bindingPath.has_value() && *idProp->bindingPath == "item.id",
-            "@for child id binding should preserve loop-scoped path");
+            "for child id binding should preserve loop-scoped path");
         expect(
             textProp->bindingPath.has_value() && *textProp->bindingPath == "item.label",
-            "@for child text binding should preserve loop-scoped path");
+            "for child text binding should preserve loop-scoped path");
     }
 
     {
@@ -145,7 +145,7 @@ VBox(id: "root") {
         text: ${model.prefix + model.suffix},
         style: { borderRadius: ${model.radius * model.scale} }
     ),
-    @if(${model.count > 0 && model.enabled}) {
+    if(${model.count > 0 && model.enabled}) {
         Button(id: "active", text: "Active")
     }
 }
@@ -156,7 +156,7 @@ VBox(id: "root") {
         expect(result.document.root.has_value(), "expression document root should exist");
 
         const markup::AstNode& root = *result.document.root;
-        expect(root.children.size() == 2, "expression document should keep widget and @if nodes");
+        expect(root.children.size() == 2, "expression document should keep widget and if nodes");
 
         const markup::AstNode& buttonNode = root.children.front();
         const markup::AstProperty* textProp = findProperty(buttonNode, "text");
@@ -177,7 +177,7 @@ VBox(id: "root") {
             "parser should preserve raw arithmetic expression text");
 
         const markup::AstNode& ifNode = root.children.back();
-        expect(ifNode.isIfBlock(), "expression document second child should stay @if");
+        expect(ifNode.isIfBlock(), "expression document second child should stay if");
         expect(
             ifNode.controlPath.has_value()
                 && *ifNode.controlPath == "model.count > 0 && model.enabled",
@@ -187,7 +187,7 @@ VBox(id: "root") {
     {
         const std::string invalidIfSource = R"(
 VBox(id: "root") {
-    @if(true) {
+    if(true) {
         Button(text: "broken")
     }
 }
@@ -195,31 +195,43 @@ VBox(id: "root") {
 
         const markup::DocumentParseResult result =
             markup::Parser::parseDocument(invalidIfSource);
-        expect(!result.ok(), "@if should reject non-binding conditions");
+        expect(!result.ok(), "if should reject non-binding conditions");
+    }
+
+    {
+        const std::string legacyDirectiveSource = R"(
+@if(${model.primary}) {
+    Button(text: "broken")
+}
+)";
+
+        const markup::DocumentParseResult result =
+            markup::Parser::parseDocument(legacyDirectiveSource);
+        expect(!result.ok(), "legacy @ directive syntax should be rejected");
     }
 
     {
         const std::string source = R"(
 VBox(id: "root") {
-    @if(${model.primary}) {
+    if(${model.primary}) {
         Button(id: "primary", text: "Primary")
-    } @elseif(${model.secondary}) {
+    } elseif(${model.secondary}) {
         Button(id: "secondary", text: "Secondary")
-    } @else {
+    } else {
         Button(id: "fallback", text: "Fallback")
     }
 }
 )";
 
         const markup::DocumentParseResult result = markup::Parser::parseDocument(source);
-        expect(result.ok(), "@elseif/@else markup should parse");
-        expect(result.document.root.has_value(), "@elseif/@else parse should keep root");
+        expect(result.ok(), "elseif/else markup should parse");
+        expect(result.document.root.has_value(), "elseif/else parse should keep root");
 
         const markup::AstNode& root = *result.document.root;
         expect(root.children.size() == 1, "control-flow chain should remain a single root child");
 
         const markup::AstNode& ifNode = root.children.front();
-        expect(ifNode.isIfBlock(), "@if/@elseif/@else chain should parse as if block");
+        expect(ifNode.isIfBlock(), "if/elseif/else chain should parse as if block");
         expect(
             ifNode.controlPath.has_value() && *ifNode.controlPath == "model.primary",
             "primary branch should preserve control path");
@@ -227,22 +239,22 @@ VBox(id: "root") {
         expect(
             ifNode.conditionalBranches.front().controlPath.has_value()
                 && *ifNode.conditionalBranches.front().controlPath == "model.secondary",
-            "@elseif branch should preserve control path");
+            "elseif branch should preserve control path");
         expect(
             !ifNode.conditionalBranches.back().controlPath.has_value(),
-            "@else branch should not require a control path");
+            "else branch should not require a control path");
         expect(
             ifNode.conditionalBranches.front().children.size() == 1,
-            "@elseif branch should keep one child widget");
+            "elseif branch should keep one child widget");
         expect(
             ifNode.conditionalBranches.back().children.size() == 1,
-            "@else branch should keep one child widget");
+            "else branch should keep one child widget");
     }
 
     {
         const std::string invalidForSource = R"(
 VBox(id: "root") {
-    @for(item ${model.items}) {
+    for(item ${model.items}) {
         Button(text: "broken")
     }
 }
@@ -250,7 +262,7 @@ VBox(id: "root") {
 
         const markup::DocumentParseResult result =
             markup::Parser::parseDocument(invalidForSource);
-        expect(!result.ok(), "@for should reject missing 'in' keyword");
+        expect(!result.ok(), "for should reject missing 'in' keyword");
     }
 
     return 0;

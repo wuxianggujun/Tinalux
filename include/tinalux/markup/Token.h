@@ -20,7 +20,6 @@ enum class TokenType : std::uint8_t {
     RightBrace,
     Colon,
     Comma,
-    At,
 
     EndOfFile,
     Error,

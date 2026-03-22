@@ -30,7 +30,6 @@ Token Lexer::next()
     if (ch == '}') { advance(); return makeToken(TokenType::RightBrace, "}"); }
     if (ch == ':') { advance(); return makeToken(TokenType::Colon, ":"); }
     if (ch == ',') { advance(); return makeToken(TokenType::Comma, ","); }
-    if (ch == '@') { advance(); return makeToken(TokenType::At, "@"); }
 
     if (ch == '#') {
         return readColor();

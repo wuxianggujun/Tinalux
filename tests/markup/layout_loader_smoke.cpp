@@ -60,51 +60,51 @@ int main()
     {
         const std::string source = R"(
 VBox(id: "root") {
-    Button(id: "cta", text: "Ship", icon: @res("assets/icons/ship.png")),
-    TextInput(id: "query", placeholder: "Search", leadingIcon: @res("assets/icons/search.png")),
-    ImageWidget(id: "hero", source: @res("assets/images/hero.png"), fit: Cover, opacity: 0.75)
+    Button(id: "cta", text: "Ship", icon: res("assets/icons/ship.png")),
+    TextInput(id: "query", placeholder: "Search", leadingIcon: res("assets/icons/search.png")),
+    ImageWidget(id: "hero", source: res("assets/images/hero.png"), fit: Cover, opacity: 0.75)
 }
 )";
 
         const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
-        expectLoadOk(result, "@res should work in inline markup");
-        expect(result.warnings.empty(), "inline @res smoke should not emit warnings");
+        expectLoadOk(result, "res should work in inline markup");
+        expect(result.warnings.empty(), "inline res smoke should not emit warnings");
 
         const ui::Button* button = result.handle.findById<ui::Button>("cta");
-        expect(button != nullptr, "Button with @res icon should be discoverable by id");
+        expect(button != nullptr, "Button with res icon should be discoverable by id");
         expect(
             button->iconPath() == "assets/icons/ship.png",
-            "inline @res should preserve relative path text");
+            "inline res should preserve relative path text");
 
         const ui::TextInput* input = result.handle.findById<ui::TextInput>("query");
-        expect(input != nullptr, "TextInput with @res icon should be discoverable by id");
+        expect(input != nullptr, "TextInput with res icon should be discoverable by id");
         expect(
             input->leadingIconPath() == "assets/icons/search.png",
-            "inline @res should preserve TextInput icon path");
+            "inline res should preserve TextInput icon path");
 
         const ui::ImageWidget* hero = result.handle.findById<ui::ImageWidget>("hero");
         expect(hero != nullptr, "ImageWidget should be constructible from markup");
         expect(
             hero->imagePath() == "assets/images/hero.png",
-            "inline @res should feed ImageWidget source");
+            "inline res should feed ImageWidget source");
         expect(hero->fit() == ui::ImageFit::Cover, "ImageWidget fit should be parsed");
         expect(nearlyEqual(hero->opacity(), 0.75f), "ImageWidget opacity should be parsed");
     }
 
     {
         const std::string source = R"(
-@style primaryAction: Button(
+style primaryAction: Button(
     backgroundColor: #FF336699,
     textColor: #FFF5F7FA,
     paddingHorizontal: 20,
     paddingVertical: 12
 )
-@style searchFieldBase: TextInput(
+style searchFieldBase: TextInput(
     backgroundColor: #FFF0F4F8,
     borderColor: #FF336699,
     borderRadius: 12
 )
-@style searchField: TextInput(
+style searchField: TextInput(
     style: searchFieldBase,
     borderRadius: 18,
     minWidth: 320
@@ -177,22 +177,22 @@ VBox(id: "root") {
             std::filesystem::create_directories(sharedPath.parent_path() / "icons");
             std::ofstream shared(sharedPath);
             shared << R"(
-@style importedPanel: Panel(
+style importedPanel: Panel(
     backgroundColor: #FF102030,
     cornerRadius: 14
 )
-@component SharedSearchButton: Button(text: "Search", icon: @res("icons/search.png"))
-@component SearchCard: Panel(style: importedPanel) {
+component SharedSearchButton: Button(text: "Search", icon: res("icons/search.png"))
+component SearchCard: Panel(style: importedPanel) {
     Label(text: "Shared title")
 }
-@component SharedPicker: Dropdown(placeholder: "Shared choice", maxVisibleItems: 4, selectedIndex: -1)
+component SharedPicker: Dropdown(placeholder: "Shared choice", maxVisibleItems: 4, selectedIndex: -1)
 )";
         }
 
         {
             std::ofstream layout(layoutPath);
             layout << R"(
-@import "components/shared.tui"
+import "components/shared.tui"
 VBox(id: "root") {
     Panel(id: "card", style: importedPanel),
     SharedSearchButton(id: "searchButton"),
@@ -231,14 +231,14 @@ VBox(id: "root") {
             "component template children should be attached to imported component instance");
 
         const ui::Button* sharedSearchButton = result.handle.findById<ui::Button>("searchButton");
-        expect(sharedSearchButton != nullptr, "imported component with @res icon should resolve to Button root");
+        expect(sharedSearchButton != nullptr, "imported component with res icon should resolve to Button root");
         const std::string expectedImportedIconPath = std::filesystem::weakly_canonical(
             sharedPath.parent_path() / "icons" / "search.png").generic_string();
         const std::string actualImportedIconPath = std::filesystem::weakly_canonical(
             std::filesystem::path(sharedSearchButton->iconPath())).generic_string();
         if (actualImportedIconPath != expectedImportedIconPath) {
             std::cerr
-                << "imported component @res path should resolve relative to defining file\n"
+                << "imported component res path should resolve relative to defining file\n"
                 << "expected: " << expectedImportedIconPath << '\n'
                 << "actual:   " << actualImportedIconPath << '\n';
             std::exit(1);
@@ -284,7 +284,7 @@ VBox(id: "root") {
 
     {
         const std::string source = R"(
-@component FormField(placeholder: "Base placeholder", maxVisibleItems: 5): Dropdown(
+component FormField(placeholder: "Base placeholder", maxVisibleItems: 5): Dropdown(
     placeholder: placeholder,
     maxVisibleItems: maxVisibleItems,
     selectedIndex: -1
@@ -320,7 +320,7 @@ VBox(id: "root") {
 
     {
         const std::string source = R"(
-@component AccentButton(accent: #FF336699): Button(
+component AccentButton(accent: #FF336699): Button(
     text: "Styled",
     style: {
         backgroundColor: accent,
@@ -358,7 +358,7 @@ VBox(id: "root") {
 
     {
         const std::string source = R"(
-@component CardShell: Panel(id: "shell") {
+component CardShell: Panel(id: "shell") {
     Slot()
 }
 CardShell(id: "card") {
@@ -378,7 +378,7 @@ CardShell(id: "card") {
 
     {
         const std::string source = R"(
-@component StaticShell: Panel(id: "shell")
+component StaticShell: Panel(id: "shell")
 StaticShell(id: "card") {
     Button(id: "inside", text: "OK")
 }
@@ -401,7 +401,7 @@ StaticShell(id: "card") {
 
     {
         const std::string source = R"(
-@component DialogFrame: Panel(id: "frame") {
+component DialogFrame: Panel(id: "frame") {
     Panel(id: "bodyHost") {
         Slot(name: body)
     },
@@ -436,7 +436,7 @@ DialogFrame(id: "dialog") {
 
     {
         const std::string source = R"(
-@component FooterShell: Panel(id: "shell") {
+component FooterShell: Panel(id: "shell") {
     Slot(name: footer) {
         Button(id: "fallbackBtn", text: "Cancel")
     }
