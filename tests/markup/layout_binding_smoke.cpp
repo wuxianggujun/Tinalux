@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
@@ -9,13 +10,16 @@
 #include "tinalux/core/events/Event.h"
 #include "tinalux/markup/LayoutLoader.h"
 #include "tinalux/markup/ViewModel.h"
+#include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Button.h"
 #include "tinalux/ui/Checkbox.h"
 #include "tinalux/ui/Dropdown.h"
+#include "tinalux/ui/IconRegistry.h"
 #include "tinalux/ui/Label.h"
 #include "tinalux/ui/ListView.h"
 #include "tinalux/ui/Panel.h"
 #include "tinalux/ui/ProgressBar.h"
+#include "tinalux/ui/Radio.h"
 #include "tinalux/ui/RichText.h"
 #include "tinalux/ui/ScrollView.h"
 #include "tinalux/ui/Slider.h"
@@ -52,6 +56,22 @@ void expectLoadOk(
         std::cerr << "error: " << error << '\n';
     }
     std::exit(1);
+}
+
+tinalux::rendering::Image solidIconImage(
+    int width,
+    int height,
+    std::uint8_t red,
+    std::uint8_t green,
+    std::uint8_t blue)
+{
+    std::vector<std::uint8_t> rgba(static_cast<std::size_t>(width * height * 4), 255u);
+    for (std::size_t index = 0; index < rgba.size(); index += 4) {
+        rgba[index] = red;
+        rgba[index + 1] = green;
+        rgba[index + 2] = blue;
+    }
+    return tinalux::rendering::createImageFromRGBA(width, height, rgba);
 }
 
 } // namespace
@@ -849,6 +869,89 @@ VBox(id: root) {
         expect(
             echoField->text() == "resynced",
             "dependent TextInput should resync from source after later source updates");
+    }
+
+    {
+        ui::IconRegistry::instance().clear();
+        ui::IconRegistry::instance().registerIconFactory(ui::IconType::Search, [](float) {
+            return solidIconImage(17, 17, 32, 96, 192);
+        });
+        ui::IconRegistry::instance().registerIconFactory(ui::IconType::Clear, [](float) {
+            return solidIconImage(19, 19, 192, 64, 64);
+        });
+        ui::IconRegistry::instance().registerIconFactory(ui::IconType::ArrowDown, [](float) {
+            return solidIconImage(13, 13, 80, 120, 200);
+        });
+        ui::IconRegistry::instance().registerIconFactory(ui::IconType::Check, [](float) {
+            return solidIconImage(11, 11, 48, 160, 96);
+        });
+        ui::IconRegistry::instance().registerIconFactory(ui::IconType::User, [](float) {
+            return solidIconImage(23, 23, 180, 120, 40);
+        });
+        ui::IconRegistry::instance().registerIconFactory(ui::IconType::Refresh, [](float) {
+            return solidIconImage(29, 29, 64, 168, 208);
+        });
+        ui::IconRegistry::instance().registerIconFactory(ui::IconType::Lock, [](float) {
+            return solidIconImage(31, 31, 120, 96, 192);
+        });
+        ui::IconRegistry::instance().registerIconFactory(ui::IconType::Close, [](float) {
+            return solidIconImage(7, 7, 255, 255, 255);
+        });
+
+        const std::string source = R"(
+VBox(id: root) {
+    Button(id: cta, text: "Ship", icon: ${model.buttonIcon}),
+    TextInput(id: query, placeholder: "Search", leadingIcon: ${model.leadingIcon}, trailingIcon: ${model.trailingIcon}),
+    Dropdown(id: picker, items: ["One"], indicatorIcon: ${model.indicatorIcon}),
+    Checkbox(id: remember, label: "Remember", checked: true, checkmarkIcon: ${model.checkmarkIcon}),
+    Radio(id: choice, label: "Mode A", group: "mode", selected: true, selectionIcon: ${model.selectionIcon})
+}
+)";
+
+        markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "enum icon binding markup should load");
+        expect(result.warnings.empty(), "enum icon binding markup should not emit warnings");
+
+        auto viewModel = markup::ViewModel::create();
+        viewModel->setEnum("buttonIcon", "Search");
+        viewModel->setEnum("leadingIcon", "Search");
+        viewModel->setEnum("trailingIcon", "Clear");
+        viewModel->setEnum("indicatorIcon", "ArrowDown");
+        viewModel->setEnum("checkmarkIcon", "Check");
+        viewModel->setEnum("selectionIcon", "User");
+        result.handle.bindViewModel(viewModel);
+
+        ui::Button* cta = result.handle.findById<ui::Button>("cta");
+        ui::TextInput* query = result.handle.findById<ui::TextInput>("query");
+        ui::Dropdown* picker = result.handle.findById<ui::Dropdown>("picker");
+        ui::Checkbox* remember = result.handle.findById<ui::Checkbox>("remember");
+        ui::Radio* choice = result.handle.findById<ui::Radio>("choice");
+
+        expect(cta != nullptr, "enum icon binding Button should exist");
+        expect(query != nullptr, "enum icon binding TextInput should exist");
+        expect(picker != nullptr, "enum icon binding Dropdown should exist");
+        expect(remember != nullptr, "enum icon binding Checkbox should exist");
+        expect(choice != nullptr, "enum icon binding Radio should exist");
+        expect(nearlyEqual(cta->icon().size().width(), 17.0f), "Button enum icon binding should apply initial icon");
+        expect(nearlyEqual(query->leadingIcon().size().width(), 17.0f), "TextInput leading enum icon binding should apply initial icon");
+        expect(nearlyEqual(query->trailingIcon().size().width(), 19.0f), "TextInput trailing enum icon binding should apply initial icon");
+        expect(nearlyEqual(picker->indicatorIcon().size().width(), 13.0f), "Dropdown enum icon binding should apply initial icon");
+        expect(nearlyEqual(remember->checkmarkIcon().size().width(), 11.0f), "Checkbox enum icon binding should apply initial icon");
+        expect(nearlyEqual(choice->selectionIcon().size().width(), 23.0f), "Radio enum icon binding should apply initial icon");
+
+        viewModel->setEnum("buttonIcon", "Refresh");
+        viewModel->setEnum("leadingIcon", "Lock");
+        viewModel->setEnum("trailingIcon", "Close");
+        viewModel->setEnum("indicatorIcon", "Refresh");
+        viewModel->setEnum("checkmarkIcon", "Close");
+        viewModel->setEnum("selectionIcon", "Search");
+
+        expect(nearlyEqual(cta->icon().size().width(), 29.0f), "Button enum icon binding should live-update");
+        expect(nearlyEqual(query->leadingIcon().size().width(), 31.0f), "TextInput leading enum icon binding should live-update");
+        expect(nearlyEqual(query->trailingIcon().size().width(), 7.0f), "TextInput trailing enum icon binding should live-update");
+        expect(nearlyEqual(picker->indicatorIcon().size().width(), 29.0f), "Dropdown enum icon binding should live-update");
+        expect(nearlyEqual(remember->checkmarkIcon().size().width(), 7.0f), "Checkbox enum icon binding should live-update");
+        expect(nearlyEqual(choice->selectionIcon().size().width(), 17.0f), "Radio enum icon binding should live-update");
     }
 
     {

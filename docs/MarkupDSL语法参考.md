@@ -110,6 +110,23 @@ VBox(12, 8) {
 Button(text: "Deploy", icon: res("icons/deploy.png"))
 ```
 
+图标类属性现在同时支持资源路径和内置图标枚举：
+
+```tui
+Button(text: "Search", icon: Search)
+TextInput(placeholder: "Query", leadingIcon: Search, trailingIcon: Clear)
+Dropdown(placeholder: "Pick one", indicatorIcon: ArrowDown)
+```
+
+当前已经接通内置图标枚举的常用属性包括：
+
+- `Button.icon`
+- `TextInput.leadingIcon`
+- `TextInput.trailingIcon`
+- `Dropdown.indicatorIcon`
+- `Checkbox.checkmarkIcon`
+- `Radio.selectionIcon`
+
 也支持混写：
 
 ```tui

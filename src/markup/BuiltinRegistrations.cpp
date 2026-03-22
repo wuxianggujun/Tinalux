@@ -145,6 +145,26 @@ std::optional<ui::IconType> parseIconType(std::string_view name)
     return std::nullopt;
 }
 
+template <typename WidgetT, typename IconSetter, typename PathLoader>
+void applyIconSource(
+    WidgetT& widget,
+    const core::Value& value,
+    IconSetter iconSetter,
+    PathLoader pathLoader)
+{
+    if (value.type() == core::ValueType::Enum) {
+        const std::optional<ui::IconType> iconType = parseIconType(value.asString());
+        if (iconType.has_value()) {
+            iconSetter(widget, *iconType);
+        }
+        return;
+    }
+
+    if (value.type() == core::ValueType::String) {
+        pathLoader(widget, value.asString());
+    }
+}
+
 } // namespace
 
 void registerBuiltinTypes()
@@ -793,9 +813,17 @@ void registerBuiltinTypes()
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::Button&>(w).setLabel(v.asString());
                 }},
-            {"icon", core::ValueType::String,
+            {"icon", core::ValueType::None,
                 [](ui::Widget& w, const core::Value& v) {
-                    static_cast<ui::Button&>(w).loadIconAsync(v.asString());
+                    applyIconSource(
+                        static_cast<ui::Button&>(w),
+                        v,
+                        [](ui::Button& button, ui::IconType iconType) {
+                            button.setIcon(iconType, 0.0f);
+                        },
+                        [](ui::Button& button, const std::string& path) {
+                            button.loadIconAsync(path);
+                        });
                 }},
             {"iconPlacement", core::ValueType::Enum,
                 [](ui::Widget& w, const core::Value& v) {
@@ -982,13 +1010,29 @@ void registerBuiltinTypes()
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::TextInput&>(w).setObscured(v.asBool());
                 }},
-            {"leadingIcon", core::ValueType::String,
+            {"leadingIcon", core::ValueType::None,
                 [](ui::Widget& w, const core::Value& v) {
-                    static_cast<ui::TextInput&>(w).loadLeadingIconAsync(v.asString());
+                    applyIconSource(
+                        static_cast<ui::TextInput&>(w),
+                        v,
+                        [](ui::TextInput& input, ui::IconType iconType) {
+                            input.setLeadingIcon(iconType, 0.0f);
+                        },
+                        [](ui::TextInput& input, const std::string& path) {
+                            input.loadLeadingIconAsync(path);
+                        });
                 }},
-            {"trailingIcon", core::ValueType::String,
+            {"trailingIcon", core::ValueType::None,
                 [](ui::Widget& w, const core::Value& v) {
-                    static_cast<ui::TextInput&>(w).loadTrailingIconAsync(v.asString());
+                    applyIconSource(
+                        static_cast<ui::TextInput&>(w),
+                        v,
+                        [](ui::TextInput& input, ui::IconType iconType) {
+                            input.setTrailingIcon(iconType, 0.0f);
+                        },
+                        [](ui::TextInput& input, const std::string& path) {
+                            input.loadTrailingIconAsync(path);
+                        });
                 }},
         },
         .styleProperties = {
@@ -1189,9 +1233,17 @@ void registerBuiltinTypes()
                 [](const ui::Widget& w) -> std::optional<core::Value> {
                     return core::Value(static_cast<const ui::Dropdown&>(w).selectedIndex());
                 }},
-            {"indicatorIcon", core::ValueType::String,
+            {"indicatorIcon", core::ValueType::None,
                 [](ui::Widget& w, const core::Value& v) {
-                    static_cast<ui::Dropdown&>(w).loadIndicatorIconAsync(v.asString());
+                    applyIconSource(
+                        static_cast<ui::Dropdown&>(w),
+                        v,
+                        [](ui::Dropdown& dropdown, ui::IconType iconType) {
+                            dropdown.setIndicatorIcon(iconType, 0.0f);
+                        },
+                        [](ui::Dropdown& dropdown, const std::string& path) {
+                            dropdown.loadIndicatorIconAsync(path);
+                        });
                 }},
         },
         .interactions = {
@@ -1229,9 +1281,17 @@ void registerBuiltinTypes()
                 [](const ui::Widget& w) -> std::optional<core::Value> {
                     return core::Value(static_cast<const ui::Checkbox&>(w).checked());
                 }},
-            {"checkmarkIcon", core::ValueType::String,
+            {"checkmarkIcon", core::ValueType::None,
                 [](ui::Widget& w, const core::Value& v) {
-                    static_cast<ui::Checkbox&>(w).loadCheckmarkIconAsync(v.asString());
+                    applyIconSource(
+                        static_cast<ui::Checkbox&>(w),
+                        v,
+                        [](ui::Checkbox& checkbox, ui::IconType iconType) {
+                            checkbox.setCheckmarkIcon(iconType, 0.0f);
+                        },
+                        [](ui::Checkbox& checkbox, const std::string& path) {
+                            checkbox.loadCheckmarkIconAsync(path);
+                        });
                 }},
         },
         .interactions = {
@@ -1276,9 +1336,17 @@ void registerBuiltinTypes()
                 [](const ui::Widget& w) -> std::optional<core::Value> {
                     return core::Value(static_cast<const ui::Radio&>(w).selected());
                 }},
-            {"selectionIcon", core::ValueType::String,
+            {"selectionIcon", core::ValueType::None,
                 [](ui::Widget& w, const core::Value& v) {
-                    static_cast<ui::Radio&>(w).loadSelectionIconAsync(v.asString());
+                    applyIconSource(
+                        static_cast<ui::Radio&>(w),
+                        v,
+                        [](ui::Radio& radio, ui::IconType iconType) {
+                            radio.setSelectionIcon(iconType, 0.0f);
+                        },
+                        [](ui::Radio& radio, const std::string& path) {
+                            radio.loadSelectionIconAsync(path);
+                        });
                 }},
         },
         .interactions = {

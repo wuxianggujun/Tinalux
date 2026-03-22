@@ -1,12 +1,14 @@
 #include <array>
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "../../src/ui/RuntimeState.h"
 #include "tinalux/core/Geometry.h"
@@ -22,6 +24,7 @@
 #include "tinalux/ui/ListView.h"
 #include "tinalux/ui/Panel.h"
 #include "tinalux/ui/ProgressBar.h"
+#include "tinalux/ui/Radio.h"
 #include "tinalux/ui/RichText.h"
 #include "tinalux/ui/ScrollView.h"
 #include "tinalux/ui/Slider.h"
@@ -57,6 +60,22 @@ void expectLoadOk(
         std::cerr << "error: " << error << '\n';
     }
     std::exit(1);
+}
+
+tinalux::rendering::Image solidIconImage(
+    int width,
+    int height,
+    std::uint8_t red,
+    std::uint8_t green,
+    std::uint8_t blue)
+{
+    std::vector<std::uint8_t> rgba(static_cast<std::size_t>(width * height * 4), 255u);
+    for (std::size_t index = 0; index < rgba.size(); index += 4) {
+        rgba[index] = red;
+        rgba[index + 1] = green;
+        rgba[index + 2] = blue;
+    }
+    return tinalux::rendering::createImageFromRGBA(width, height, rgba);
 }
 
 } // namespace
@@ -357,14 +376,32 @@ VBox(id: root) {
 
     {
         ui::IconRegistry::instance().clear();
+        ui::IconRegistry::instance().registerIconFactory(ui::IconType::Search, [](float) {
+            return solidIconImage(17, 17, 32, 96, 192);
+        });
+        ui::IconRegistry::instance().registerIconFactory(ui::IconType::Clear, [](float) {
+            return solidIconImage(19, 19, 192, 64, 64);
+        });
+        ui::IconRegistry::instance().registerIconFactory(ui::IconType::ArrowDown, [](float) {
+            return solidIconImage(13, 13, 80, 120, 200);
+        });
+        ui::IconRegistry::instance().registerIconFactory(ui::IconType::Check, [](float) {
+            return solidIconImage(11, 11, 48, 160, 96);
+        });
+        ui::IconRegistry::instance().registerIconFactory(ui::IconType::User, [](float) {
+            return solidIconImage(23, 23, 180, 120, 40);
+        });
         ui::IconRegistry::instance().registerIconFactory(ui::IconType::Close, [](float) {
-            const std::array<std::uint8_t, 4> rgba {255, 255, 255, 255};
-            return rendering::createImageFromRGBA(1, 1, rgba);
+            return solidIconImage(7, 7, 255, 255, 255);
         });
 
         const std::string source = R"(
 VBox(id: root) {
-    Button(id: cta, "Ship", iconPlacement: End, iconWidth: 18, iconHeight: 12),
+    Button(id: cta, "Ship", icon: Search, iconPlacement: End, iconWidth: 18, iconHeight: 12),
+    TextInput(id: query, placeholder: "Search", leadingIcon: Search, trailingIcon: Clear),
+    Dropdown(id: picker, placeholder: "Pick one", indicatorIcon: ArrowDown),
+    Checkbox(id: remember, label: "Remember", checked: true, checkmarkIcon: Check),
+    Radio(id: choice, label: "Mode A", group: "mode", selected: true, selectionIcon: User),
     Dialog(
         id: confirm,
         "Confirm",
@@ -398,11 +435,41 @@ VBox(id: root) {
 
         const ui::Button* cta = result.handle.findById<ui::Button>("cta");
         expect(cta != nullptr, "Button should materialize with extended properties");
+        expect(static_cast<bool>(cta->icon()), "Button enum icon should materialize an icon image");
+        expect(cta->iconPath().empty(), "Button enum icon should not be treated as an async path");
+        expect(nearlyEqual(cta->icon().size().width(), 17.0f), "Button enum icon should resolve through IconRegistry");
         expect(
             cta->iconPlacement() == ui::ButtonIconPlacement::End,
             "Button iconPlacement should be parsed");
         expect(nearlyEqual(cta->iconSize().width(), 18.0f), "Button iconWidth should be parsed");
         expect(nearlyEqual(cta->iconSize().height(), 12.0f), "Button iconHeight should be parsed");
+
+        const ui::TextInput* query = result.handle.findById<ui::TextInput>("query");
+        expect(query != nullptr, "TextInput should materialize with enum icons");
+        expect(static_cast<bool>(query->leadingIcon()), "TextInput leading enum icon should materialize");
+        expect(static_cast<bool>(query->trailingIcon()), "TextInput trailing enum icon should materialize");
+        expect(query->leadingIconPath().empty(), "TextInput leading enum icon should not be treated as a path");
+        expect(query->trailingIconPath().empty(), "TextInput trailing enum icon should not be treated as a path");
+        expect(nearlyEqual(query->leadingIcon().size().width(), 17.0f), "TextInput leading enum icon should resolve through IconRegistry");
+        expect(nearlyEqual(query->trailingIcon().size().width(), 19.0f), "TextInput trailing enum icon should resolve through IconRegistry");
+
+        const ui::Dropdown* picker = result.handle.findById<ui::Dropdown>("picker");
+        expect(picker != nullptr, "Dropdown should materialize with enum indicator icon");
+        expect(static_cast<bool>(picker->indicatorIcon()), "Dropdown indicator enum icon should materialize");
+        expect(picker->indicatorIconPath().empty(), "Dropdown indicator enum icon should not be treated as a path");
+        expect(nearlyEqual(picker->indicatorIcon().size().width(), 13.0f), "Dropdown indicator enum icon should resolve through IconRegistry");
+
+        const ui::Checkbox* remember = result.handle.findById<ui::Checkbox>("remember");
+        expect(remember != nullptr, "Checkbox should materialize with enum checkmark icon");
+        expect(static_cast<bool>(remember->checkmarkIcon()), "Checkbox enum checkmark icon should materialize");
+        expect(remember->checkmarkIconPath().empty(), "Checkbox enum checkmark icon should not be treated as a path");
+        expect(nearlyEqual(remember->checkmarkIcon().size().width(), 11.0f), "Checkbox enum checkmark icon should resolve through IconRegistry");
+
+        const ui::Radio* choice = result.handle.findById<ui::Radio>("choice");
+        expect(choice != nullptr, "Radio should materialize with enum selection icon");
+        expect(static_cast<bool>(choice->selectionIcon()), "Radio enum selection icon should materialize");
+        expect(choice->selectionIconPath().empty(), "Radio enum selection icon should not be treated as a path");
+        expect(nearlyEqual(choice->selectionIcon().size().width(), 23.0f), "Radio enum selection icon should resolve through IconRegistry");
 
         const ui::Dialog* confirm = result.handle.findById<ui::Dialog>("confirm");
         expect(confirm != nullptr, "Dialog should materialize with extended properties");
