@@ -17,6 +17,7 @@
 #include "tinalux/ui/Label.h"
 #include "tinalux/ui/ListView.h"
 #include "tinalux/ui/Panel.h"
+#include "tinalux/ui/ProgressBar.h"
 #include "tinalux/ui/RichText.h"
 #include "tinalux/ui/ScrollView.h"
 #include "tinalux/ui/Slider.h"
@@ -223,6 +224,74 @@ VBox(id: root, 10) {
                 && summary->style()->body.textColor.value() == core::Color(0xFF224466u),
             "RichText style block should override body textColor");
         expect(summary->style()->body.textStyle.bold, "RichText style block should override body bold");
+    }
+
+    {
+        const std::string source = R"(
+VBox(id: root) {
+    Panel(id: hiddenPanel, visible: false) {
+        Label(text: "Hidden")
+    },
+    Button(id: disabledButton, text: "Disabled", enabled: false),
+    ProgressBar(id: progress, value: 150, min: 100, max: 200, preferredWidth: 280)
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "static visibility, enabled state, and progress range markup should load");
+        expect(result.warnings.empty(), "static visibility, enabled state, and progress range markup should not emit warnings");
+
+        const ui::Panel* hiddenPanel = result.handle.findById<ui::Panel>("hiddenPanel");
+        expect(hiddenPanel != nullptr, "hidden Panel should materialize from markup");
+        expect(!hiddenPanel->visible(), "visible: false should keep widget materialized but hidden");
+
+        const ui::Button* disabledButton = result.handle.findById<ui::Button>("disabledButton");
+        expect(disabledButton != nullptr, "disabled Button should materialize from markup");
+        expect(!disabledButton->enabled(), "enabled: false should disable the widget");
+
+        const ui::ProgressBar* progress = result.handle.findById<ui::ProgressBar>("progress");
+        expect(progress != nullptr, "ProgressBar should materialize from markup");
+        expect(nearlyEqual(progress->min(), 100.0f), "ProgressBar min should be parsed");
+        expect(nearlyEqual(progress->max(), 200.0f), "ProgressBar max should be parsed");
+        expect(nearlyEqual(progress->value(), 150.0f), "ProgressBar value should be applied after range properties");
+        expect(nearlyEqual(progress->preferredWidth(), 280.0f), "ProgressBar preferredWidth should be parsed");
+    }
+
+    {
+        const std::string source = R"(
+VBox(id: root) {
+    TextInput(id: assignedSelection, text: "Alpha", selectedText: "manual"),
+    TextInput(id: boundSelection, text: "Beta", selectedText: ${model.selection})
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "read-only selectedText markup should still load");
+        expect(
+            std::any_of(
+                result.warnings.begin(),
+                result.warnings.end(),
+                [](const std::string& warning) {
+                    return warning.find("property 'selectedText' on 'TextInput' is read-only and cannot be assigned")
+                        != std::string::npos;
+                }),
+            "read-only assignment warning should mention selectedText");
+        expect(
+            std::any_of(
+                result.warnings.begin(),
+                result.warnings.end(),
+                [](const std::string& warning) {
+                    return warning.find("property 'selectedText' on 'TextInput' is read-only and cannot be bound")
+                        != std::string::npos;
+                }),
+            "read-only binding warning should mention selectedText");
+
+        const ui::TextInput* assignedSelection = result.handle.findById<ui::TextInput>("assignedSelection");
+        const ui::TextInput* boundSelection = result.handle.findById<ui::TextInput>("boundSelection");
+        expect(assignedSelection != nullptr, "read-only assignment input should materialize");
+        expect(boundSelection != nullptr, "read-only binding input should materialize");
+        expect(assignedSelection->selectedText().empty(), "read-only assignment should be ignored");
+        expect(boundSelection->selectedText().empty(), "read-only binding should be ignored");
     }
 
     {

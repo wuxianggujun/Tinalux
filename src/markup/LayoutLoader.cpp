@@ -511,6 +511,18 @@ void LayoutHandle::bindClick(const std::string& id, std::function<void()> handle
         });
 }
 
+void LayoutHandle::bindDismiss(const std::string& id, std::function<void()> handler)
+{
+    bindInteraction(
+        id,
+        "dismiss",
+        [handler = std::move(handler)](const core::Value&) {
+            if (handler) {
+                handler();
+            }
+        });
+}
+
 void LayoutHandle::bindToggle(const std::string& id, std::function<void(bool)> handler)
 {
     bindInteraction(
@@ -531,6 +543,30 @@ void LayoutHandle::bindTextChanged(const std::string& id, std::function<void(con
         [handler = std::move(handler)](const core::Value& value) {
             if (handler) {
                 handler(value.asString());
+            }
+        });
+}
+
+void LayoutHandle::bindLeadingIconClick(const std::string& id, std::function<void()> handler)
+{
+    bindInteraction(
+        id,
+        "leadingIconClick",
+        [handler = std::move(handler)](const core::Value&) {
+            if (handler) {
+                handler();
+            }
+        });
+}
+
+void LayoutHandle::bindTrailingIconClick(const std::string& id, std::function<void()> handler)
+{
+    bindInteraction(
+        id,
+        "trailingIconClick",
+        [handler = std::move(handler)](const core::Value&) {
+            if (handler) {
+                handler();
             }
         });
 }

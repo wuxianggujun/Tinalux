@@ -1076,6 +1076,28 @@ void registerBuiltinTypes()
                             }
                         });
                 }),
+            makeInteraction<ui::TextInput>(
+                "leadingIconClick",
+                "",
+                core::ValueType::None,
+                [](ui::TextInput& input, core::InteractionHandler handler) {
+                    input.onLeadingIconClick([handler = std::move(handler)] {
+                        if (handler) {
+                            handler(core::Value());
+                        }
+                    });
+                }),
+            makeInteraction<ui::TextInput>(
+                "trailingIconClick",
+                "",
+                core::ValueType::None,
+                [](ui::TextInput& input, core::InteractionHandler handler) {
+                    input.onTrailingIconClick([handler = std::move(handler)] {
+                        if (handler) {
+                            handler(core::Value());
+                        }
+                    });
+                }),
         },
         .markupPositionalProperties = {"placeholder", "text", "obscured", "leadingIcon", "trailingIcon"},
     });
@@ -1408,22 +1430,63 @@ void registerBuiltinTypes()
             {"value", core::ValueType::Float,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::ProgressBar&>(w).setValue(v.asNumber());
-                }},
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ProgressBar&>(w).value());
+                },
+                1},
+            {"min", core::ValueType::Float,
+                [](ui::Widget& w, const core::Value& v) {
+                    auto& progressBar = static_cast<ui::ProgressBar&>(w);
+                    progressBar.setRange(v.asNumber(), progressBar.max());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ProgressBar&>(w).min());
+                },
+                0},
+            {"max", core::ValueType::Float,
+                [](ui::Widget& w, const core::Value& v) {
+                    auto& progressBar = static_cast<ui::ProgressBar&>(w);
+                    progressBar.setRange(progressBar.min(), v.asNumber());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ProgressBar&>(w).max());
+                },
+                0},
             {"indeterminate", core::ValueType::Bool,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::ProgressBar&>(w).setIndeterminate(v.asBool());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ProgressBar&>(w).indeterminate());
                 }},
             {"color", core::ValueType::Color,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::ProgressBar&>(w).setColor(v.asColor());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ProgressBar&>(w).color());
                 }},
             {"backgroundColor", core::ValueType::Color,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::ProgressBar&>(w).setBackgroundColor(v.asColor());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ProgressBar&>(w).backgroundColor());
                 }},
             {"height", core::ValueType::Float,
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::ProgressBar&>(w).setHeight(v.asNumber());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ProgressBar&>(w).height());
+                }},
+            {"preferredWidth", core::ValueType::Float,
+                [](ui::Widget& w, const core::Value& v) {
+                    static_cast<ui::ProgressBar&>(w).setPreferredWidth(v.asNumber());
+                },
+                [](const ui::Widget& w) -> std::optional<core::Value> {
+                    return core::Value(static_cast<const ui::ProgressBar&>(w).preferredWidth());
                 }},
         },
         .styleProperties = {
@@ -1446,7 +1509,7 @@ void registerBuiltinTypes()
                     widget.setHeight(value.asNumber());
                 }),
         },
-        .markupPositionalProperties = {"value", "indeterminate", "color", "backgroundColor", "height"},
+        .markupPositionalProperties = {"value", "indeterminate", "color", "backgroundColor", "height", "min", "max", "preferredWidth"},
     });
 }
 

@@ -57,8 +57,11 @@ public:
     }
 
     void bindClick(const std::string& id, std::function<void()> handler);
+    void bindDismiss(const std::string& id, std::function<void()> handler);
     void bindToggle(const std::string& id, std::function<void(bool)> handler);
     void bindTextChanged(const std::string& id, std::function<void(const std::string&)> handler);
+    void bindLeadingIconClick(const std::string& id, std::function<void()> handler);
+    void bindTrailingIconClick(const std::string& id, std::function<void()> handler);
     void bindValueChanged(const std::string& id, std::function<void(float)> handler);
     void bindSelectionChanged(const std::string& id, std::function<void(int)> handler);
 

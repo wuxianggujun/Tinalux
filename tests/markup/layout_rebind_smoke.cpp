@@ -1,12 +1,17 @@
+#include <array>
 #include <cstdlib>
 #include <iostream>
 #include <string>
 
+#include "../../src/ui/RuntimeState.h"
 #include "tinalux/core/KeyCodes.h"
 #include "tinalux/core/events/Event.h"
 #include "tinalux/markup/LayoutLoader.h"
 #include "tinalux/markup/ViewModel.h"
+#include "tinalux/rendering/rendering.h"
 #include "tinalux/ui/Button.h"
+#include "tinalux/ui/Dialog.h"
+#include "tinalux/ui/Panel.h"
 #include "tinalux/ui/TextInput.h"
 #include "tinalux/ui/Theme.h"
 #include "tinalux/ui/VBox.h"
@@ -36,11 +41,50 @@ void expectLoadOk(
     std::exit(1);
 }
 
+tinalux::ui::TextInputStyle interactionIconStyle()
+{
+    tinalux::ui::TextInputStyle style;
+    style.backgroundColor.normal = tinalux::core::colorRGB(18, 24, 34);
+    style.backgroundColor.hovered = tinalux::core::colorRGB(18, 24, 34);
+    style.backgroundColor.focused = tinalux::core::colorRGB(18, 24, 34);
+    style.borderColor.normal = tinalux::core::colorARGB(0, 0, 0, 0);
+    style.borderColor.hovered = tinalux::core::colorARGB(0, 0, 0, 0);
+    style.borderColor.focused = tinalux::core::colorARGB(0, 0, 0, 0);
+    style.borderWidth.normal = 0.0f;
+    style.borderWidth.hovered = 0.0f;
+    style.borderWidth.focused = 0.0f;
+    style.textColor = tinalux::core::colorARGB(0, 0, 0, 0);
+    style.selectionColor = tinalux::core::colorARGB(0, 0, 0, 0);
+    style.caretColor = tinalux::core::colorARGB(0, 0, 0, 0);
+    style.borderRadius = 0.0f;
+    style.paddingHorizontal = 12.0f;
+    style.paddingVertical = 8.0f;
+    style.minWidth = 0.0f;
+    style.minHeight = 40.0f;
+    return style;
+}
+
+tinalux::rendering::Image solidInteractionIcon()
+{
+    const std::array<std::uint8_t, 4> rgba {255, 255, 255, 255};
+    return tinalux::rendering::createImageFromRGBA(1, 1, rgba);
+}
+
+void configureInteractiveInput(tinalux::ui::TextInput& input)
+{
+    input.setStyle(interactionIconStyle());
+    input.setLeadingIcon(solidInteractionIcon());
+    input.setTrailingIcon(solidInteractionIcon());
+    input.arrange(tinalux::core::Rect::MakeXYWH(0.0f, 0.0f, 180.0f, 40.0f));
+}
+
 } // namespace
 
 int main()
 {
     using namespace tinalux;
+    ui::RuntimeState runtime;
+    ui::ScopedRuntimeState bind(runtime);
 
     const ui::Theme theme = ui::Theme::light();
     const std::string source = R"(
@@ -142,6 +186,121 @@ VBox(id: root) {
     applyButton->setFocused(true);
     applyButton->onEvent(clickButtonOnce);
     expect(applyClicks == 3, "stored click handler should reattach after structural rebuild");
+
+    {
+        const std::string interactionSource = R"(
+VBox(id: root) {
+    if(${model.showControls}) {
+        TextInput(id: searchInput, text: ${model.query}),
+        Dialog(id: confirmDialog, "Confirm") {
+            Panel(id: dialogBody)
+        }
+    }
+}
+)";
+
+        markup::LoadResult interactionResult = markup::LayoutLoader::load(interactionSource, theme);
+        expectLoadOk(interactionResult, "interaction rebind markup should load");
+        expect(interactionResult.warnings.empty(), "interaction rebind markup should not emit warnings");
+
+        int leadingClicks = 0;
+        int trailingClicks = 0;
+        int dismissCount = 0;
+        interactionResult.handle.bindLeadingIconClick("searchInput", [&] { ++leadingClicks; });
+        interactionResult.handle.bindTrailingIconClick("searchInput", [&] { ++trailingClicks; });
+        interactionResult.handle.bindDismiss("confirmDialog", [&] { ++dismissCount; });
+
+        auto firstInteractionModel = markup::ViewModel::create();
+        firstInteractionModel->setBool("showControls", true);
+        firstInteractionModel->setString("query", "first");
+        interactionResult.handle.bindViewModel(firstInteractionModel);
+
+        ui::TextInput* searchInput = interactionResult.handle.findById<ui::TextInput>("searchInput");
+        expect(searchInput != nullptr, "first interaction ViewModel should materialize search input");
+        configureInteractiveInput(*searchInput);
+
+        core::MouseButtonEvent leadingPress(
+            core::mouse::kLeft,
+            0,
+            20.0,
+            20.0,
+            core::EventType::MouseButtonPress);
+        core::MouseButtonEvent leadingRelease(
+            core::mouse::kLeft,
+            0,
+            20.0,
+            20.0,
+            core::EventType::MouseButtonRelease);
+        expect(searchInput->onEvent(leadingPress), "leading icon press should be handled after first bind");
+        expect(searchInput->onEvent(leadingRelease), "leading icon release should be handled after first bind");
+        expect(leadingClicks == 1, "stored leading icon handler should attach when widget first appears");
+
+        core::MouseButtonEvent trailingPress(
+            core::mouse::kLeft,
+            0,
+            160.0,
+            20.0,
+            core::EventType::MouseButtonPress);
+        core::MouseButtonEvent trailingRelease(
+            core::mouse::kLeft,
+            0,
+            160.0,
+            20.0,
+            core::EventType::MouseButtonRelease);
+        expect(searchInput->onEvent(trailingPress), "trailing icon press should be handled after first bind");
+        expect(searchInput->onEvent(trailingRelease), "trailing icon release should be handled after first bind");
+        expect(trailingClicks == 1, "stored trailing icon handler should attach when widget first appears");
+
+        ui::Dialog* confirmDialog = interactionResult.handle.findById<ui::Dialog>("confirmDialog");
+        expect(confirmDialog != nullptr, "first interaction ViewModel should materialize dialog");
+        core::KeyEvent escape(core::keys::kEscape, 0, 0, core::EventType::KeyPress);
+        expect(confirmDialog->onEvent(escape), "dialog escape key should be handled after first bind");
+        expect(dismissCount == 1, "stored dismiss handler should attach when dialog first appears");
+
+        auto secondInteractionModel = markup::ViewModel::create();
+        secondInteractionModel->setBool("showControls", true);
+        secondInteractionModel->setString("query", "second");
+        interactionResult.handle.bindViewModel(secondInteractionModel);
+
+        searchInput = interactionResult.handle.findById<ui::TextInput>("searchInput");
+        expect(searchInput != nullptr, "rebinding should rematerialize search input");
+        configureInteractiveInput(*searchInput);
+        searchInput->onEvent(leadingPress);
+        searchInput->onEvent(leadingRelease);
+        searchInput->onEvent(trailingPress);
+        searchInput->onEvent(trailingRelease);
+        expect(leadingClicks == 2, "stored leading icon handler should reattach after ViewModel rebinding");
+        expect(trailingClicks == 2, "stored trailing icon handler should reattach after ViewModel rebinding");
+
+        confirmDialog = interactionResult.handle.findById<ui::Dialog>("confirmDialog");
+        expect(confirmDialog != nullptr, "rebinding should rematerialize dialog");
+        confirmDialog->onEvent(escape);
+        expect(dismissCount == 2, "stored dismiss handler should reattach after ViewModel rebinding");
+
+        secondInteractionModel->setBool("showControls", false);
+        expect(
+            interactionResult.handle.findById<ui::TextInput>("searchInput") == nullptr,
+            "interaction widget should disappear after structural rebuild");
+        expect(
+            interactionResult.handle.findById<ui::Dialog>("confirmDialog") == nullptr,
+            "dialog should disappear after structural rebuild");
+
+        secondInteractionModel->setBool("showControls", true);
+        secondInteractionModel->setString("query", "third");
+        searchInput = interactionResult.handle.findById<ui::TextInput>("searchInput");
+        confirmDialog = interactionResult.handle.findById<ui::Dialog>("confirmDialog");
+        expect(searchInput != nullptr, "interaction widget should rematerialize after structural rebuild");
+        expect(confirmDialog != nullptr, "dialog should rematerialize after structural rebuild");
+        configureInteractiveInput(*searchInput);
+        searchInput->onEvent(leadingPress);
+        searchInput->onEvent(leadingRelease);
+        searchInput->onEvent(trailingPress);
+        searchInput->onEvent(trailingRelease);
+        confirmDialog->onEvent(escape);
+        expect(leadingClicks == 3, "stored leading icon handler should reattach after structural rebuild");
+        expect(trailingClicks == 3, "stored trailing icon handler should reattach after structural rebuild");
+        expect(dismissCount == 3, "stored dismiss handler should reattach after structural rebuild");
+    }
 
     return 0;
 }
