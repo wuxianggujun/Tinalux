@@ -299,73 +299,6 @@ std::optional<std::vector<ui::TextSpan>> richTextSpansNode(const ModelNode& node
     return spans;
 }
 
-std::optional<ModelNode> objectNodeFromProperties(const std::vector<AstProperty>& properties);
-
-std::optional<ModelNode> propertyNode(const AstProperty& property)
-{
-    if (property.hasBinding()) {
-        return std::nullopt;
-    }
-
-    if (property.hasObjectValue()) {
-        return objectNodeFromProperties(property.objectProperties);
-    }
-
-    if (property.hasArrayValue()) {
-        if (property.hasArrayObjectValues() && !property.arrayValues.empty()) {
-            return std::nullopt;
-        }
-
-        ModelNode::Array values;
-        values.reserve(property.hasArrayObjectValues()
-                ? property.arrayObjectValues.size()
-                : property.arrayValues.size());
-
-        if (property.hasArrayObjectValues()) {
-            for (const AstObjectValue& objectValue : property.arrayObjectValues) {
-                std::optional<ModelNode> objectNode = objectNodeFromProperties(objectValue.properties);
-                if (!objectNode.has_value()) {
-                    return std::nullopt;
-                }
-                values.push_back(std::move(*objectNode));
-            }
-        } else {
-            for (const core::Value& value : property.arrayValues) {
-                values.emplace_back(value);
-            }
-        }
-
-        return ModelNode::array(std::move(values));
-    }
-
-    return ModelNode(property.value);
-}
-
-std::optional<ModelNode> objectNodeFromProperties(const std::vector<AstProperty>& properties)
-{
-    ModelNode::Object object;
-    for (const AstProperty& childProperty : properties) {
-        std::optional<ModelNode> childNode = propertyNode(childProperty);
-        if (!childNode.has_value()) {
-            return std::nullopt;
-        }
-
-        object[childProperty.name] = std::move(*childNode);
-    }
-
-    return ModelNode::object(std::move(object));
-}
-
-std::optional<std::vector<ui::TextSpan>> richTextSpansProperty(const AstProperty& property)
-{
-    const std::optional<ModelNode> node = propertyNode(property);
-    if (!node.has_value()) {
-        return std::nullopt;
-    }
-
-    return richTextSpansNode(*node);
-}
-
 std::optional<std::string> interactionNameFromPropertyName(std::string_view propertyName)
 {
     if (propertyName.size() <= 2
@@ -1580,6 +1513,175 @@ std::optional<LayoutBuilder::PreparedBinding> LayoutBuilder::prepareBinding(
     return binding;
 }
 
+std::optional<LayoutBuilder::PreparedPropertyNode> LayoutBuilder::preparePropertyNode(
+    const AstProperty& property,
+    const ScopeBindings& scope,
+    std::string_view context)
+{
+    std::function<std::optional<PreparedPropertyNode>(const AstProperty&, std::string_view)> prepareRecursive;
+    prepareRecursive =
+        [this, &scope, &prepareRecursive](
+            const AstProperty& source,
+            std::string_view currentContext) -> std::optional<PreparedPropertyNode> {
+        PreparedPropertyNode prepared;
+
+        if (source.hasBinding()) {
+            auto binding = prepareBinding(
+                *source.bindingPath,
+                scope,
+                source.line,
+                currentContext,
+                false);
+            if (!binding.has_value()) {
+                return std::nullopt;
+            }
+
+            prepared.dependencyPaths = std::move(binding->dependencyPaths);
+            prepared.evaluate = [binding = std::move(*binding)](
+                                   const std::shared_ptr<ViewModel>& viewModel,
+                                   const std::function<const ModelNode*(std::string_view)>& externalResolver)
+                -> std::optional<ModelNode> {
+                if (binding.evaluateNode) {
+                    if (const ModelNode* node = binding.evaluateNode(viewModel, externalResolver)) {
+                        return *node;
+                    }
+                }
+
+                if (binding.evaluate) {
+                    if (const std::optional<core::Value> value =
+                            binding.evaluate(viewModel, externalResolver)) {
+                        return ModelNode(*value);
+                    }
+                }
+
+                return std::nullopt;
+            };
+            return prepared;
+        }
+
+        if (source.hasObjectValue()) {
+            std::vector<std::pair<std::string, PreparedPropertyNode>> children;
+            children.reserve(source.objectProperties.size());
+            for (const AstProperty& childProperty : source.objectProperties) {
+                std::optional<PreparedPropertyNode> childPrepared = prepareRecursive(
+                    childProperty,
+                    currentContext);
+                if (!childPrepared.has_value()) {
+                    return std::nullopt;
+                }
+
+                for (const std::string& dependencyPath : childPrepared->dependencyPaths) {
+                    appendUniquePath(prepared.dependencyPaths, dependencyPath);
+                }
+
+                children.emplace_back(childProperty.name, std::move(*childPrepared));
+            }
+
+            prepared.evaluate = [children = std::move(children)](
+                                   const std::shared_ptr<ViewModel>& viewModel,
+                                   const std::function<const ModelNode*(std::string_view)>& externalResolver)
+                -> std::optional<ModelNode> {
+                ModelNode::Object object;
+                for (const auto& [name, childPrepared] : children) {
+                    if (!childPrepared.evaluate) {
+                        return std::nullopt;
+                    }
+
+                    const std::optional<ModelNode> childNode =
+                        childPrepared.evaluate(viewModel, externalResolver);
+                    if (!childNode.has_value()) {
+                        return std::nullopt;
+                    }
+
+                    object[name] = *childNode;
+                }
+
+                return ModelNode::object(std::move(object));
+            };
+            return prepared;
+        }
+
+        if (source.hasArrayValue()) {
+            if (source.hasArrayObjectValues() && !source.arrayValues.empty()) {
+                return std::nullopt;
+            }
+
+            if (source.hasArrayObjectValues()) {
+                std::vector<PreparedPropertyNode> items;
+                items.reserve(source.arrayObjectValues.size());
+                for (const AstObjectValue& objectValue : source.arrayObjectValues) {
+                    AstProperty objectProperty;
+                    objectProperty.objectValue = true;
+                    objectProperty.objectProperties = objectValue.properties;
+                    objectProperty.line = source.line;
+                    objectProperty.column = source.column;
+
+                    std::optional<PreparedPropertyNode> itemPrepared =
+                        prepareRecursive(objectProperty, currentContext);
+                    if (!itemPrepared.has_value()) {
+                        return std::nullopt;
+                    }
+
+                    for (const std::string& dependencyPath : itemPrepared->dependencyPaths) {
+                        appendUniquePath(prepared.dependencyPaths, dependencyPath);
+                    }
+
+                    items.push_back(std::move(*itemPrepared));
+                }
+
+                prepared.evaluate = [items = std::move(items)](
+                                       const std::shared_ptr<ViewModel>& viewModel,
+                                       const std::function<const ModelNode*(std::string_view)>& externalResolver)
+                    -> std::optional<ModelNode> {
+                    ModelNode::Array array;
+                    array.reserve(items.size());
+                    for (const PreparedPropertyNode& itemPrepared : items) {
+                        if (!itemPrepared.evaluate) {
+                            return std::nullopt;
+                        }
+
+                        const std::optional<ModelNode> itemNode =
+                            itemPrepared.evaluate(viewModel, externalResolver);
+                        if (!itemNode.has_value()) {
+                            return std::nullopt;
+                        }
+
+                        array.push_back(*itemNode);
+                    }
+
+                    return ModelNode::array(std::move(array));
+                };
+                return prepared;
+            }
+
+            const std::vector<core::Value> values = source.arrayValues;
+            prepared.evaluate = [values](
+                                   const std::shared_ptr<ViewModel>&,
+                                   const std::function<const ModelNode*(std::string_view)>&)
+                -> std::optional<ModelNode> {
+                ModelNode::Array array;
+                array.reserve(values.size());
+                for (const core::Value& value : values) {
+                    array.emplace_back(value);
+                }
+                return ModelNode::array(std::move(array));
+            };
+            return prepared;
+        }
+
+        const core::Value value = source.value;
+        prepared.evaluate = [value](
+                               const std::shared_ptr<ViewModel>&,
+                               const std::function<const ModelNode*(std::string_view)>&)
+            -> std::optional<ModelNode> {
+            return ModelNode(value);
+        };
+        return prepared;
+    };
+
+    return prepareRecursive(property, context);
+}
+
 bool LayoutBuilder::evaluateConditionExpression(
     std::string_view expressionText,
     int line,
@@ -2097,8 +2199,11 @@ void LayoutBuilder::applyStandardProperty(
             return;
         }
 
-        const std::optional<std::vector<ui::TextSpan>> spans = richTextSpansProperty(prop);
-        if (!spans.has_value()) {
+        auto preparedPropertyNode = preparePropertyNode(
+            prop,
+            scope,
+            "property '" + prop.name + "' on '" + nodeType + "'");
+        if (!preparedPropertyNode.has_value() || !preparedPropertyNode->evaluate) {
             std::ostringstream oss;
             oss << "property '" << prop.name << "' on '" << nodeType
                 << "' expects an array of object values at line " << prop.line;
@@ -2106,7 +2211,42 @@ void LayoutBuilder::applyStandardProperty(
             return;
         }
 
-        static_cast<ui::RichTextWidget&>(*widget).setSpans(*spans);
+        const auto applySpans =
+            [weakWidget = std::weak_ptr<ui::Widget>(widget)](const ModelNode& node) {
+            auto lockedWidget = weakWidget.lock();
+            if (!lockedWidget) {
+                return;
+            }
+
+            const std::optional<std::vector<ui::TextSpan>> spans = richTextSpansNode(node);
+            if (!spans.has_value()) {
+                return;
+            }
+
+            static_cast<ui::RichTextWidget&>(*lockedWidget).setSpans(*spans);
+        };
+
+        if (!preparedPropertyNode->dependencyPaths.empty()) {
+            registerComputedNodeBinding(
+                widget,
+                prop.name,
+                std::move(preparedPropertyNode->dependencyPaths),
+                std::move(preparedPropertyNode->evaluate),
+                applySpans);
+            return;
+        }
+
+        const std::optional<ModelNode> propertyNode =
+            preparedPropertyNode->evaluate(viewModel_, {});
+        if (!propertyNode.has_value()) {
+            std::ostringstream oss;
+            oss << "property '" << prop.name << "' on '" << nodeType
+                << "' expects an array of object values at line " << prop.line;
+            warnings_.push_back(oss.str());
+            return;
+        }
+
+        applySpans(*propertyNode);
         return;
     }
 
@@ -2404,6 +2544,52 @@ void LayoutBuilder::registerNodeBinding(
 
                 const ModelNode* node = evaluateNode(viewModel, externalResolver);
                 if (node == nullptr) {
+                    return false;
+                }
+
+                applyNode(*node);
+                return true;
+            },
+    };
+
+    if (viewModel_ && binding.applyResolved) {
+        std::unordered_map<std::string, ModelNode> widgetNodeCache;
+        const auto widgetResolver =
+            [this, &widgetNodeCache](std::string_view path) -> const ModelNode* {
+            const std::string normalizedPath = normalizeScopedPath(path);
+            return resolveWidgetSnapshotNode(idMap_, normalizedPath, widgetNodeCache);
+        };
+        binding.applyResolved(viewModel_, widgetResolver);
+    }
+
+    bindings_.push_back(std::move(binding));
+}
+
+void LayoutBuilder::registerComputedNodeBinding(
+    const std::shared_ptr<ui::Widget>& widget,
+    std::string propertyName,
+    std::vector<std::string> dependencyPaths,
+    std::function<std::optional<ModelNode>(
+        const std::shared_ptr<ViewModel>&,
+        const std::function<const ModelNode*(std::string_view)>&)> evaluateNode,
+    std::function<void(const ModelNode&)> applyNode)
+{
+    detail::BindingDescriptor binding {
+        .widget = widget,
+        .propertyName = std::move(propertyName),
+        .dependencyPaths = std::move(dependencyPaths),
+        .applyResolved =
+            [evaluateNode = std::move(evaluateNode),
+             applyNode = std::move(applyNode)](
+                const std::shared_ptr<ViewModel>& viewModel,
+                const std::function<const ModelNode*(std::string_view)>& externalResolver) -> bool {
+                if (!evaluateNode || !applyNode) {
+                    return false;
+                }
+
+                const std::optional<ModelNode> node =
+                    evaluateNode(viewModel, externalResolver);
+                if (!node.has_value()) {
                     return false;
                 }
 

@@ -532,6 +532,94 @@ VBox(id: root, 10) {
     {
         const std::string source = R"(
 VBox(id: root) {
+    TextInput(id: queryInput, text: ${model.query}),
+    RichText(
+        id: summary,
+        spans: [
+            {
+                text: ${queryInput.text},
+                role: Heading,
+                bold: ${model.emphasize},
+                color: ${model.titleColor},
+                onClick: ${model.onTitleClick}
+            },
+            {
+                text: ${model.subtitle},
+                underline: ${model.showUnderline}
+            }
+        ])
+}
+)";
+
+        markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "RichText nested binding spans markup should load");
+        expect(result.warnings.empty(), "RichText nested binding spans markup should not emit warnings");
+
+        auto viewModel = markup::ViewModel::create();
+        int firstTitleClicks = 0;
+        int secondTitleClicks = 0;
+        viewModel->setString("query", "Initial");
+        viewModel->setBool("emphasize", true);
+        viewModel->setColor("titleColor", core::Color(0xFF336699u));
+        viewModel->setString("subtitle", "Draft");
+        viewModel->setBool("showUnderline", false);
+        viewModel->setAction(
+            "onTitleClick",
+            [&firstTitleClicks](const core::Value& value) {
+                expect(value.isNone(), "nested RichText span action should receive an empty payload");
+                ++firstTitleClicks;
+            });
+        result.handle.bindViewModel(viewModel);
+
+        ui::TextInput* queryInput = result.handle.findById<ui::TextInput>("queryInput");
+        ui::RichTextWidget* summary = result.handle.findById<ui::RichTextWidget>("summary");
+        expect(queryInput != nullptr, "RichText nested binding source TextInput should exist");
+        expect(summary != nullptr, "RichText nested binding target should exist");
+        expect(summary->spans().size() == 2, "nested spans array should materialize all spans");
+        expect(summary->spans()[0].text == "Initial", "widget-id binding should resolve inside span objects");
+        expect(summary->spans()[0].role == ui::RichTextSpanRole::Heading, "static span role should remain intact with nested bindings");
+        expect(summary->spans()[0].bold, "model bool binding should resolve inside span objects");
+        expect(
+            summary->spans()[0].color.has_value()
+                && summary->spans()[0].color.value() == core::Color(0xFF336699u),
+            "model color binding should resolve inside span objects");
+        expect(summary->spans()[1].text == "Draft", "model string binding should resolve inside later span objects");
+        expect(!summary->spans()[1].underline, "model bool binding should preserve false values");
+        expect(static_cast<bool>(summary->spans()[0].onClick), "action binding should materialize inside span objects");
+
+        summary->spans()[0].onClick();
+        expect(firstTitleClicks == 1, "initial nested span action should be invokable");
+
+        queryInput->setText("Retyped");
+        expect(summary->spans()[0].text == "Retyped", "widget-id binding inside span objects should live-update");
+
+        viewModel->setBool("emphasize", false);
+        viewModel->setColor("titleColor", core::Color(0xFF884422u));
+        viewModel->setString("subtitle", "Published");
+        viewModel->setBool("showUnderline", true);
+        viewModel->setAction(
+            "onTitleClick",
+            [&secondTitleClicks](const core::Value& value) {
+                expect(value.isNone(), "rebound nested RichText span action should receive an empty payload");
+                ++secondTitleClicks;
+            });
+
+        expect(!summary->spans()[0].bold, "nested span bool bindings should live-update from ViewModel");
+        expect(
+            summary->spans()[0].color.has_value()
+                && summary->spans()[0].color.value() == core::Color(0xFF884422u),
+            "nested span color bindings should live-update from ViewModel");
+        expect(summary->spans()[1].text == "Published", "nested span string bindings should live-update from ViewModel");
+        expect(summary->spans()[1].underline, "nested span bool flags should live-update from ViewModel");
+
+        summary->spans()[0].onClick();
+        expect(firstTitleClicks == 1, "old nested span action should be replaced after ViewModel update");
+        expect(secondTitleClicks == 1, "updated nested span action should be invokable");
+    }
+
+    {
+        const std::string source = R"(
+VBox(id: root) {
     TextInput(id: statusText, text: ${model.isError ? "Error" : "OK"}),
     TextInput(id: nestedText, text: ${model.primary ? (model.secondary ? "A" : "B") : "C"}, style: {
         backgroundColor: ${model.isError ? #FFFFE0E0 : #FFE0FFE0},

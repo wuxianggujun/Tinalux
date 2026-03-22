@@ -54,6 +54,12 @@ private:
             const std::shared_ptr<ViewModel>&,
             const std::function<const ModelNode*(std::string_view)>&)> evaluateNode;
     };
+    struct PreparedPropertyNode {
+        std::vector<std::string> dependencyPaths;
+        std::function<std::optional<ModelNode>(
+            const std::shared_ptr<ViewModel>&,
+            const std::function<const ModelNode*(std::string_view)>&)> evaluate;
+    };
 
     LayoutBuilder(const ui::Theme& theme, std::shared_ptr<ViewModel> viewModel);
 
@@ -108,6 +114,10 @@ private:
         int line,
         std::string_view context,
         bool allowWriteBack);
+    std::optional<PreparedPropertyNode> preparePropertyNode(
+        const AstProperty& property,
+        const ScopeBindings& scope,
+        std::string_view context);
     bool containsSlotNode(const AstNode& node) const;
     const ModelNode* resolveScopedNode(
         std::string_view path,
@@ -167,6 +177,14 @@ private:
         std::vector<std::string> dependencyPaths,
         std::string writeBackPath,
         std::function<const ModelNode*(
+            const std::shared_ptr<ViewModel>&,
+            const std::function<const ModelNode*(std::string_view)>&)> evaluateNode,
+        std::function<void(const ModelNode&)> applyNode);
+    void registerComputedNodeBinding(
+        const std::shared_ptr<ui::Widget>& widget,
+        std::string propertyName,
+        std::vector<std::string> dependencyPaths,
+        std::function<std::optional<ModelNode>(
             const std::shared_ptr<ViewModel>&,
             const std::function<const ModelNode*(std::string_view)>&)> evaluateNode,
         std::function<void(const ModelNode&)> applyNode);
