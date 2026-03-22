@@ -13,6 +13,7 @@
 
 namespace tinalux::ui {
 class Widget;
+struct Theme;
 }
 
 namespace tinalux::core {
@@ -107,6 +108,12 @@ struct PropertyInfo {
     std::function<void(ui::Widget&, const Value&)> setter;
 };
 
+struct StylePropertyInfo {
+    std::string name;
+    ValueType expectedType = ValueType::None;
+    std::function<void(ui::Widget&, const Value&, const ui::Theme&)> setter;
+};
+
 // ---------------------------------------------------------------------------
 // TypeInfo — describes a widget type for the registry
 // ---------------------------------------------------------------------------
@@ -116,10 +123,20 @@ struct TypeInfo {
     bool isContainer = false;
     std::function<std::shared_ptr<ui::Widget>()> factory;
     std::vector<PropertyInfo> properties;
+    std::vector<StylePropertyInfo> styleProperties;
 
     const PropertyInfo* findProperty(std::string_view propName) const
     {
         for (const auto& p : properties) {
+            if (p.name == propName)
+                return &p;
+        }
+        return nullptr;
+    }
+
+    const StylePropertyInfo* findStyleProperty(std::string_view propName) const
+    {
+        for (const auto& p : styleProperties) {
             if (p.name == propName)
                 return &p;
         }

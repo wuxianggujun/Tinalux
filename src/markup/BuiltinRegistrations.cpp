@@ -18,10 +18,50 @@
 #include "tinalux/ui/ScrollView.h"
 #include "tinalux/ui/Slider.h"
 #include "tinalux/ui/TextInput.h"
+#include "tinalux/ui/Theme.h"
 #include "tinalux/ui/Toggle.h"
 #include "tinalux/ui/VBox.h"
 
 namespace tinalux::markup {
+
+namespace {
+
+template <typename WidgetT, typename StyleT, typename Mutator>
+core::StylePropertyInfo makeThemeStyleProperty(
+    const char* name,
+    core::ValueType expectedType,
+    StyleT ui::Theme::*themeStyle,
+    Mutator mutator)
+{
+    return core::StylePropertyInfo {
+        .name = name,
+        .expectedType = expectedType,
+        .setter =
+            [themeStyle, mutator](ui::Widget& widget, const core::Value& value, const ui::Theme& theme) {
+                auto& typedWidget = static_cast<WidgetT&>(widget);
+                StyleT style = typedWidget.style() ? *typedWidget.style() : theme.*themeStyle;
+                mutator(style, value);
+                typedWidget.setStyle(style);
+            },
+    };
+}
+
+template <typename WidgetT, typename Mutator>
+core::StylePropertyInfo makeDirectStyleProperty(
+    const char* name,
+    core::ValueType expectedType,
+    Mutator mutator)
+{
+    return core::StylePropertyInfo {
+        .name = name,
+        .expectedType = expectedType,
+        .setter = [mutator](ui::Widget& widget, const core::Value& value, const ui::Theme&) {
+            mutator(static_cast<WidgetT&>(widget), value);
+        },
+    };
+}
+
+} // namespace
 
 void registerBuiltinTypes()
 {
@@ -161,6 +201,22 @@ void registerBuiltinTypes()
                     static_cast<ui::Panel&>(w).setCornerRadius(v.asNumber());
                 }},
         },
+        .styleProperties = {
+            makeThemeStyleProperty<ui::Panel, ui::PanelStyle>(
+                "backgroundColor",
+                core::ValueType::Color,
+                &ui::Theme::panelStyle,
+                [](ui::PanelStyle& style, const core::Value& value) {
+                    style.backgroundColor = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::Panel, ui::PanelStyle>(
+                "cornerRadius",
+                core::ValueType::Float,
+                &ui::Theme::panelStyle,
+                [](ui::PanelStyle& style, const core::Value& value) {
+                    style.cornerRadius = value.asNumber();
+                }),
+        },
     });
 
     reg.registerType(core::TypeInfo {
@@ -201,6 +257,78 @@ void registerBuiltinTypes()
                     static_cast<ui::Dialog&>(w).setPadding(v.asNumber());
                 }},
         },
+        .styleProperties = {
+            makeThemeStyleProperty<ui::Dialog, ui::DialogStyle>(
+                "backdropColor",
+                core::ValueType::Color,
+                &ui::Theme::dialogStyle,
+                [](ui::DialogStyle& style, const core::Value& value) {
+                    style.backdropColor = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::Dialog, ui::DialogStyle>(
+                "backgroundColor",
+                core::ValueType::Color,
+                &ui::Theme::dialogStyle,
+                [](ui::DialogStyle& style, const core::Value& value) {
+                    style.backgroundColor = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::Dialog, ui::DialogStyle>(
+                "titleColor",
+                core::ValueType::Color,
+                &ui::Theme::dialogStyle,
+                [](ui::DialogStyle& style, const core::Value& value) {
+                    style.titleColor = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::Dialog, ui::DialogStyle>(
+                "cornerRadius",
+                core::ValueType::Float,
+                &ui::Theme::dialogStyle,
+                [](ui::DialogStyle& style, const core::Value& value) {
+                    style.cornerRadius = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::Dialog, ui::DialogStyle>(
+                "padding",
+                core::ValueType::Float,
+                &ui::Theme::dialogStyle,
+                [](ui::DialogStyle& style, const core::Value& value) {
+                    style.padding = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::Dialog, ui::DialogStyle>(
+                "titleGap",
+                core::ValueType::Float,
+                &ui::Theme::dialogStyle,
+                [](ui::DialogStyle& style, const core::Value& value) {
+                    style.titleGap = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::Dialog, ui::DialogStyle>(
+                "fontSize",
+                core::ValueType::Float,
+                &ui::Theme::dialogStyle,
+                [](ui::DialogStyle& style, const core::Value& value) {
+                    style.titleTextStyle.fontSize = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::Dialog, ui::DialogStyle>(
+                "lineHeight",
+                core::ValueType::Float,
+                &ui::Theme::dialogStyle,
+                [](ui::DialogStyle& style, const core::Value& value) {
+                    style.titleTextStyle.lineHeight = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::Dialog, ui::DialogStyle>(
+                "letterSpacing",
+                core::ValueType::Float,
+                &ui::Theme::dialogStyle,
+                [](ui::DialogStyle& style, const core::Value& value) {
+                    style.titleTextStyle.letterSpacing = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::Dialog, ui::DialogStyle>(
+                "bold",
+                core::ValueType::Bool,
+                &ui::Theme::dialogStyle,
+                [](ui::DialogStyle& style, const core::Value& value) {
+                    style.titleTextStyle.bold = value.asBool();
+                }),
+        },
     });
 
     reg.registerType(core::TypeInfo {
@@ -212,6 +340,50 @@ void registerBuiltinTypes()
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::ScrollView&>(w).setPreferredHeight(v.asNumber());
                 }},
+        },
+        .styleProperties = {
+            makeThemeStyleProperty<ui::ScrollView, ui::ScrollViewStyle>(
+                "scrollbarThumbColor",
+                core::ValueType::Color,
+                &ui::Theme::scrollViewStyle,
+                [](ui::ScrollViewStyle& style, const core::Value& value) {
+                    style.scrollbarThumbColor = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::ScrollView, ui::ScrollViewStyle>(
+                "scrollbarTrackColor",
+                core::ValueType::Color,
+                &ui::Theme::scrollViewStyle,
+                [](ui::ScrollViewStyle& style, const core::Value& value) {
+                    style.scrollbarTrackColor = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::ScrollView, ui::ScrollViewStyle>(
+                "scrollbarMargin",
+                core::ValueType::Float,
+                &ui::Theme::scrollViewStyle,
+                [](ui::ScrollViewStyle& style, const core::Value& value) {
+                    style.scrollbarMargin = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::ScrollView, ui::ScrollViewStyle>(
+                "scrollbarWidth",
+                core::ValueType::Float,
+                &ui::Theme::scrollViewStyle,
+                [](ui::ScrollViewStyle& style, const core::Value& value) {
+                    style.scrollbarWidth = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::ScrollView, ui::ScrollViewStyle>(
+                "minThumbHeight",
+                core::ValueType::Float,
+                &ui::Theme::scrollViewStyle,
+                [](ui::ScrollViewStyle& style, const core::Value& value) {
+                    style.minThumbHeight = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::ScrollView, ui::ScrollViewStyle>(
+                "scrollStep",
+                core::ValueType::Float,
+                &ui::Theme::scrollViewStyle,
+                [](ui::ScrollViewStyle& style, const core::Value& value) {
+                    style.scrollStep = value.asNumber();
+                }),
         },
     });
 
@@ -276,6 +448,120 @@ void registerBuiltinTypes()
                     static_cast<ui::Button&>(w).loadIconAsync(v.asString());
                 }},
         },
+        .styleProperties = {
+            makeThemeStyleProperty<ui::Button, ui::ButtonStyle>(
+                "backgroundColor",
+                core::ValueType::Color,
+                &ui::Theme::buttonStyle,
+                [](ui::ButtonStyle& style, const core::Value& value) {
+                    style.backgroundColor.normal = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::Button, ui::ButtonStyle>(
+                "textColor",
+                core::ValueType::Color,
+                &ui::Theme::buttonStyle,
+                [](ui::ButtonStyle& style, const core::Value& value) {
+                    style.textColor.normal = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::Button, ui::ButtonStyle>(
+                "borderColor",
+                core::ValueType::Color,
+                &ui::Theme::buttonStyle,
+                [](ui::ButtonStyle& style, const core::Value& value) {
+                    style.borderColor.normal = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::Button, ui::ButtonStyle>(
+                "borderWidth",
+                core::ValueType::Float,
+                &ui::Theme::buttonStyle,
+                [](ui::ButtonStyle& style, const core::Value& value) {
+                    style.borderWidth.normal = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::Button, ui::ButtonStyle>(
+                "borderRadius",
+                core::ValueType::Float,
+                &ui::Theme::buttonStyle,
+                [](ui::ButtonStyle& style, const core::Value& value) {
+                    style.borderRadius = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::Button, ui::ButtonStyle>(
+                "paddingHorizontal",
+                core::ValueType::Float,
+                &ui::Theme::buttonStyle,
+                [](ui::ButtonStyle& style, const core::Value& value) {
+                    style.paddingHorizontal = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::Button, ui::ButtonStyle>(
+                "paddingVertical",
+                core::ValueType::Float,
+                &ui::Theme::buttonStyle,
+                [](ui::ButtonStyle& style, const core::Value& value) {
+                    style.paddingVertical = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::Button, ui::ButtonStyle>(
+                "iconSpacing",
+                core::ValueType::Float,
+                &ui::Theme::buttonStyle,
+                [](ui::ButtonStyle& style, const core::Value& value) {
+                    style.iconSpacing = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::Button, ui::ButtonStyle>(
+                "minWidth",
+                core::ValueType::Float,
+                &ui::Theme::buttonStyle,
+                [](ui::ButtonStyle& style, const core::Value& value) {
+                    style.minWidth = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::Button, ui::ButtonStyle>(
+                "minHeight",
+                core::ValueType::Float,
+                &ui::Theme::buttonStyle,
+                [](ui::ButtonStyle& style, const core::Value& value) {
+                    style.minHeight = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::Button, ui::ButtonStyle>(
+                "focusRingColor",
+                core::ValueType::Color,
+                &ui::Theme::buttonStyle,
+                [](ui::ButtonStyle& style, const core::Value& value) {
+                    style.focusRingColor = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::Button, ui::ButtonStyle>(
+                "focusRingWidth",
+                core::ValueType::Float,
+                &ui::Theme::buttonStyle,
+                [](ui::ButtonStyle& style, const core::Value& value) {
+                    style.focusRingWidth = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::Button, ui::ButtonStyle>(
+                "fontSize",
+                core::ValueType::Float,
+                &ui::Theme::buttonStyle,
+                [](ui::ButtonStyle& style, const core::Value& value) {
+                    style.textStyle.fontSize = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::Button, ui::ButtonStyle>(
+                "lineHeight",
+                core::ValueType::Float,
+                &ui::Theme::buttonStyle,
+                [](ui::ButtonStyle& style, const core::Value& value) {
+                    style.textStyle.lineHeight = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::Button, ui::ButtonStyle>(
+                "letterSpacing",
+                core::ValueType::Float,
+                &ui::Theme::buttonStyle,
+                [](ui::ButtonStyle& style, const core::Value& value) {
+                    style.textStyle.letterSpacing = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::Button, ui::ButtonStyle>(
+                "bold",
+                core::ValueType::Bool,
+                &ui::Theme::buttonStyle,
+                [](ui::ButtonStyle& style, const core::Value& value) {
+                    style.textStyle.bold = value.asBool();
+                }),
+        },
     });
 
     reg.registerType(core::TypeInfo {
@@ -303,6 +589,127 @@ void registerBuiltinTypes()
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::TextInput&>(w).loadTrailingIconAsync(v.asString());
                 }},
+        },
+        .styleProperties = {
+            makeThemeStyleProperty<ui::TextInput, ui::TextInputStyle>(
+                "backgroundColor",
+                core::ValueType::Color,
+                &ui::Theme::textInputStyle,
+                [](ui::TextInputStyle& style, const core::Value& value) {
+                    style.backgroundColor.normal = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::TextInput, ui::TextInputStyle>(
+                "borderColor",
+                core::ValueType::Color,
+                &ui::Theme::textInputStyle,
+                [](ui::TextInputStyle& style, const core::Value& value) {
+                    style.borderColor.normal = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::TextInput, ui::TextInputStyle>(
+                "borderWidth",
+                core::ValueType::Float,
+                &ui::Theme::textInputStyle,
+                [](ui::TextInputStyle& style, const core::Value& value) {
+                    style.borderWidth.normal = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::TextInput, ui::TextInputStyle>(
+                "textColor",
+                core::ValueType::Color,
+                &ui::Theme::textInputStyle,
+                [](ui::TextInputStyle& style, const core::Value& value) {
+                    style.textColor = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::TextInput, ui::TextInputStyle>(
+                "placeholderColor",
+                core::ValueType::Color,
+                &ui::Theme::textInputStyle,
+                [](ui::TextInputStyle& style, const core::Value& value) {
+                    style.placeholderColor = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::TextInput, ui::TextInputStyle>(
+                "selectionColor",
+                core::ValueType::Color,
+                &ui::Theme::textInputStyle,
+                [](ui::TextInputStyle& style, const core::Value& value) {
+                    style.selectionColor = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::TextInput, ui::TextInputStyle>(
+                "caretColor",
+                core::ValueType::Color,
+                &ui::Theme::textInputStyle,
+                [](ui::TextInputStyle& style, const core::Value& value) {
+                    style.caretColor = value.asColor();
+                }),
+            makeThemeStyleProperty<ui::TextInput, ui::TextInputStyle>(
+                "borderRadius",
+                core::ValueType::Float,
+                &ui::Theme::textInputStyle,
+                [](ui::TextInputStyle& style, const core::Value& value) {
+                    style.borderRadius = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::TextInput, ui::TextInputStyle>(
+                "paddingHorizontal",
+                core::ValueType::Float,
+                &ui::Theme::textInputStyle,
+                [](ui::TextInputStyle& style, const core::Value& value) {
+                    style.paddingHorizontal = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::TextInput, ui::TextInputStyle>(
+                "paddingVertical",
+                core::ValueType::Float,
+                &ui::Theme::textInputStyle,
+                [](ui::TextInputStyle& style, const core::Value& value) {
+                    style.paddingVertical = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::TextInput, ui::TextInputStyle>(
+                "selectionCornerRadius",
+                core::ValueType::Float,
+                &ui::Theme::textInputStyle,
+                [](ui::TextInputStyle& style, const core::Value& value) {
+                    style.selectionCornerRadius = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::TextInput, ui::TextInputStyle>(
+                "minWidth",
+                core::ValueType::Float,
+                &ui::Theme::textInputStyle,
+                [](ui::TextInputStyle& style, const core::Value& value) {
+                    style.minWidth = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::TextInput, ui::TextInputStyle>(
+                "minHeight",
+                core::ValueType::Float,
+                &ui::Theme::textInputStyle,
+                [](ui::TextInputStyle& style, const core::Value& value) {
+                    style.minHeight = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::TextInput, ui::TextInputStyle>(
+                "fontSize",
+                core::ValueType::Float,
+                &ui::Theme::textInputStyle,
+                [](ui::TextInputStyle& style, const core::Value& value) {
+                    style.textStyle.fontSize = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::TextInput, ui::TextInputStyle>(
+                "lineHeight",
+                core::ValueType::Float,
+                &ui::Theme::textInputStyle,
+                [](ui::TextInputStyle& style, const core::Value& value) {
+                    style.textStyle.lineHeight = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::TextInput, ui::TextInputStyle>(
+                "letterSpacing",
+                core::ValueType::Float,
+                &ui::Theme::textInputStyle,
+                [](ui::TextInputStyle& style, const core::Value& value) {
+                    style.textStyle.letterSpacing = value.asNumber();
+                }),
+            makeThemeStyleProperty<ui::TextInput, ui::TextInputStyle>(
+                "bold",
+                core::ValueType::Bool,
+                &ui::Theme::textInputStyle,
+                [](ui::TextInputStyle& style, const core::Value& value) {
+                    style.textStyle.bold = value.asBool();
+                }),
         },
     });
 
@@ -466,6 +873,26 @@ void registerBuiltinTypes()
                 [](ui::Widget& w, const core::Value& v) {
                     static_cast<ui::ProgressBar&>(w).setHeight(v.asNumber());
                 }},
+        },
+        .styleProperties = {
+            makeDirectStyleProperty<ui::ProgressBar>(
+                "color",
+                core::ValueType::Color,
+                [](ui::ProgressBar& widget, const core::Value& value) {
+                    widget.setColor(value.asColor());
+                }),
+            makeDirectStyleProperty<ui::ProgressBar>(
+                "backgroundColor",
+                core::ValueType::Color,
+                [](ui::ProgressBar& widget, const core::Value& value) {
+                    widget.setBackgroundColor(value.asColor());
+                }),
+            makeDirectStyleProperty<ui::ProgressBar>(
+                "height",
+                core::ValueType::Float,
+                [](ui::ProgressBar& widget, const core::Value& value) {
+                    widget.setHeight(value.asNumber());
+                }),
         },
     });
 }

@@ -37,14 +37,6 @@ std::string slotLabel(std::string_view slotName)
     return "slot '" + std::string(slotName) + "'";
 }
 
-template <typename Style, typename WidgetT, typename Mutator>
-void mutateWidgetStyle(WidgetT& widget, const Style& fallbackStyle, Mutator mutator)
-{
-    Style style = widget.style() ? *widget.style() : fallbackStyle;
-    mutator(style);
-    widget.setStyle(style);
-}
-
 std::string normalizeScopedPath(std::string_view path)
 {
     std::size_t start = 0;
@@ -105,30 +97,6 @@ bool truthyScalar(const core::Value& value)
     }
 
     return false;
-}
-
-core::ValueType stylePropertyBindingType(std::string_view propertyName)
-{
-    if (propertyName == "backgroundColor"
-        || propertyName == "textColor"
-        || propertyName == "borderColor"
-        || propertyName == "focusRingColor"
-        || propertyName == "placeholderColor"
-        || propertyName == "selectionColor"
-        || propertyName == "caretColor"
-        || propertyName == "backdropColor"
-        || propertyName == "titleColor"
-        || propertyName == "scrollbarThumbColor"
-        || propertyName == "scrollbarTrackColor"
-        || propertyName == "color") {
-        return core::ValueType::Color;
-    }
-
-    if (propertyName == "bold") {
-        return core::ValueType::Bool;
-    }
-
-    return core::ValueType::None;
 }
 
 } // namespace
@@ -756,6 +724,15 @@ void LayoutBuilder::applyStyleProperties(
     const std::vector<AstProperty>& properties,
     const std::string& context)
 {
+    auto& registry = core::TypeRegistry::instance();
+    const core::TypeInfo* typeInfo = registry.findType(nodeType);
+    if (typeInfo == nullptr) {
+        std::ostringstream oss;
+        oss << "unknown widget type '" << nodeType << "' in " << context;
+        warnings_.push_back(oss.str());
+        return;
+    }
+
     for (const auto& styleProp : properties) {
         if (styleProp.name == "style") {
             if (styleProp.hasBinding()) {
@@ -782,36 +759,35 @@ void LayoutBuilder::applyStyleProperties(
             continue;
         }
 
+        const core::StylePropertyInfo* styleInfo = typeInfo->findStyleProperty(styleProp.name);
+        if (styleInfo == nullptr) {
+            std::ostringstream oss;
+            oss << "unsupported style property '" << styleProp.name << "' in " << context
+                << " for '" << nodeType << "' at line " << styleProp.line;
+            warnings_.push_back(oss.str());
+            continue;
+        }
+
         if (styleProp.hasBinding()) {
-            AstProperty boundStyleProp = styleProp;
-            boundStyleProp.bindingPath.reset();
             registerBinding(
                 widget,
                 styleProp.name,
                 *styleProp.bindingPath,
-                stylePropertyBindingType(styleProp.name),
+                styleInfo->expectedType,
                 [weakWidget = std::weak_ptr<ui::Widget>(widget),
                  theme = theme_,
-                 nodeType,
-                 boundStyleProp](const core::Value& value) mutable {
+                 setter = styleInfo->setter](const core::Value& value) {
                     auto lockedWidget = weakWidget.lock();
                     if (!lockedWidget) {
                         return;
                     }
 
-                    boundStyleProp.value = value;
-                    LayoutBuilder builder(theme, nullptr);
-                    builder.applyStyleProperty(*lockedWidget, nodeType, boundStyleProp);
+                    setter(*lockedWidget, value, theme);
                 });
             continue;
         }
 
-        if (!applyStyleProperty(*widget, nodeType, styleProp)) {
-            std::ostringstream oss;
-            oss << "unsupported style property '" << styleProp.name << "' in " << context
-                << " for '" << nodeType << "' at line " << styleProp.line;
-            warnings_.push_back(oss.str());
-        }
+        styleInfo->setter(*widget, styleProp.value, theme_);
     }
 }
 
@@ -990,386 +966,6 @@ void LayoutBuilder::registerBinding(
         .expectedType = expectedType,
         .apply = std::move(apply),
     });
-}
-
-bool LayoutBuilder::applyStyleProperty(
-    ui::Widget& widget,
-    const std::string& nodeType,
-    const AstProperty& prop)
-{
-    if (nodeType == "Button") {
-        auto* button = dynamic_cast<ui::Button*>(&widget);
-        if (!button) {
-            return false;
-        }
-
-        if (prop.name == "backgroundColor" && prop.value.type() == core::ValueType::Color) {
-            mutateWidgetStyle(*button, theme_.buttonStyle, [&](ui::ButtonStyle& style) {
-                style.backgroundColor.normal = prop.value.asColor();
-            });
-            return true;
-        }
-        if (prop.name == "textColor" && prop.value.type() == core::ValueType::Color) {
-            mutateWidgetStyle(*button, theme_.buttonStyle, [&](ui::ButtonStyle& style) {
-                style.textColor.normal = prop.value.asColor();
-            });
-            return true;
-        }
-        if (prop.name == "borderColor" && prop.value.type() == core::ValueType::Color) {
-            mutateWidgetStyle(*button, theme_.buttonStyle, [&](ui::ButtonStyle& style) {
-                style.borderColor.normal = prop.value.asColor();
-            });
-            return true;
-        }
-        if (prop.name == "borderWidth") {
-            mutateWidgetStyle(*button, theme_.buttonStyle, [&](ui::ButtonStyle& style) {
-                style.borderWidth.normal = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "borderRadius") {
-            mutateWidgetStyle(*button, theme_.buttonStyle, [&](ui::ButtonStyle& style) {
-                style.borderRadius = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "paddingHorizontal") {
-            mutateWidgetStyle(*button, theme_.buttonStyle, [&](ui::ButtonStyle& style) {
-                style.paddingHorizontal = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "paddingVertical") {
-            mutateWidgetStyle(*button, theme_.buttonStyle, [&](ui::ButtonStyle& style) {
-                style.paddingVertical = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "iconSpacing") {
-            mutateWidgetStyle(*button, theme_.buttonStyle, [&](ui::ButtonStyle& style) {
-                style.iconSpacing = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "minWidth") {
-            mutateWidgetStyle(*button, theme_.buttonStyle, [&](ui::ButtonStyle& style) {
-                style.minWidth = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "minHeight") {
-            mutateWidgetStyle(*button, theme_.buttonStyle, [&](ui::ButtonStyle& style) {
-                style.minHeight = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "focusRingColor" && prop.value.type() == core::ValueType::Color) {
-            mutateWidgetStyle(*button, theme_.buttonStyle, [&](ui::ButtonStyle& style) {
-                style.focusRingColor = prop.value.asColor();
-            });
-            return true;
-        }
-        if (prop.name == "focusRingWidth") {
-            mutateWidgetStyle(*button, theme_.buttonStyle, [&](ui::ButtonStyle& style) {
-                style.focusRingWidth = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "fontSize") {
-            mutateWidgetStyle(*button, theme_.buttonStyle, [&](ui::ButtonStyle& style) {
-                style.textStyle.fontSize = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "lineHeight") {
-            mutateWidgetStyle(*button, theme_.buttonStyle, [&](ui::ButtonStyle& style) {
-                style.textStyle.lineHeight = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "letterSpacing") {
-            mutateWidgetStyle(*button, theme_.buttonStyle, [&](ui::ButtonStyle& style) {
-                style.textStyle.letterSpacing = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "bold" && prop.value.type() == core::ValueType::Bool) {
-            mutateWidgetStyle(*button, theme_.buttonStyle, [&](ui::ButtonStyle& style) {
-                style.textStyle.bold = prop.value.asBool();
-            });
-            return true;
-        }
-        return false;
-    }
-
-    if (nodeType == "Panel") {
-        auto* panel = dynamic_cast<ui::Panel*>(&widget);
-        if (!panel) {
-            return false;
-        }
-
-        if (prop.name == "backgroundColor" && prop.value.type() == core::ValueType::Color) {
-            mutateWidgetStyle(*panel, theme_.panelStyle, [&](ui::PanelStyle& style) {
-                style.backgroundColor = prop.value.asColor();
-            });
-            return true;
-        }
-        if (prop.name == "cornerRadius") {
-            mutateWidgetStyle(*panel, theme_.panelStyle, [&](ui::PanelStyle& style) {
-                style.cornerRadius = prop.value.asNumber();
-            });
-            return true;
-        }
-        return false;
-    }
-
-    if (nodeType == "TextInput") {
-        auto* input = dynamic_cast<ui::TextInput*>(&widget);
-        if (!input) {
-            return false;
-        }
-
-        if (prop.name == "backgroundColor" && prop.value.type() == core::ValueType::Color) {
-            mutateWidgetStyle(*input, theme_.textInputStyle, [&](ui::TextInputStyle& style) {
-                style.backgroundColor.normal = prop.value.asColor();
-            });
-            return true;
-        }
-        if (prop.name == "borderColor" && prop.value.type() == core::ValueType::Color) {
-            mutateWidgetStyle(*input, theme_.textInputStyle, [&](ui::TextInputStyle& style) {
-                style.borderColor.normal = prop.value.asColor();
-            });
-            return true;
-        }
-        if (prop.name == "borderWidth") {
-            mutateWidgetStyle(*input, theme_.textInputStyle, [&](ui::TextInputStyle& style) {
-                style.borderWidth.normal = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "textColor" && prop.value.type() == core::ValueType::Color) {
-            mutateWidgetStyle(*input, theme_.textInputStyle, [&](ui::TextInputStyle& style) {
-                style.textColor = prop.value.asColor();
-            });
-            return true;
-        }
-        if (prop.name == "placeholderColor" && prop.value.type() == core::ValueType::Color) {
-            mutateWidgetStyle(*input, theme_.textInputStyle, [&](ui::TextInputStyle& style) {
-                style.placeholderColor = prop.value.asColor();
-            });
-            return true;
-        }
-        if (prop.name == "selectionColor" && prop.value.type() == core::ValueType::Color) {
-            mutateWidgetStyle(*input, theme_.textInputStyle, [&](ui::TextInputStyle& style) {
-                style.selectionColor = prop.value.asColor();
-            });
-            return true;
-        }
-        if (prop.name == "caretColor" && prop.value.type() == core::ValueType::Color) {
-            mutateWidgetStyle(*input, theme_.textInputStyle, [&](ui::TextInputStyle& style) {
-                style.caretColor = prop.value.asColor();
-            });
-            return true;
-        }
-        if (prop.name == "borderRadius") {
-            mutateWidgetStyle(*input, theme_.textInputStyle, [&](ui::TextInputStyle& style) {
-                style.borderRadius = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "paddingHorizontal") {
-            mutateWidgetStyle(*input, theme_.textInputStyle, [&](ui::TextInputStyle& style) {
-                style.paddingHorizontal = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "paddingVertical") {
-            mutateWidgetStyle(*input, theme_.textInputStyle, [&](ui::TextInputStyle& style) {
-                style.paddingVertical = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "selectionCornerRadius") {
-            mutateWidgetStyle(*input, theme_.textInputStyle, [&](ui::TextInputStyle& style) {
-                style.selectionCornerRadius = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "minWidth") {
-            mutateWidgetStyle(*input, theme_.textInputStyle, [&](ui::TextInputStyle& style) {
-                style.minWidth = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "minHeight") {
-            mutateWidgetStyle(*input, theme_.textInputStyle, [&](ui::TextInputStyle& style) {
-                style.minHeight = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "fontSize") {
-            mutateWidgetStyle(*input, theme_.textInputStyle, [&](ui::TextInputStyle& style) {
-                style.textStyle.fontSize = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "lineHeight") {
-            mutateWidgetStyle(*input, theme_.textInputStyle, [&](ui::TextInputStyle& style) {
-                style.textStyle.lineHeight = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "letterSpacing") {
-            mutateWidgetStyle(*input, theme_.textInputStyle, [&](ui::TextInputStyle& style) {
-                style.textStyle.letterSpacing = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "bold" && prop.value.type() == core::ValueType::Bool) {
-            mutateWidgetStyle(*input, theme_.textInputStyle, [&](ui::TextInputStyle& style) {
-                style.textStyle.bold = prop.value.asBool();
-            });
-            return true;
-        }
-        return false;
-    }
-
-    if (nodeType == "Dialog") {
-        auto* dialog = dynamic_cast<ui::Dialog*>(&widget);
-        if (!dialog) {
-            return false;
-        }
-
-        if (prop.name == "backdropColor" && prop.value.type() == core::ValueType::Color) {
-            mutateWidgetStyle(*dialog, theme_.dialogStyle, [&](ui::DialogStyle& style) {
-                style.backdropColor = prop.value.asColor();
-            });
-            return true;
-        }
-        if (prop.name == "backgroundColor" && prop.value.type() == core::ValueType::Color) {
-            mutateWidgetStyle(*dialog, theme_.dialogStyle, [&](ui::DialogStyle& style) {
-                style.backgroundColor = prop.value.asColor();
-            });
-            return true;
-        }
-        if (prop.name == "titleColor" && prop.value.type() == core::ValueType::Color) {
-            mutateWidgetStyle(*dialog, theme_.dialogStyle, [&](ui::DialogStyle& style) {
-                style.titleColor = prop.value.asColor();
-            });
-            return true;
-        }
-        if (prop.name == "cornerRadius") {
-            mutateWidgetStyle(*dialog, theme_.dialogStyle, [&](ui::DialogStyle& style) {
-                style.cornerRadius = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "padding") {
-            mutateWidgetStyle(*dialog, theme_.dialogStyle, [&](ui::DialogStyle& style) {
-                style.padding = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "titleGap") {
-            mutateWidgetStyle(*dialog, theme_.dialogStyle, [&](ui::DialogStyle& style) {
-                style.titleGap = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "fontSize") {
-            mutateWidgetStyle(*dialog, theme_.dialogStyle, [&](ui::DialogStyle& style) {
-                style.titleTextStyle.fontSize = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "lineHeight") {
-            mutateWidgetStyle(*dialog, theme_.dialogStyle, [&](ui::DialogStyle& style) {
-                style.titleTextStyle.lineHeight = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "letterSpacing") {
-            mutateWidgetStyle(*dialog, theme_.dialogStyle, [&](ui::DialogStyle& style) {
-                style.titleTextStyle.letterSpacing = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "bold" && prop.value.type() == core::ValueType::Bool) {
-            mutateWidgetStyle(*dialog, theme_.dialogStyle, [&](ui::DialogStyle& style) {
-                style.titleTextStyle.bold = prop.value.asBool();
-            });
-            return true;
-        }
-        return false;
-    }
-
-    if (nodeType == "ScrollView") {
-        auto* scrollView = dynamic_cast<ui::ScrollView*>(&widget);
-        if (!scrollView) {
-            return false;
-        }
-
-        if (prop.name == "scrollbarThumbColor" && prop.value.type() == core::ValueType::Color) {
-            mutateWidgetStyle(*scrollView, theme_.scrollViewStyle, [&](ui::ScrollViewStyle& style) {
-                style.scrollbarThumbColor = prop.value.asColor();
-            });
-            return true;
-        }
-        if (prop.name == "scrollbarTrackColor" && prop.value.type() == core::ValueType::Color) {
-            mutateWidgetStyle(*scrollView, theme_.scrollViewStyle, [&](ui::ScrollViewStyle& style) {
-                style.scrollbarTrackColor = prop.value.asColor();
-            });
-            return true;
-        }
-        if (prop.name == "scrollbarMargin") {
-            mutateWidgetStyle(*scrollView, theme_.scrollViewStyle, [&](ui::ScrollViewStyle& style) {
-                style.scrollbarMargin = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "scrollbarWidth") {
-            mutateWidgetStyle(*scrollView, theme_.scrollViewStyle, [&](ui::ScrollViewStyle& style) {
-                style.scrollbarWidth = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "minThumbHeight") {
-            mutateWidgetStyle(*scrollView, theme_.scrollViewStyle, [&](ui::ScrollViewStyle& style) {
-                style.minThumbHeight = prop.value.asNumber();
-            });
-            return true;
-        }
-        if (prop.name == "scrollStep") {
-            mutateWidgetStyle(*scrollView, theme_.scrollViewStyle, [&](ui::ScrollViewStyle& style) {
-                style.scrollStep = prop.value.asNumber();
-            });
-            return true;
-        }
-        return false;
-    }
-
-    if (nodeType == "ProgressBar") {
-        auto* progressBar = dynamic_cast<ui::ProgressBar*>(&widget);
-        if (!progressBar) {
-            return false;
-        }
-
-        if (prop.name == "color" && prop.value.type() == core::ValueType::Color) {
-            progressBar->setColor(prop.value.asColor());
-            return true;
-        }
-        if (prop.name == "backgroundColor" && prop.value.type() == core::ValueType::Color) {
-            progressBar->setBackgroundColor(prop.value.asColor());
-            return true;
-        }
-        if (prop.name == "height") {
-            progressBar->setHeight(prop.value.asNumber());
-            return true;
-        }
-        return false;
-    }
-
-    return false;
 }
 
 bool LayoutBuilder::attachChildren(

@@ -123,10 +123,6 @@ private:
         std::string path,
         core::ValueType expectedType,
         std::function<void(const core::Value&)> apply);
-    bool applyStyleProperty(
-        ui::Widget& widget,
-        const std::string& nodeType,
-        const AstProperty& prop);
     bool attachChildren(
         const std::shared_ptr<ui::Widget>& widget,
         const std::string& nodeType,
