@@ -1,5 +1,6 @@
 #include "tinalux/markup/LayoutLoader.h"
 
+#include <algorithm>
 #include <charconv>
 #include <cstdint>
 #include <cstdlib>
@@ -269,30 +270,6 @@ bool evaluateAndApplyBinding(
     return applyBindingValue(binding, *value);
 }
 
-void appendWidgetStructuralWarnings(
-    const std::vector<std::string>& structuralPaths,
-    const std::unordered_map<std::string, std::shared_ptr<ui::Widget>>& idMap,
-    std::vector<std::string>& warnings)
-{
-    for (const std::string& path : structuralPaths) {
-        const std::string_view root = rootPathSegment(path);
-        const std::string_view property = propertyPathSegment(path);
-        if (root.empty() || property.empty()) {
-            continue;
-        }
-
-        if (!idMap.contains(std::string(root))) {
-            continue;
-        }
-
-        std::ostringstream oss;
-        oss << "control-flow dependency '${" << path
-            << "}' references widget id '" << root
-            << "'; widget ids are currently supported only in property and style bindings";
-        warnings.push_back(oss.str());
-    }
-}
-
 struct LoadedDocumentResult {
     AstDocument document;
     std::vector<std::string> errors;
@@ -419,6 +396,8 @@ LayoutHandle::LayoutHandle(LayoutHandle&& other) noexcept
     , valueListenerIds_(std::move(other.valueListenerIds_))
     , structureListenerIds_(std::move(other.structureListenerIds_))
     , rebuildInProgress_(other.rebuildInProgress_)
+    , deferredRebuildRequested_(other.deferredRebuildRequested_)
+    , interactionDispatchDepth_(other.interactionDispatchDepth_)
     , bindingGeneration_(std::move(other.bindingGeneration_))
     , runtimeState_(std::move(other.runtimeState_))
     , interactionBindings_(std::move(other.interactionBindings_))
@@ -458,6 +437,8 @@ LayoutHandle& LayoutHandle::operator=(LayoutHandle&& other) noexcept
     valueListenerIds_ = std::move(other.valueListenerIds_);
     structureListenerIds_ = std::move(other.structureListenerIds_);
     rebuildInProgress_ = other.rebuildInProgress_;
+    deferredRebuildRequested_ = other.deferredRebuildRequested_;
+    interactionDispatchDepth_ = other.interactionDispatchDepth_;
     bindingGeneration_ = std::move(other.bindingGeneration_);
     runtimeState_ = std::move(other.runtimeState_);
     interactionBindings_ = std::move(other.interactionBindings_);
@@ -507,12 +488,14 @@ void LayoutHandle::bindViewModel(const std::shared_ptr<ViewModel>& viewModel)
     clearValueListeners();
     clearStructureListeners();
     viewModel_ = viewModel;
-    if (documentTemplate_ && theme_ && !structuralPaths_.empty()) {
+    const bool rebuiltFromTemplate =
+        documentTemplate_ && theme_ && !structuralPaths_.empty();
+    if (rebuiltFromTemplate) {
         rebuildFromTemplate();
     }
 
     refreshInteractionBindings();
-    registerValueListeners();
+    registerValueListeners(!rebuiltFromTemplate);
     registerStructureListeners();
 }
 
@@ -701,7 +684,7 @@ void LayoutHandle::clearStructureListeners()
     structureListenerIds_.clear();
 }
 
-void LayoutHandle::registerValueListeners()
+void LayoutHandle::registerValueListeners(bool applyInitialValues)
 {
     if (!viewModel_) {
         return;
@@ -742,7 +725,9 @@ void LayoutHandle::registerValueListeners()
                 }));
         }
 
-        applyCurrentValue();
+        if (applyInitialValues) {
+            applyCurrentValue();
+        }
     }
 }
 
@@ -774,21 +759,7 @@ void LayoutHandle::registerStructureListeners()
                 }
 
                 LayoutHandle& owner = *state->owner;
-                if (owner.rebuildInProgress_) {
-                    return;
-                }
-
-                owner.rebuildInProgress_ = true;
-                if (owner.bindingGeneration_) {
-                    ++(*owner.bindingGeneration_);
-                }
-                owner.clearValueListeners();
-                owner.clearStructureListeners();
-                owner.rebuildFromTemplate();
-                owner.refreshInteractionBindings();
-                owner.registerValueListeners();
-                owner.registerStructureListeners();
-                owner.rebuildInProgress_ = false;
+                owner.rebuildBoundLayout();
             }));
     }
 }
@@ -858,9 +829,19 @@ bool LayoutHandle::bindingDependsOnWidgetPath(
     return false;
 }
 
+bool LayoutHandle::structuralDependsOnPath(std::string_view path) const
+{
+    return std::find(structuralPaths_.begin(), structuralPaths_.end(), path) != structuralPaths_.end();
+}
+
 void LayoutHandle::handleWidgetDependencyChange(std::string_view path)
 {
     if (path.empty() || rebuildInProgress_) {
+        return;
+    }
+
+    if (structuralDependsOnPath(path)) {
+        rebuildBoundLayout();
         return;
     }
 
@@ -869,6 +850,40 @@ void LayoutHandle::handleWidgetDependencyChange(std::string_view path)
             applyBindingNow(binding);
         }
     }
+}
+
+void LayoutHandle::rebuildBoundLayout()
+{
+    if (interactionDispatchDepth_ > 0) {
+        deferredRebuildRequested_ = true;
+        return;
+    }
+
+    if (rebuildInProgress_) {
+        return;
+    }
+
+    rebuildInProgress_ = true;
+    if (bindingGeneration_) {
+        ++(*bindingGeneration_);
+    }
+    clearValueListeners();
+    clearStructureListeners();
+    rebuildFromTemplate();
+    refreshInteractionBindings();
+    registerValueListeners(false);
+    registerStructureListeners();
+    rebuildInProgress_ = false;
+}
+
+void LayoutHandle::flushDeferredRebuild()
+{
+    if (interactionDispatchDepth_ != 0 || !deferredRebuildRequested_) {
+        return;
+    }
+
+    deferredRebuildRequested_ = false;
+    rebuildBoundLayout();
 }
 
 void LayoutHandle::refreshInteractionBindings()
@@ -976,6 +991,18 @@ void LayoutHandle::refreshInteractionBinding(
             }
 
             LayoutHandle& owner = *state->owner;
+            ++owner.interactionDispatchDepth_;
+            struct InteractionDispatchGuard {
+                LayoutHandle& owner;
+
+                ~InteractionDispatchGuard()
+                {
+                    if (owner.interactionDispatchDepth_ > 0) {
+                        --owner.interactionDispatchDepth_;
+                    }
+                    owner.flushDeferredRebuild();
+                }
+            } guard { owner };
 
             if (!path.empty() && !owner.isWidgetBindingPath(path)) {
                 if (auto viewModel = weakViewModel.lock()) {
@@ -1054,10 +1081,6 @@ LoadResult LayoutLoader::load(std::string_view source, const ui::Theme& theme)
 
     auto documentTemplate = std::make_shared<AstDocument>(std::move(parseResult.document));
     auto buildResult = LayoutBuilder::build(*documentTemplate, theme);
-    appendWidgetStructuralWarnings(
-        buildResult.structuralPaths,
-        buildResult.idMap,
-        buildResult.warnings);
     result.handle = LayoutHandle(
         std::move(buildResult.root),
         std::move(buildResult.idMap),
@@ -1089,10 +1112,6 @@ LoadResult LayoutLoader::loadFile(const std::string& path, const ui::Theme& them
 
     auto documentTemplate = std::make_shared<AstDocument>(std::move(loadedDocument.document));
     auto buildResult = LayoutBuilder::build(*documentTemplate, theme);
-    appendWidgetStructuralWarnings(
-        buildResult.structuralPaths,
-        buildResult.idMap,
-        buildResult.warnings);
     result.handle = LayoutHandle(
         std::move(buildResult.root),
         std::move(buildResult.idMap),

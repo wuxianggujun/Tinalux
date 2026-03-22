@@ -4,6 +4,7 @@
 
 #include "tinalux/markup/LayoutLoader.h"
 #include "tinalux/markup/ViewModel.h"
+#include "tinalux/ui/Button.h"
 #include "tinalux/ui/Label.h"
 #include "tinalux/ui/TextInput.h"
 #include "tinalux/ui/Theme.h"
@@ -437,6 +438,51 @@ VBox(id: root) {
         expect(
             switchResult.handle.findById<ui::Label>("fallbackLabel") == nullptr,
             "fallback switch branch should disappear after a later case matches");
+    }
+
+    {
+        const std::string widgetDrivenSource = R"(
+VBox(id: root) {
+    TextInput(id: query, text: ${model.query}),
+    if(${query.text}) {
+        Button(id: clear, text: "Clear")
+    }
+}
+)";
+
+        markup::LoadResult widgetDrivenResult = markup::LayoutLoader::load(widgetDrivenSource, theme);
+        expectLoadOk(widgetDrivenResult, "widget-id structural control markup should load");
+        expect(
+            widgetDrivenResult.warnings.empty(),
+            "widget-id structural control markup should not emit warnings");
+
+        auto widgetDrivenViewModel = markup::ViewModel::create();
+        widgetDrivenViewModel->setString("query", "");
+        widgetDrivenResult.handle.bindViewModel(widgetDrivenViewModel);
+
+        ui::TextInput* query = widgetDrivenResult.handle.findById<ui::TextInput>("query");
+        expect(query != nullptr, "widget-id structural control source input should materialize");
+        expect(
+            widgetDrivenResult.handle.findById<ui::Button>("clear") == nullptr,
+            "widget-id structural control branch should stay hidden for empty text");
+
+        widgetDrivenViewModel->setString("query", "seed");
+        ui::Button* clear = widgetDrivenResult.handle.findById<ui::Button>("clear");
+        expect(
+            clear != nullptr,
+            "widget-id structural control branch should materialize after bound text changes");
+
+        query = widgetDrivenResult.handle.findById<ui::TextInput>("query");
+        expect(query != nullptr, "widget-id structural control source input should survive rebuild");
+        query->setText("");
+        expect(
+            widgetDrivenResult.handle.findById<ui::Button>("clear") == nullptr,
+            "widget-id structural control branch should disappear after direct widget edits");
+
+        widgetDrivenViewModel->setString("query", "again");
+        expect(
+            widgetDrivenResult.handle.findById<ui::Button>("clear") != nullptr,
+            "widget-id structural control branch should rematerialize after later updates");
     }
 
     return 0;

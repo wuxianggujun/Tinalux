@@ -111,6 +111,7 @@ std::string TextInput::text() const
 
 void TextInput::setText(const std::string& text)
 {
+    const std::shared_ptr<Widget> keepAlive = sharedHandle();
     const std::string selectionBefore = selectedText();
     if (!model_->setText(text)) {
         return;

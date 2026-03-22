@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -43,10 +44,6 @@ public:
 
 private:
     using ScopeBindings = std::unordered_map<std::string, const ModelNode*>;
-    struct ExpandedNode {
-        AstNode node;
-        ScopeBindings scope;
-    };
     struct PreparedBinding {
         std::vector<std::string> dependencyPaths;
         std::string writeBackPath;
@@ -75,10 +72,10 @@ private:
     AstNode mergeComponentNode(
         const AstComponentDefinition& component,
         const AstNode& instanceNode);
-    void appendExpandedNodes(
+    std::size_t visitExpandedNodes(
         const std::vector<AstNode>& sourceNodes,
         const ScopeBindings& scope,
-        std::vector<ExpandedNode>& outNodes);
+        const std::function<void(const AstNode&, const ScopeBindings&)>& visitor);
     AstNode resolveComponentTemplateNode(
         const AstNode& templateNode,
         const std::unordered_map<std::string, AstProperty>& parameterValues,

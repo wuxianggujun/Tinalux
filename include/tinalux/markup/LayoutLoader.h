@@ -71,14 +71,17 @@ private:
     bool applyBindingNow(const detail::BindingDescriptor& binding);
     void clearValueListeners();
     void clearStructureListeners();
-    void registerValueListeners();
+    void registerValueListeners(bool applyInitialValues);
     void registerStructureListeners();
     bool isWidgetBindingPath(std::string_view path) const;
     std::optional<ModelNode> readWidgetBindingNode(std::string_view path) const;
     bool bindingDependsOnWidgetPath(
         const detail::BindingDescriptor& binding,
         std::string_view path) const;
+    bool structuralDependsOnPath(std::string_view path) const;
     void handleWidgetDependencyChange(std::string_view path);
+    void rebuildBoundLayout();
+    void flushDeferredRebuild();
     void bindInteraction(
         const std::string& id,
         std::string_view interactionName,
@@ -106,6 +109,8 @@ private:
     std::vector<ViewModel::ListenerId> valueListenerIds_;
     std::vector<ViewModel::ListenerId> structureListenerIds_;
     bool rebuildInProgress_ = false;
+    bool deferredRebuildRequested_ = false;
+    std::size_t interactionDispatchDepth_ = 0;
     std::shared_ptr<std::uint64_t> bindingGeneration_ = std::make_shared<std::uint64_t>(0);
     std::shared_ptr<detail::LayoutHandleState> runtimeState_;
     std::vector<detail::InteractionBindingDescriptor> interactionBindings_;

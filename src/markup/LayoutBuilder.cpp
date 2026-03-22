@@ -263,6 +263,110 @@ const ModelNode* resolveLocalSnapshotNode(
     return currentNode;
 }
 
+std::optional<core::Value> readWidgetPropertyValue(
+    const ui::Widget& widget,
+    std::string_view propertyName)
+{
+    if (propertyName == "visible") {
+        return core::Value(widget.visible());
+    }
+
+    if (propertyName == "enabled") {
+        return core::Value(widget.enabled());
+    }
+
+    const std::string& typeName = widget.markupTypeName();
+    if (typeName.empty()) {
+        return std::nullopt;
+    }
+
+    const core::TypeInfo* typeInfo = core::TypeRegistry::instance().findType(typeName);
+    if (typeInfo == nullptr) {
+        return std::nullopt;
+    }
+
+    const core::PropertyInfo* propertyInfo = typeInfo->findProperty(propertyName);
+    if (propertyInfo == nullptr || !propertyInfo->getter) {
+        return std::nullopt;
+    }
+
+    return propertyInfo->getter(widget);
+}
+
+const ModelNode* resolveWidgetSnapshotNode(
+    const std::unordered_map<std::string, std::shared_ptr<ui::Widget>>& idMap,
+    std::string_view path,
+    std::unordered_map<std::string, ModelNode>& widgetNodeCache)
+{
+    const std::vector<std::string_view> parts = splitScopedPath(path);
+    if (parts.size() != 2) {
+        return nullptr;
+    }
+
+    const auto widgetIt = idMap.find(std::string(parts.front()));
+    if (widgetIt == idMap.end() || widgetIt->second == nullptr) {
+        return nullptr;
+    }
+
+    const std::string cacheKey(path);
+    const auto cacheIt = widgetNodeCache.find(cacheKey);
+    if (cacheIt != widgetNodeCache.end()) {
+        return &cacheIt->second;
+    }
+
+    const std::optional<core::Value> widgetValue =
+        readWidgetPropertyValue(*widgetIt->second, parts.back());
+    if (!widgetValue.has_value()) {
+        return nullptr;
+    }
+
+    auto [insertedIt, inserted] = widgetNodeCache.emplace(cacheKey, ModelNode(*widgetValue));
+    (void)inserted;
+    return &insertedIt->second;
+}
+
+std::optional<core::Value> coerceInitialBindingValue(
+    const core::Value& value,
+    core::ValueType expectedType)
+{
+    if (expectedType == core::ValueType::None || value.type() == expectedType) {
+        return value;
+    }
+
+    switch (expectedType) {
+    case core::ValueType::None:
+        return value;
+
+    case core::ValueType::Bool:
+        if (value.type() == core::ValueType::Int) {
+            return core::Value(value.asInt() != 0);
+        }
+        if (value.type() == core::ValueType::Float) {
+            return core::Value(value.asFloat() != 0.0f);
+        }
+        return std::nullopt;
+
+    case core::ValueType::Int:
+        if (value.type() == core::ValueType::Float) {
+            return core::Value(static_cast<int>(value.asFloat()));
+        }
+        return std::nullopt;
+
+    case core::ValueType::Float:
+        if (value.type() == core::ValueType::Int) {
+            return core::Value(static_cast<float>(value.asInt()));
+        }
+        return std::nullopt;
+
+    case core::ValueType::String:
+    case core::ValueType::Color:
+    case core::ValueType::Enum:
+        return std::nullopt;
+    }
+
+    return std::nullopt;
+}
+
 void appendUniquePath(std::vector<std::string>& paths, std::string path)
 {
     if (path.empty()) {
@@ -642,17 +746,16 @@ AstNode LayoutBuilder::mergeComponentNode(
     return merged;
 }
 
-void LayoutBuilder::appendExpandedNodes(
+std::size_t LayoutBuilder::visitExpandedNodes(
     const std::vector<AstNode>& sourceNodes,
     const ScopeBindings& scope,
-    std::vector<ExpandedNode>& outNodes)
+    const std::function<void(const AstNode&, const ScopeBindings&)>& visitor)
 {
+    std::size_t expandedCount = 0;
     for (const auto& node : sourceNodes) {
         if (node.isWidget()) {
-            outNodes.push_back(ExpandedNode {
-                .node = node,
-                .scope = scope,
-            });
+            ++expandedCount;
+            visitor(node, scope);
             continue;
         }
 
@@ -676,7 +779,7 @@ void LayoutBuilder::appendExpandedNodes(
                     node.line,
                     "if condition",
                     scope)) {
-                appendExpandedNodes(node.children, scope, outNodes);
+                expandedCount += visitExpandedNodes(node.children, scope, visitor);
                 continue;
             }
 
@@ -690,7 +793,10 @@ void LayoutBuilder::appendExpandedNodes(
                     continue;
                 }
 
-                appendExpandedNodes(conditionalBranch.children, scope, outNodes);
+                expandedCount += visitExpandedNodes(
+                    conditionalBranch.children,
+                    scope,
+                    visitor);
                 break;
             }
             continue;
@@ -742,10 +848,12 @@ void LayoutBuilder::appendExpandedNodes(
                 if (node.loopIndexVariable.has_value()) {
                     loopScope[*node.loopIndexVariable] = &loopIndexNode;
                 }
-                appendExpandedNodes(node.children, loopScope, outNodes);
+                expandedCount += visitExpandedNodes(node.children, loopScope, visitor);
             }
         }
     }
+
+    return expandedCount;
 }
 
 AstNode LayoutBuilder::resolveComponentTemplateNode(
@@ -1165,8 +1273,20 @@ bool LayoutBuilder::evaluateConditionExpression(
         return false;
     }
 
-    return expression->evaluateTruthy([this, &scope](std::string_view path) {
-        return resolveScopedNode(path, scope);
+    std::unordered_map<std::string, ModelNode> widgetNodeCache;
+    return expression->evaluateTruthy(
+        [this, &scope, &widgetNodeCache](std::string_view path) -> const ModelNode* {
+        const std::string normalizedPath = normalizeScopedPath(path);
+        if (const ModelNode* localNode = resolveLocalNode(normalizedPath, scope)) {
+            return localNode;
+        }
+
+        if (const ModelNode* widgetNode =
+                resolveWidgetSnapshotNode(idMap_, normalizedPath, widgetNodeCache)) {
+            return widgetNode;
+        }
+
+        return viewModel_ ? viewModel_->findNode(normalizedPath) : nullptr;
     });
 }
 
@@ -1748,7 +1868,7 @@ void LayoutBuilder::registerBinding(
         const std::function<const ModelNode*(std::string_view)>&)> evaluate,
     std::function<void(const core::Value&)> apply)
 {
-    bindings_.push_back(detail::BindingDescriptor {
+    detail::BindingDescriptor binding {
         .widget = widget,
         .propertyName = std::move(propertyName),
         .dependencyPaths = std::move(dependencyPaths),
@@ -1756,7 +1876,26 @@ void LayoutBuilder::registerBinding(
         .expectedType = expectedType,
         .evaluate = std::move(evaluate),
         .apply = std::move(apply),
-    });
+    };
+
+    if (viewModel_ && binding.evaluate && binding.apply) {
+        std::unordered_map<std::string, ModelNode> widgetNodeCache;
+        const auto widgetResolver =
+            [this, &widgetNodeCache](std::string_view path) -> const ModelNode* {
+            const std::string normalizedPath = normalizeScopedPath(path);
+            return resolveWidgetSnapshotNode(idMap_, normalizedPath, widgetNodeCache);
+        };
+        const std::optional<core::Value> initialValue = binding.evaluate(viewModel_, widgetResolver);
+        if (initialValue.has_value()) {
+            const std::optional<core::Value> coercedValue =
+                coerceInitialBindingValue(*initialValue, binding.expectedType);
+            if (coercedValue.has_value()) {
+                binding.apply(*coercedValue);
+            }
+        }
+    }
+
+    bindings_.push_back(std::move(binding));
 }
 
 void LayoutBuilder::registerNodeBinding(
@@ -1769,7 +1908,7 @@ void LayoutBuilder::registerNodeBinding(
         const std::function<const ModelNode*(std::string_view)>&)> evaluateNode,
     std::function<void(const ModelNode&)> applyNode)
 {
-    bindings_.push_back(detail::BindingDescriptor {
+    detail::BindingDescriptor binding {
         .widget = widget,
         .propertyName = std::move(propertyName),
         .dependencyPaths = std::move(dependencyPaths),
@@ -1791,7 +1930,19 @@ void LayoutBuilder::registerNodeBinding(
                 applyNode(*node);
                 return true;
             },
-    });
+    };
+
+    if (viewModel_ && binding.applyResolved) {
+        std::unordered_map<std::string, ModelNode> widgetNodeCache;
+        const auto widgetResolver =
+            [this, &widgetNodeCache](std::string_view path) -> const ModelNode* {
+            const std::string normalizedPath = normalizeScopedPath(path);
+            return resolveWidgetSnapshotNode(idMap_, normalizedPath, widgetNodeCache);
+        };
+        binding.applyResolved(viewModel_, widgetResolver);
+    }
+
+    bindings_.push_back(std::move(binding));
 }
 
 void LayoutBuilder::registerInteractionBinding(
@@ -1819,34 +1970,30 @@ bool LayoutBuilder::attachChildren(
         return false;
     }
 
-    std::vector<ExpandedNode> expandedChildren;
-    appendExpandedNodes(node.children, scope, expandedChildren);
-    if (expandedChildren.empty()) {
-        return true;
-    }
+    std::size_t expandedChildren = 0;
+    const auto attachExpandedChild = [&](const AstNode& childNode, const ScopeBindings& childScope) {
+        ++expandedChildren;
+        if (childAttachment.policy == core::ChildAttachmentPolicy::Single && expandedChildren > 1) {
+            return;
+        }
 
-    if (childAttachment.policy == core::ChildAttachmentPolicy::Single
-        && expandedChildren.size() > 1) {
-        std::ostringstream oss;
-        oss << "'" << typeInfo.name << "' accepts only one child content node at line "
-            << node.line;
-        warnings_.push_back(oss.str());
-    }
-
-    const auto attachExpandedChild = [&](const ExpandedNode& childNode) {
-        auto child = buildNode(childNode.node, childNode.scope);
+        auto child = buildNode(childNode, childScope);
         if (child) {
             childAttachment.attach(*widget, std::move(child));
         }
     };
 
-    if (childAttachment.policy == core::ChildAttachmentPolicy::Single) {
-        attachExpandedChild(expandedChildren.front());
+    visitExpandedNodes(node.children, scope, attachExpandedChild);
+    if (expandedChildren == 0) {
         return true;
     }
 
-    for (const auto& childNode : expandedChildren) {
-        attachExpandedChild(childNode);
+    if (childAttachment.policy == core::ChildAttachmentPolicy::Single
+        && expandedChildren > 1) {
+        std::ostringstream oss;
+        oss << "'" << typeInfo.name << "' accepts only one child content node at line "
+            << node.line;
+        warnings_.push_back(oss.str());
     }
     return true;
 }

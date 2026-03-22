@@ -211,9 +211,9 @@ ProgressBar(value: ${volumeInput.value})
 
 当前限制：
 
-- `id.property` 只支持普通属性绑定和样式绑定
-- `id.property` 目前不支持 `if / elseif / else / for` 这种结构控制
-- 也就是说，不支持用控件状态驱动整棵结构重建
+- `id.property` 支持普通属性绑定、样式绑定，以及结构控制条件
+- 结构控制里引用 widget id 时，推荐只引用当前构建顺序里已经出现的控件
+- 最稳妥的写法是“前面的输入控件影响后面的条件分支”
 
 ## 9. 控制流
 
@@ -238,6 +238,16 @@ if(${model.loggedIn}) {
 - `else`：兜底分支
 
 它们是给布局文件用的，不是给普通配置文件用的。
+
+也支持用前面已经声明过的控件状态来驱动分支：
+
+```tui
+TextInput(id: query, text: ${model.query})
+
+if(${query.text}) {
+    Button(text: "Clear")
+}
+```
 
 ### `switch / case / else`
 
