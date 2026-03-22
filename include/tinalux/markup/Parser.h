@@ -8,12 +8,6 @@
 
 namespace tinalux::markup {
 
-struct ParseResult {
-    AstNode root;
-    std::vector<std::string> errors;
-    bool ok() const { return errors.empty(); }
-};
-
 struct DocumentParseResult {
     AstDocument document;
     std::vector<std::string> errors;
@@ -22,7 +16,6 @@ struct DocumentParseResult {
 
 class Parser {
 public:
-    static ParseResult parse(std::string_view source, std::string_view baseDirectory = {});
     static DocumentParseResult parseDocument(
         std::string_view source,
         std::string_view baseDirectory = {});

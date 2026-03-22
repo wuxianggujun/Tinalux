@@ -376,6 +376,29 @@ CardShell(id: "card") {
 
     {
         const std::string source = R"(
+@component StaticShell: Panel(id: "shell")
+StaticShell(id: "card") {
+    Button(id: "inside", text: "OK")
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "component without slot should still load");
+        expect(result.warnings.size() == 1, "component without slot children should emit one warning");
+        expect(
+            result.warnings.front().find("declares no Slot()") != std::string::npos,
+            "component without slot warning should explain missing Slot");
+
+        const ui::Panel* card = result.handle.findById<ui::Panel>("card");
+        expect(card != nullptr, "component without slot should materialize as Panel");
+        expect(card->children().empty(), "component without slot should ignore instance children");
+        expect(
+            result.handle.findById<ui::Button>("inside") == nullptr,
+            "ignored component child should not materialize");
+    }
+
+    {
+        const std::string source = R"(
 @component DialogFrame: Panel(id: "frame") {
     Panel(id: "bodyHost") {
         Slot(name: body)

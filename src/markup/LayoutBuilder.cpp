@@ -268,7 +268,6 @@ AstNode LayoutBuilder::mergeComponentNode(
 
     const bool templateHasSlots = containsSlotNode(component.root);
     std::unordered_map<std::string, std::vector<AstNode>> slotChildren;
-    std::vector<AstNode> legacyChildren;
 
     for (const auto& instanceChild : instanceNode.children) {
         AstNode normalizedChild = instanceChild;
@@ -296,16 +295,15 @@ AstNode LayoutBuilder::mergeComponentNode(
         }
 
         if (!templateHasSlots) {
+            std::ostringstream oss;
             if (explicitSlotName.has_value() && !explicitSlotName->empty()) {
-                std::ostringstream oss;
-                oss << slotLabel(*explicitSlotName) << " passed to component '"
-                    << component.name << "' at line " << normalizedChild.line
-                    << ", but template declares no Slot()";
-                warnings_.push_back(oss.str());
-                continue;
+                oss << slotLabel(*explicitSlotName);
+            } else {
+                oss << "child '" << normalizedChild.typeName << "'";
             }
-
-            legacyChildren.push_back(std::move(normalizedChild));
+            oss << " passed to component '" << component.name << "' at line "
+                << normalizedChild.line << ", but template declares no Slot()";
+            warnings_.push_back(oss.str());
             continue;
         }
 
@@ -331,13 +329,6 @@ AstNode LayoutBuilder::mergeComponentNode(
     merged.column = instanceNode.column;
 
     applyNodePropertyOverrides(merged, rootOverrides);
-
-    if (!templateHasSlots && !legacyChildren.empty()) {
-        merged.children.insert(
-            merged.children.end(),
-            legacyChildren.begin(),
-            legacyChildren.end());
-    }
 
     if (templateHasSlots) {
         for (const auto& [slotName, slotNodes] : slotChildren) {

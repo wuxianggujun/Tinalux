@@ -403,14 +403,6 @@ std::shared_ptr<ViewModel> LayoutHandle::viewModel() const
     return viewModel_;
 }
 
-ui::Widget* LayoutHandle::findById(const std::string& id) const
-{
-    auto it = idMap_.find(id);
-    if (it == idMap_.end())
-        return nullptr;
-    return it->second.get();
-}
-
 void LayoutHandle::bindClick(const std::string& id, std::function<void()> handler)
 {
     clickHandlers_[id] = std::move(handler);

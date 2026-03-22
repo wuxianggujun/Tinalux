@@ -44,24 +44,6 @@ Parser::Parser(Lexer lexer, std::string baseDirectory)
     current_ = lexer_.next();
 }
 
-ParseResult Parser::parse(std::string_view source, std::string_view baseDirectory)
-{
-    auto documentResult = parseDocument(source, baseDirectory);
-
-    ParseResult result;
-    if (documentResult.document.root) {
-        result.root = std::move(*documentResult.document.root);
-    } else {
-        result.errors.push_back("[0:0] missing root node");
-    }
-
-    for (auto& error : documentResult.errors) {
-        result.errors.push_back(std::move(error));
-    }
-
-    return result;
-}
-
 DocumentParseResult Parser::parseDocument(
     std::string_view source,
     std::string_view baseDirectory)

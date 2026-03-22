@@ -64,8 +64,6 @@ public:
         return dynamic_cast<W*>(it->second.get());
     }
 
-    ui::Widget* findById(const std::string& id) const;
-
     void bindClick(const std::string& id, std::function<void()> handler);
     void bindToggle(const std::string& id, std::function<void(bool)> handler);
     void bindTextChanged(const std::string& id, std::function<void(const std::string&)> handler);
