@@ -125,7 +125,7 @@ private:
         std::function<void(const core::Value&)> apply);
     bool attachChildren(
         const std::shared_ptr<ui::Widget>& widget,
-        const std::string& nodeType,
+        const core::TypeInfo& typeInfo,
         const AstNode& node,
         const ScopeBindings& scope);
 

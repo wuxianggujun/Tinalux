@@ -205,7 +205,7 @@ std::shared_ptr<ui::Widget> LayoutBuilder::buildNode(
         applyStandardProperty(widget, *typeInfo, node.typeName, resolvedProp);
     }
 
-    if (!attachChildren(widget, node.typeName, node, scope) && !node.children.empty()) {
+    if (!attachChildren(widget, *typeInfo, node, scope) && !node.children.empty()) {
         std::ostringstream oss;
         oss << "'" << node.typeName << "' is not a container but has children at line "
             << node.line;
@@ -962,62 +962,45 @@ void LayoutBuilder::registerBinding(
 
 bool LayoutBuilder::attachChildren(
     const std::shared_ptr<ui::Widget>& widget,
-    const std::string& nodeType,
+    const core::TypeInfo& typeInfo,
     const AstNode& node,
     const ScopeBindings& scope)
 {
+    const auto& childAttachment = typeInfo.childAttachment;
+    if (!childAttachment.acceptsChildren()) {
+        return false;
+    }
+
     std::vector<ExpandedNode> expandedChildren;
     appendExpandedNodes(node.children, scope, expandedChildren);
+    if (expandedChildren.empty()) {
+        return true;
+    }
 
-    if (auto* dialog = dynamic_cast<ui::Dialog*>(widget.get())) {
-        if (expandedChildren.empty()) {
-            return true;
-        }
+    if (childAttachment.policy == core::ChildAttachmentPolicy::Single
+        && expandedChildren.size() > 1) {
+        std::ostringstream oss;
+        oss << "'" << typeInfo.name << "' accepts only one child content node at line "
+            << node.line;
+        warnings_.push_back(oss.str());
+    }
 
-        if (expandedChildren.size() > 1) {
-            std::ostringstream oss;
-            oss << "'" << nodeType << "' accepts only one child content node at line "
-                << node.line;
-            warnings_.push_back(oss.str());
-        }
-
-        auto child = buildNode(expandedChildren.front().node, expandedChildren.front().scope);
+    const auto attachExpandedChild = [&](const ExpandedNode& childNode) {
+        auto child = buildNode(childNode.node, childNode.scope);
         if (child) {
-            dialog->setContent(std::move(child));
+            childAttachment.attach(*widget, std::move(child));
         }
+    };
+
+    if (childAttachment.policy == core::ChildAttachmentPolicy::Single) {
+        attachExpandedChild(expandedChildren.front());
         return true;
     }
 
-    if (auto* scrollView = dynamic_cast<ui::ScrollView*>(widget.get())) {
-        if (expandedChildren.empty()) {
-            return true;
-        }
-
-        if (expandedChildren.size() > 1) {
-            std::ostringstream oss;
-            oss << "'" << nodeType << "' accepts only one child content node at line "
-                << node.line;
-            warnings_.push_back(oss.str());
-        }
-
-        auto child = buildNode(expandedChildren.front().node, expandedChildren.front().scope);
-        if (child) {
-            scrollView->setContent(std::move(child));
-        }
-        return true;
+    for (const auto& childNode : expandedChildren) {
+        attachExpandedChild(childNode);
     }
-
-    if (auto* container = dynamic_cast<ui::Container*>(widget.get())) {
-        for (const auto& childNode : expandedChildren) {
-            auto child = buildNode(childNode.node, childNode.scope);
-            if (child) {
-                container->addChild(std::move(child));
-            }
-        }
-        return true;
-    }
-
-    return false;
+    return true;
 }
 
 } // namespace tinalux::markup

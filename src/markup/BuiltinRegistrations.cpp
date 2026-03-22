@@ -78,6 +78,39 @@ core::InteractionInfo makeInteraction(
     };
 }
 
+template <typename WidgetT, typename Attacher>
+core::ChildAttachmentInfo makeChildAttachment(
+    core::ChildAttachmentPolicy policy,
+    Attacher attacher)
+{
+    return core::ChildAttachmentInfo {
+        .policy = policy,
+        .attach = [attacher](ui::Widget& widget, std::shared_ptr<ui::Widget> child) {
+            attacher(static_cast<WidgetT&>(widget), std::move(child));
+        },
+    };
+}
+
+template <typename WidgetT>
+core::ChildAttachmentInfo makeContainerChildAttachment()
+{
+    return makeChildAttachment<WidgetT>(
+        core::ChildAttachmentPolicy::Multiple,
+        [](WidgetT& widget, std::shared_ptr<ui::Widget> child) {
+            widget.addChild(std::move(child));
+        });
+}
+
+template <typename WidgetT, typename Setter>
+core::ChildAttachmentInfo makeSingleContentChildAttachment(Setter setter)
+{
+    return makeChildAttachment<WidgetT>(
+        core::ChildAttachmentPolicy::Single,
+        [setter](WidgetT& widget, std::shared_ptr<ui::Widget> child) {
+            setter(widget, std::move(child));
+        });
+}
+
 } // namespace
 
 void registerBuiltinTypes()
@@ -88,7 +121,6 @@ void registerBuiltinTypes()
 
     reg.registerType(core::TypeInfo {
         .name = "VBox",
-        .isContainer = true,
         .factory = [] { return std::make_shared<ui::VBox>(); },
         .properties = {
             {"spacing", core::ValueType::Float,
@@ -100,11 +132,11 @@ void registerBuiltinTypes()
                     static_cast<ui::VBox&>(w).setPadding(v.asNumber());
                 }},
         },
+        .childAttachment = makeContainerChildAttachment<ui::VBox>(),
     });
 
     reg.registerType(core::TypeInfo {
         .name = "HBox",
-        .isContainer = true,
         .factory = [] { return std::make_shared<ui::HBox>(); },
         .properties = {
             {"spacing", core::ValueType::Float,
@@ -116,11 +148,11 @@ void registerBuiltinTypes()
                     static_cast<ui::HBox&>(w).setPadding(v.asNumber());
                 }},
         },
+        .childAttachment = makeContainerChildAttachment<ui::HBox>(),
     });
 
     reg.registerType(core::TypeInfo {
         .name = "Flex",
-        .isContainer = true,
         .factory = [] { return std::make_shared<ui::Flex>(); },
         .properties = {
             {"direction", core::ValueType::Enum,
@@ -167,11 +199,11 @@ void registerBuiltinTypes()
                     static_cast<ui::Flex&>(w).setPadding(v.asNumber());
                 }},
         },
+        .childAttachment = makeContainerChildAttachment<ui::Flex>(),
     });
 
     reg.registerType(core::TypeInfo {
         .name = "Grid",
-        .isContainer = true,
         .factory = [] { return std::make_shared<ui::Grid>(); },
         .properties = {
             {"columns", core::ValueType::Int,
@@ -195,18 +227,18 @@ void registerBuiltinTypes()
                     static_cast<ui::Grid&>(w).setPadding(v.asNumber());
                 }},
         },
+        .childAttachment = makeContainerChildAttachment<ui::Grid>(),
     });
 
     reg.registerType(core::TypeInfo {
         .name = "Container",
-        .isContainer = true,
         .factory = [] { return std::make_shared<ui::Container>(); },
         .properties = {},
+        .childAttachment = makeContainerChildAttachment<ui::Container>(),
     });
 
     reg.registerType(core::TypeInfo {
         .name = "Panel",
-        .isContainer = true,
         .factory = [] { return std::make_shared<ui::Panel>(); },
         .properties = {
             {"backgroundColor", core::ValueType::Color,
@@ -234,11 +266,11 @@ void registerBuiltinTypes()
                     style.cornerRadius = value.asNumber();
                 }),
         },
+        .childAttachment = makeContainerChildAttachment<ui::Panel>(),
     });
 
     reg.registerType(core::TypeInfo {
         .name = "Dialog",
-        .isContainer = true,
         .factory = [] { return std::make_shared<ui::Dialog>(); },
         .properties = {
             {"title", core::ValueType::String,
@@ -346,11 +378,14 @@ void registerBuiltinTypes()
                     style.titleTextStyle.bold = value.asBool();
                 }),
         },
+        .childAttachment = makeSingleContentChildAttachment<ui::Dialog>(
+            [](ui::Dialog& dialog, std::shared_ptr<ui::Widget> child) {
+                dialog.setContent(std::move(child));
+            }),
     });
 
     reg.registerType(core::TypeInfo {
         .name = "ScrollView",
-        .isContainer = true,
         .factory = [] { return std::make_shared<ui::ScrollView>(); },
         .properties = {
             {"preferredHeight", core::ValueType::Float,
@@ -402,13 +437,16 @@ void registerBuiltinTypes()
                     style.scrollStep = value.asNumber();
                 }),
         },
+        .childAttachment = makeSingleContentChildAttachment<ui::ScrollView>(
+            [](ui::ScrollView& scrollView, std::shared_ptr<ui::Widget> child) {
+                scrollView.setContent(std::move(child));
+            }),
     });
 
     // ---- Leaf widgets ----
 
     reg.registerType(core::TypeInfo {
         .name = "Label",
-        .isContainer = false,
         .factory = [] { return std::make_shared<ui::Label>(""); },
         .properties = {
             {"text", core::ValueType::String,
@@ -428,7 +466,6 @@ void registerBuiltinTypes()
 
     reg.registerType(core::TypeInfo {
         .name = "ParagraphLabel",
-        .isContainer = false,
         .factory = [] { return std::make_shared<ui::ParagraphLabel>(""); },
         .properties = {
             {"text", core::ValueType::String,
@@ -453,7 +490,6 @@ void registerBuiltinTypes()
 
     reg.registerType(core::TypeInfo {
         .name = "Button",
-        .isContainer = false,
         .factory = [] { return std::make_shared<ui::Button>(""); },
         .properties = {
             {"text", core::ValueType::String,
@@ -596,7 +632,6 @@ void registerBuiltinTypes()
 
     reg.registerType(core::TypeInfo {
         .name = "TextInput",
-        .isContainer = false,
         .factory = [] { return std::make_shared<ui::TextInput>(""); },
         .properties = {
             {"placeholder", core::ValueType::String,
@@ -759,7 +794,6 @@ void registerBuiltinTypes()
 
     reg.registerType(core::TypeInfo {
         .name = "Dropdown",
-        .isContainer = false,
         .factory = [] { return std::make_shared<ui::Dropdown>(); },
         .properties = {
             {"placeholder", core::ValueType::String,
@@ -797,7 +831,6 @@ void registerBuiltinTypes()
 
     reg.registerType(core::TypeInfo {
         .name = "Checkbox",
-        .isContainer = false,
         .factory = [] { return std::make_shared<ui::Checkbox>("", false); },
         .properties = {
             {"label", core::ValueType::String,
@@ -831,7 +864,6 @@ void registerBuiltinTypes()
 
     reg.registerType(core::TypeInfo {
         .name = "Radio",
-        .isContainer = false,
         .factory = [] { return std::make_shared<ui::Radio>(""); },
         .properties = {
             {"label", core::ValueType::String,
@@ -869,7 +901,6 @@ void registerBuiltinTypes()
 
     reg.registerType(core::TypeInfo {
         .name = "ImageWidget",
-        .isContainer = false,
         .factory = [] { return std::make_shared<ui::ImageWidget>(); },
         .properties = {
             {"source", core::ValueType::String,
@@ -894,7 +925,6 @@ void registerBuiltinTypes()
 
     reg.registerType(core::TypeInfo {
         .name = "Toggle",
-        .isContainer = false,
         .factory = [] { return std::make_shared<ui::Toggle>(""); },
         .properties = {
             {"label", core::ValueType::String,
@@ -924,7 +954,6 @@ void registerBuiltinTypes()
 
     reg.registerType(core::TypeInfo {
         .name = "Slider",
-        .isContainer = false,
         .factory = [] { return std::make_shared<ui::Slider>(); },
         .properties = {
             {"value", core::ValueType::Float,
@@ -964,7 +993,6 @@ void registerBuiltinTypes()
 
     reg.registerType(core::TypeInfo {
         .name = "ProgressBar",
-        .isContainer = false,
         .factory = [] { return std::make_shared<ui::ProgressBar>(); },
         .properties = {
             {"value", core::ValueType::Float,

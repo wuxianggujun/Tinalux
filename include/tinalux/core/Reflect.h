@@ -115,6 +115,7 @@ struct StylePropertyInfo {
 };
 
 using InteractionHandler = std::function<void(const Value&)>;
+using ChildAttachmentHandler = std::function<void(ui::Widget&, std::shared_ptr<ui::Widget>)>;
 
 struct InteractionInfo {
     std::string name;
@@ -123,17 +124,33 @@ struct InteractionInfo {
     std::function<void(ui::Widget&, InteractionHandler)> bind;
 };
 
+enum class ChildAttachmentPolicy : std::uint8_t {
+    None,
+    Single,
+    Multiple,
+};
+
+struct ChildAttachmentInfo {
+    ChildAttachmentPolicy policy = ChildAttachmentPolicy::None;
+    ChildAttachmentHandler attach;
+
+    [[nodiscard]] bool acceptsChildren() const
+    {
+        return policy != ChildAttachmentPolicy::None && static_cast<bool>(attach);
+    }
+};
+
 // ---------------------------------------------------------------------------
 // TypeInfo — describes a widget type for the registry
 // ---------------------------------------------------------------------------
 
 struct TypeInfo {
     std::string name;
-    bool isContainer = false;
     std::function<std::shared_ptr<ui::Widget>()> factory;
     std::vector<PropertyInfo> properties;
     std::vector<StylePropertyInfo> styleProperties;
     std::vector<InteractionInfo> interactions;
+    ChildAttachmentInfo childAttachment;
 
     const PropertyInfo* findProperty(std::string_view propName) const
     {
@@ -162,6 +179,8 @@ struct TypeInfo {
         }
         return nullptr;
     }
+
+    [[nodiscard]] bool acceptsChildren() const { return childAttachment.acceptsChildren(); }
 };
 
 // ---------------------------------------------------------------------------

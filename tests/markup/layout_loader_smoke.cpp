@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
@@ -11,6 +12,7 @@
 #include "tinalux/ui/Dialog.h"
 #include "tinalux/ui/Dropdown.h"
 #include "tinalux/ui/ImageWidget.h"
+#include "tinalux/ui/Label.h"
 #include "tinalux/ui/Panel.h"
 #include "tinalux/ui/ScrollView.h"
 #include "tinalux/ui/TextInput.h"
@@ -450,6 +452,68 @@ FooterShell(id: "withoutOverride")
         expect(shell != nullptr, "slot fallback component should materialize as Panel");
         expect(shell->children().size() == 1, "slot fallback child should be attached");
         expect(shell->children().front()->id() == "fallbackBtn", "slot fallback child id should be preserved");
+    }
+
+    {
+        const std::string source = R"(
+VBox(id: "root") {
+    Dialog(id: "dialog", title: "Warn") {
+        Panel(id: "dialogFirst"),
+        Panel(id: "dialogSecond")
+    },
+    ScrollView(id: "scroll") {
+        Panel(id: "scrollFirst"),
+        Panel(id: "scrollSecond")
+    },
+    Button(id: "invalid", text: "Oops") {
+        Label(id: "nested", text: "Should not exist")
+    }
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "attachment warnings markup should still load");
+        expect(result.warnings.size() == 3, "attachment warnings smoke should emit three warnings");
+        expect(
+            std::any_of(
+                result.warnings.begin(),
+                result.warnings.end(),
+                [](const std::string& warning) {
+                    return warning.find("'Dialog' accepts only one child content node") != std::string::npos;
+                }),
+            "Dialog with multiple children should emit a single-content warning");
+        expect(
+            std::any_of(
+                result.warnings.begin(),
+                result.warnings.end(),
+                [](const std::string& warning) {
+                    return warning.find("'ScrollView' accepts only one child content node") != std::string::npos;
+                }),
+            "ScrollView with multiple children should emit a single-content warning");
+        expect(
+            std::any_of(
+                result.warnings.begin(),
+                result.warnings.end(),
+                [](const std::string& warning) {
+                    return warning.find("'Button' is not a container but has children") != std::string::npos;
+                }),
+            "non-container child warning should remain intact");
+
+        const ui::Dialog* dialog = result.handle.findById<ui::Dialog>("dialog");
+        expect(dialog != nullptr, "Dialog warning case should still build");
+        expect(dialog->content() != nullptr, "Dialog should keep the first content child");
+        expect(dialog->content()->id() == "dialogFirst", "Dialog should attach only the first child");
+
+        const ui::ScrollView* scrollView = result.handle.findById<ui::ScrollView>("scroll");
+        expect(scrollView != nullptr, "ScrollView warning case should still build");
+        expect(scrollView->content() != nullptr, "ScrollView should keep the first content child");
+        expect(
+            scrollView->content()->id() == "scrollFirst",
+            "ScrollView should attach only the first child");
+
+        expect(
+            result.handle.findById<ui::Label>("nested") == nullptr,
+            "non-container children should not materialize");
     }
 
     return 0;
