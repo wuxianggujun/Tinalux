@@ -481,6 +481,44 @@ VBox(id: root) {
 
     {
         const std::string source = R"(
+VBox(id: root) {
+    Button(id: noopButton, text: "Noop", onClick: ${model.onMissingClick}),
+    Dropdown(
+        id: noopChoice,
+        items: ["Zero", "One", "Two"],
+        selectedIndex: ${model.choiceIndex},
+        onSelectionChanged: ${model.onMissingSelection})
+}
+)";
+
+        markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "missing interaction action markup should load");
+        expect(result.warnings.empty(), "missing interaction action markup should not emit warnings");
+
+        auto viewModel = markup::ViewModel::create();
+        viewModel->setInt("choiceIndex", 0);
+        result.handle.bindViewModel(viewModel);
+
+        ui::Button* noopButton = result.handle.findById<ui::Button>("noopButton");
+        ui::Dropdown* noopChoice = result.handle.findById<ui::Dropdown>("noopChoice");
+        expect(noopButton != nullptr, "missing-action button should exist");
+        expect(noopChoice != nullptr, "missing-action dropdown should exist");
+
+        noopButton->setFocused(true);
+        core::KeyEvent clickButtonOnce(core::keys::kSpace, 0, 0, core::EventType::KeyPress);
+        expect(noopButton->onEvent(clickButtonOnce), "missing-action button should still handle click input");
+
+        noopChoice->setSelectedIndex(2);
+        const core::Value* mirroredValue = viewModel->findValue("choiceIndex");
+        expect(mirroredValue != nullptr, "missing-action dropdown should still write back bound selection");
+        expect(
+            mirroredValue->type() == core::ValueType::Int
+                && mirroredValue->asInt() == 2,
+            "missing-action dropdown should remain stable when the action node is absent");
+    }
+
+    {
+        const std::string source = R"(
 VBox(id: root, 8) {
     Checkbox(id: subscribe, label: "Subscribe", checked: ${model.subscribe}, onToggle: ${model.onSubscribeChanged}),
     Toggle(id: syncToggle, label: "Sync", on: ${model.syncEnabled}, onToggle: ${model.onSyncChanged}),

@@ -327,6 +327,48 @@ VBox(id: root) {
 
     {
         const std::string source = R"(
+VBox(id: root) {
+    Button(id: invalidLiteral, text: "Literal", onClick: "manual"),
+    Dropdown(
+        id: invalidExpression,
+        items: ["Zero", "One"],
+        selectedIndex: 0,
+        onSelectionChanged: ${model.prefix + model.suffix})
+}
+)";
+
+        const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "invalid interaction binding markup should still load");
+        expect(result.warnings.size() == 2, "invalid interaction binding smoke should emit two warnings");
+        expect(
+            std::any_of(
+                result.warnings.begin(),
+                result.warnings.end(),
+                [](const std::string& warning) {
+                    return warning.find(
+                               "interaction property 'onClick' on 'Button' expects a direct binding path")
+                        != std::string::npos;
+                }),
+            "literal interaction warning should mention direct binding paths");
+        expect(
+            std::any_of(
+                result.warnings.begin(),
+                result.warnings.end(),
+                [](const std::string& warning) {
+                    return warning.find(
+                               "interaction property 'onSelectionChanged' on 'Dropdown' requires a direct binding path")
+                        != std::string::npos;
+                }),
+            "expression interaction warning should mention direct binding paths");
+
+        const ui::Button* invalidLiteral = result.handle.findById<ui::Button>("invalidLiteral");
+        const ui::Dropdown* invalidExpression = result.handle.findById<ui::Dropdown>("invalidExpression");
+        expect(invalidLiteral != nullptr, "invalid literal interaction widget should still materialize");
+        expect(invalidExpression != nullptr, "invalid expression interaction widget should still materialize");
+    }
+
+    {
+        const std::string source = R"(
 let followupText: " Ship now"
 component SummaryCard(
     titleText: "Release Notes",
