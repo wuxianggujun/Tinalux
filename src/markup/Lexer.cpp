@@ -89,6 +89,23 @@ void Lexer::skipWhitespaceAndComments()
             continue;
         }
 
+        // block comment
+        if (ch == '/' && pos_ + 1 < source_.size() && source_[pos_ + 1] == '*') {
+            advance();
+            advance();
+            while (!atEnd()) {
+                if (current() == '*'
+                    && pos_ + 1 < source_.size()
+                    && source_[pos_ + 1] == '/') {
+                    advance();
+                    advance();
+                    break;
+                }
+                advance();
+            }
+            continue;
+        }
+
         break;
     }
 }

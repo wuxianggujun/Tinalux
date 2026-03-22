@@ -674,9 +674,14 @@ void LayoutBuilder::appendExpandedNodes(
                 continue;
             }
 
-            for (const ModelNode& itemNode : *array) {
+            for (std::size_t index = 0; index < array->size(); ++index) {
+                const ModelNode& itemNode = (*array)[index];
                 ScopeBindings loopScope = scope;
                 loopScope[node.loopVariable] = &itemNode;
+                ModelNode loopIndexNode(core::Value(static_cast<int>(index)));
+                if (node.loopIndexVariable.has_value()) {
+                    loopScope[*node.loopIndexVariable] = &loopIndexNode;
+                }
                 appendExpandedNodes(node.children, loopScope, outNodes);
             }
         }

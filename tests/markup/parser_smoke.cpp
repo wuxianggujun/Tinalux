@@ -92,6 +92,43 @@ VBox(id: root) {
     }
 
     {
+        const std::string indexedLoopSource = R"(
+/* top-level comment */
+VBox(id: root) {
+    /* nested comment */
+    for(item, index in ${model.items}) {
+        Label(text: ${index == 0 ? "First" : item.label})
+    }
+}
+)";
+
+        const markup::DocumentParseResult result = markup::Parser::parseDocument(indexedLoopSource);
+        expectParseOk(result, "indexed for-loop document should parse");
+        expect(result.document.root.has_value(), "indexed for-loop document root should exist");
+
+        const markup::AstNode& root = *result.document.root;
+        expect(root.children.size() == 1, "indexed for-loop document should keep one control node");
+
+        const markup::AstNode& forNode = root.children.front();
+        expect(forNode.isForBlock(), "indexed loop child should parse as for block");
+        expect(forNode.loopVariable == "item", "indexed for-loop should preserve item variable");
+        expect(
+            forNode.loopIndexVariable.has_value() && *forNode.loopIndexVariable == "index",
+            "indexed for-loop should preserve index variable");
+        expect(
+            forNode.controlPath.has_value() && *forNode.controlPath == "model.items",
+            "indexed for-loop should preserve collection binding");
+        expect(forNode.children.size() == 1, "indexed for-loop should keep one template child");
+
+        const markup::AstProperty* textProp = findProperty(forNode.children.front(), "text");
+        expect(textProp != nullptr, "indexed for-loop child should preserve text property");
+        expect(
+            textProp->bindingPath.has_value()
+                && *textProp->bindingPath == "index == 0 ? \"First\" : item.label",
+            "indexed for-loop binding should preserve raw expression text");
+    }
+
+    {
         const std::string source = R"(
 import "components/shared.tui"
 style primaryAction: Button(backgroundColor: #FF336699, borderRadius: 12)

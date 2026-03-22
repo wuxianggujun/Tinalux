@@ -38,6 +38,7 @@ struct AstNode {
     std::vector<AstNode> conditionalBranches;
     std::optional<std::string> controlPath;
     std::string loopVariable;
+    std::optional<std::string> loopIndexVariable;
     int line = 0;
     int column = 0;
 

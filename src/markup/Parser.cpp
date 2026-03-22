@@ -387,6 +387,17 @@ AstNode Parser::parseForNode(int line, int column)
     node.loopVariable = current_.text;
     current_ = lexer_.next();
 
+    if (current_.type == TokenType::Comma) {
+        current_ = lexer_.next();
+        if (current_.type != TokenType::Identifier) {
+            error("expected index variable name after ',' inside for(...)");
+            return node;
+        }
+
+        node.loopIndexVariable = current_.text;
+        current_ = lexer_.next();
+    }
+
     if (!isIdentifierText(current_, "in")) {
         error("expected 'in' inside for(...)");
         return node;

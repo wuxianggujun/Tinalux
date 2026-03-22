@@ -262,6 +262,55 @@ VBox(id: root) {
         "newly materialized loop widget should resolve local component parameters");
 
     {
+        const std::string indexedSource = R"(
+VBox(id: root) {
+    for(item, index in ${model.actions}) {
+        if(${index == 1}) {
+            TextInput(id: indexedInput, text: ${item.label})
+        }
+    }
+}
+)";
+
+        markup::LoadResult indexedResult = markup::LayoutLoader::load(indexedSource, theme);
+        expectLoadOk(indexedResult, "indexed for-loop markup should load");
+        expect(indexedResult.warnings.empty(), "indexed for-loop markup should not emit warnings");
+
+        auto indexedViewModel = markup::ViewModel::create();
+        indexedViewModel->setArray(
+            "actions",
+            {
+                actionNode("alphaField", "Alpha", true),
+                actionNode("betaField", "Beta", true),
+                actionNode("gammaField", "Gamma", true),
+            });
+        indexedResult.handle.bindViewModel(indexedViewModel);
+
+        ui::VBox* indexedRoot = dynamic_cast<ui::VBox*>(indexedResult.handle.root().get());
+        expect(indexedRoot != nullptr, "indexed loop root should materialize as VBox");
+        expect(indexedRoot->children().size() == 1, "indexed loop should materialize only the matching child");
+
+        ui::TextInput* indexedInput = indexedResult.handle.findById<ui::TextInput>("indexedInput");
+        expect(indexedInput != nullptr, "indexed loop should materialize the input selected by index");
+        expect(indexedInput->text() == "Beta", "indexed loop should bind the second array item");
+
+        indexedViewModel->setArray(
+            "actions",
+            {
+                actionNode("deltaField", "Delta", true),
+                actionNode("epsilonField", "Epsilon", true),
+                actionNode("zetaField", "Zeta", true),
+            });
+
+        indexedRoot = dynamic_cast<ui::VBox*>(indexedResult.handle.root().get());
+        expect(indexedRoot != nullptr, "indexed loop root should stay valid after array replacement");
+        expect(indexedRoot->children().size() == 1, "indexed loop should keep one matching child after rebuild");
+        indexedInput = indexedResult.handle.findById<ui::TextInput>("indexedInput");
+        expect(indexedInput != nullptr, "indexed loop should rematerialize the matching child after rebuild");
+        expect(indexedInput->text() == "Epsilon", "indexed loop should track the second item after array replacement");
+    }
+
+    {
         const std::string branchSource = R"(
 VBox(id: root) {
     if(${model.primary}) {
