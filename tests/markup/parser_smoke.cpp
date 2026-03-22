@@ -187,7 +187,7 @@ VBox(id: "root") {
     {
         const std::string shorthandSource = R"(
 component SearchField(placeholder: "Search", currentText: ""): TextInput(placeholder, currentText)
-VBox(id: "root", 12, 8) {
+VBox(id: root, 12, 8) {
     Label("Dashboard"),
     Button("Deploy", res("icons/deploy.png")),
     Checkbox("Remember me", true),
@@ -201,6 +201,11 @@ VBox(id: "root", 12, 8) {
 
         const markup::AstNode& root = *result.document.root;
         expect(root.properties.size() == 3, "VBox shorthand should preserve id and two positional args");
+        expect(
+            root.properties.front().name == "id"
+                && root.properties.front().value.type() == core::ValueType::Enum
+                && root.properties.front().value.asString() == "root",
+            "id shorthand should preserve bare identifier value");
         expect(
             root.properties[1].hasImplicitName() && root.properties[2].hasImplicitName(),
             "VBox shorthand should preserve multiple positional arguments");

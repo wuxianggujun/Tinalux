@@ -1236,18 +1236,21 @@ void LayoutBuilder::applyStandardProperty(
             return;
         }
 
-        if (prop.value.type() == core::ValueType::String) {
-            widget->setId(prop.value.asString());
-            if (idMap_.contains(prop.value.asString())) {
+        if (prop.value.type() == core::ValueType::String
+            || prop.value.type() == core::ValueType::Enum) {
+            const std::string& idValue = prop.value.asString();
+            widget->setId(idValue);
+            if (idMap_.contains(idValue)) {
                 std::ostringstream oss;
-                oss << "duplicate id '" << prop.value.asString() << "' on '" << nodeType
+                oss << "duplicate id '" << idValue << "' on '" << nodeType
                     << "' at line " << prop.line;
                 warnings_.push_back(oss.str());
             }
-            idMap_[prop.value.asString()] = widget;
+            idMap_[idValue] = widget;
         } else {
             std::ostringstream oss;
-            oss << "property 'id' on '" << nodeType << "' expects a string at line "
+            oss << "property 'id' on '" << nodeType
+                << "' expects a string or identifier at line "
                 << prop.line;
             warnings_.push_back(oss.str());
         }

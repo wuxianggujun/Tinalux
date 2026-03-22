@@ -61,14 +61,14 @@ int main()
     {
         const std::string source = R"(
 component RememberOption(label: "", checked: false): Checkbox(label, checked)
-VBox(id: "root", 12, 8) {
-    Button(id: "cta", "Deploy", res("assets/icons/ship.png")),
-    Checkbox(id: "remember", "Remember me", true),
-    Dialog(id: "confirmDialog", "Confirm", 18) {
-        Panel(id: "confirmBody")
+VBox(id: root, 12, 8) {
+    Button(id: cta, "Deploy", res("assets/icons/ship.png")),
+    Checkbox(id: remember, "Remember me", true),
+    Dialog(id: confirmDialog, "Confirm", 18) {
+        Panel(id: confirmBody)
     },
-    ImageWidget(id: "hero", res("assets/images/hero.png"), Cover, 0.75),
-    RememberOption(id: "componentRemember", "Use biometrics", true)
+    ImageWidget(id: hero, res("assets/images/hero.png"), Cover, 0.75),
+    RememberOption(id: componentRemember, "Use biometrics", true)
 }
 )";
 
