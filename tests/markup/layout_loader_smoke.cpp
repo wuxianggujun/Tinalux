@@ -577,14 +577,16 @@ VBox(id: root) {
 )";
 
         const markup::LoadResult result = markup::LayoutLoader::load(source, theme);
-        expectLoadOk(result, "string id markup should still parse");
-        expect(result.warnings.size() == 1, "string id markup should emit one warning");
+        expect(!result.ok(), "string id markup should be rejected");
         expect(
-            result.warnings.front().find("expects an identifier") != std::string::npos,
-            "string id warning should explain identifier-only id syntax");
-        expect(
-            result.handle.findById<ui::Button>("legacyButton") == nullptr,
-            "legacy string id should no longer register in id map");
+            std::any_of(
+                result.errors.begin(),
+                result.errors.end(),
+                [](const std::string& error) {
+                    return error.find("property 'id' expects a bare identifier or binding expression")
+                        != std::string::npos;
+                }),
+            "string id parse error should explain identifier-only id syntax");
     }
 
     return 0;

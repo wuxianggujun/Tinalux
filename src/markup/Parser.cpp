@@ -508,6 +508,10 @@ AstProperty Parser::parseProperty(bool allowImplicitName)
         return prop;
     }
 
+    if (prop.name == "id" && current_.type == TokenType::StringLiteral) {
+        error("property 'id' expects a bare identifier or binding expression");
+    }
+
     prop.value = parseValue();
 
     return prop;

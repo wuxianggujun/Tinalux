@@ -1236,16 +1236,16 @@ void LayoutBuilder::applyStandardProperty(
             return;
         }
 
-        if (prop.value.type() == core::ValueType::Enum) {
-            const std::string& idValue = prop.value.asString();
-            widget->setId(idValue);
-            if (idMap_.contains(idValue)) {
+        const std::optional<std::string> idValue = stringLikeValue(prop.value);
+        if (idValue.has_value()) {
+            widget->setId(*idValue);
+            if (idMap_.contains(*idValue)) {
                 std::ostringstream oss;
-                oss << "duplicate id '" << idValue << "' on '" << nodeType
+                oss << "duplicate id '" << *idValue << "' on '" << nodeType
                     << "' at line " << prop.line;
                 warnings_.push_back(oss.str());
             }
-            idMap_[idValue] = widget;
+            idMap_[*idValue] = widget;
         } else {
             std::ostringstream oss;
             oss << "property 'id' on '" << nodeType

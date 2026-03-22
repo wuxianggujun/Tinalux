@@ -283,6 +283,18 @@ VBox(id: root) {
     }
 
     {
+        const std::string stringIdSource = R"(
+VBox(id: "legacyRoot") {
+    Button(text: "broken")
+}
+)";
+
+        const markup::DocumentParseResult result =
+            markup::Parser::parseDocument(stringIdSource);
+        expect(!result.ok(), "id should reject string literal syntax");
+    }
+
+    {
         const std::string source = R"(
 VBox(id: root) {
     if(${model.primary}) {
