@@ -12,8 +12,11 @@
 #include "tinalux/ui/Container.h"
 #include "tinalux/ui/Dialog.h"
 #include "tinalux/ui/Dropdown.h"
+#include "tinalux/ui/Label.h"
+#include "tinalux/ui/ListView.h"
 #include "tinalux/ui/Panel.h"
 #include "tinalux/ui/ProgressBar.h"
+#include "tinalux/ui/RichText.h"
 #include "tinalux/ui/ScrollView.h"
 #include "tinalux/ui/TextInput.h"
 #include "tinalux/ui/Theme.h"
@@ -71,6 +74,229 @@ std::optional<std::vector<std::string>> stringArrayNode(const ModelNode& node)
     }
 
     return items;
+}
+
+void installStringListViewSource(ui::ListView& listView, std::vector<std::string> items)
+{
+    auto sharedItems = std::make_shared<std::vector<std::string>>(std::move(items));
+    listView.setItemFactory(
+        sharedItems->size(),
+        [sharedItems](
+            std::size_t index,
+            std::shared_ptr<ui::Widget> recycledItem) -> std::shared_ptr<ui::Widget> {
+            if (index >= sharedItems->size()) {
+                return {};
+            }
+
+            std::shared_ptr<ui::Label> label = std::dynamic_pointer_cast<ui::Label>(recycledItem);
+            if (!label) {
+                label = std::make_shared<ui::Label>((*sharedItems)[index]);
+            } else {
+                label->setText((*sharedItems)[index]);
+            }
+            return label;
+        });
+}
+
+std::optional<ui::RichTextSpanRole> richTextSpanRoleFromValue(const core::Value& value)
+{
+    const std::optional<std::string> roleName = stringLikeValue(value);
+    if (!roleName.has_value()) {
+        return std::nullopt;
+    }
+
+    if (*roleName == "Body") {
+        return ui::RichTextSpanRole::Body;
+    }
+    if (*roleName == "Paragraph") {
+        return ui::RichTextSpanRole::Paragraph;
+    }
+    if (*roleName == "Heading") {
+        return ui::RichTextSpanRole::Heading;
+    }
+    if (*roleName == "Caption") {
+        return ui::RichTextSpanRole::Caption;
+    }
+    if (*roleName == "InlineCode") {
+        return ui::RichTextSpanRole::InlineCode;
+    }
+    if (*roleName == "Quote") {
+        return ui::RichTextSpanRole::Quote;
+    }
+    if (*roleName == "CodeBlock") {
+        return ui::RichTextSpanRole::CodeBlock;
+    }
+    if (*roleName == "BulletItem") {
+        return ui::RichTextSpanRole::BulletItem;
+    }
+    if (*roleName == "OrderedItem") {
+        return ui::RichTextSpanRole::OrderedItem;
+    }
+
+    return std::nullopt;
+}
+
+std::optional<float> numericNodeValue(const ModelNode* node)
+{
+    const core::Value* value = node != nullptr ? node->scalar() : nullptr;
+    if (value == nullptr) {
+        return std::nullopt;
+    }
+
+    if (value->type() != core::ValueType::Int && value->type() != core::ValueType::Float) {
+        return std::nullopt;
+    }
+
+    return value->asNumber();
+}
+
+std::optional<bool> boolNodeValue(const ModelNode* node)
+{
+    const core::Value* value = node != nullptr ? node->scalar() : nullptr;
+    if (value == nullptr || value->type() != core::ValueType::Bool) {
+        return std::nullopt;
+    }
+
+    return value->asBool();
+}
+
+std::optional<std::vector<ui::TextSpan>> richTextSpansNode(const ModelNode& node)
+{
+    const ModelNode::Array* array = node.arrayValue();
+    if (array == nullptr) {
+        return std::nullopt;
+    }
+
+    std::vector<ui::TextSpan> spans;
+    spans.reserve(array->size());
+    for (const ModelNode& entry : *array) {
+        if (entry.objectValue() == nullptr) {
+            return std::nullopt;
+        }
+
+        const ModelNode* textNode = entry.child("text");
+        const core::Value* textValue = textNode != nullptr ? textNode->scalar() : nullptr;
+        const std::optional<std::string> text =
+            textValue != nullptr ? stringLikeValue(*textValue) : std::nullopt;
+        if (!text.has_value()) {
+            return std::nullopt;
+        }
+
+        ui::TextSpan span;
+        span.text = *text;
+
+        if (const ModelNode* roleNode = entry.child("role")) {
+            const core::Value* roleValue = roleNode->scalar();
+            const std::optional<ui::RichTextSpanRole> role =
+                roleValue != nullptr ? richTextSpanRoleFromValue(*roleValue) : std::nullopt;
+            if (!role.has_value()) {
+                return std::nullopt;
+            }
+            span.role = *role;
+        }
+
+        if (const ModelNode* colorNode = entry.child("color")) {
+            const core::Value* colorValue = colorNode->scalar();
+            if (colorValue == nullptr || colorValue->type() != core::ValueType::Color) {
+                return std::nullopt;
+            }
+            span.color = colorValue->asColor();
+        }
+
+        if (const ModelNode* backgroundColorNode = entry.child("backgroundColor")) {
+            const core::Value* backgroundColorValue = backgroundColorNode->scalar();
+            if (backgroundColorValue == nullptr
+                || backgroundColorValue->type() != core::ValueType::Color) {
+                return std::nullopt;
+            }
+            span.backgroundColor = backgroundColorValue->asColor();
+        }
+
+        if (const std::optional<float> fontSize = numericNodeValue(entry.child("fontSize"))) {
+            span.fontSize = *fontSize;
+        } else if (entry.child("fontSize") != nullptr) {
+            return std::nullopt;
+        }
+
+        if (const std::optional<float> letterSpacing = numericNodeValue(entry.child("letterSpacing"))) {
+            span.letterSpacing = *letterSpacing;
+        } else if (entry.child("letterSpacing") != nullptr) {
+            return std::nullopt;
+        }
+
+        if (const std::optional<float> wordSpacing = numericNodeValue(entry.child("wordSpacing"))) {
+            span.wordSpacing = *wordSpacing;
+        } else if (entry.child("wordSpacing") != nullptr) {
+            return std::nullopt;
+        }
+
+        if (const ModelNode* fontFamiliesNode = entry.child("fontFamilies")) {
+            const std::optional<std::vector<std::string>> fontFamilies =
+                stringArrayNode(*fontFamiliesNode);
+            if (!fontFamilies.has_value()) {
+                return std::nullopt;
+            }
+            span.fontFamilies = *fontFamilies;
+        }
+
+        if (const ModelNode* blockMarkerNode = entry.child("blockMarker")) {
+            const core::Value* blockMarkerValue = blockMarkerNode->scalar();
+            const std::optional<std::string> blockMarker =
+                blockMarkerValue != nullptr ? stringLikeValue(*blockMarkerValue) : std::nullopt;
+            if (!blockMarker.has_value()) {
+                return std::nullopt;
+            }
+            span.blockMarker = *blockMarker;
+        }
+
+        if (const std::optional<float> blockLevel = numericNodeValue(entry.child("blockLevel"))) {
+            if (*blockLevel < 0.0f) {
+                return std::nullopt;
+            }
+            span.blockLevel = static_cast<std::size_t>(*blockLevel);
+        } else if (entry.child("blockLevel") != nullptr) {
+            return std::nullopt;
+        }
+
+        if (const std::optional<bool> bold = boolNodeValue(entry.child("bold"))) {
+            span.bold = *bold;
+        } else if (entry.child("bold") != nullptr) {
+            return std::nullopt;
+        }
+
+        if (const std::optional<bool> italic = boolNodeValue(entry.child("italic"))) {
+            span.italic = *italic;
+        } else if (entry.child("italic") != nullptr) {
+            return std::nullopt;
+        }
+
+        if (const std::optional<bool> underline = boolNodeValue(entry.child("underline"))) {
+            span.underline = *underline;
+        } else if (entry.child("underline") != nullptr) {
+            return std::nullopt;
+        }
+
+        if (const std::optional<bool> strikethrough = boolNodeValue(entry.child("strikethrough"))) {
+            span.strikethrough = *strikethrough;
+        } else if (entry.child("strikethrough") != nullptr) {
+            return std::nullopt;
+        }
+
+        if (const ModelNode* onClickNode = entry.child("onClick")) {
+            const ModelNode::Action* action = onClickNode->actionValue();
+            if (action == nullptr || !*action) {
+                return std::nullopt;
+            }
+
+            span.onClick = [action = *action]() {
+                action(core::Value());
+            };
+        }
+
+        spans.push_back(std::move(span));
+    }
+
+    return spans;
 }
 
 std::optional<std::string> interactionNameFromPropertyName(std::string_view propertyName)
@@ -1558,6 +1784,80 @@ void LayoutBuilder::applyStandardProperty(
     const AstProperty& prop,
     const ScopeBindings& scope)
 {
+    if (prop.name == "items" && nodeType == "ListView") {
+        if (prop.hasObjectValue()) {
+            std::ostringstream oss;
+            oss << "property '" << prop.name << "' on '" << nodeType
+                << "' does not accept object values at line " << prop.line;
+            warnings_.push_back(oss.str());
+            return;
+        }
+
+        if (prop.hasBinding()) {
+            auto preparedBinding = prepareBinding(
+                *prop.bindingPath,
+                scope,
+                prop.line,
+                "property '" + prop.name + "' on '" + nodeType + "'",
+                false);
+            if (!preparedBinding.has_value()) {
+                return;
+            }
+
+            if (!preparedBinding->evaluateNode) {
+                std::ostringstream oss;
+                oss << "property '" << prop.name << "' on '" << nodeType
+                    << "' requires a direct array path at line " << prop.line;
+                warnings_.push_back(oss.str());
+                return;
+            }
+
+            registerNodeBinding(
+                widget,
+                prop.name,
+                std::move(preparedBinding->dependencyPaths),
+                {},
+                std::move(preparedBinding->evaluateNode),
+                [weakWidget = std::weak_ptr<ui::Widget>(widget)](const ModelNode& node) {
+                    auto lockedWidget = weakWidget.lock();
+                    if (!lockedWidget) {
+                        return;
+                    }
+
+                    const std::optional<std::vector<std::string>> items = stringArrayNode(node);
+                    if (!items.has_value()) {
+                        return;
+                    }
+
+                    installStringListViewSource(
+                        static_cast<ui::ListView&>(*lockedWidget),
+                        *items);
+                });
+            return;
+        }
+
+        if (!prop.hasArrayValue()) {
+            std::ostringstream oss;
+            oss << "property '" << prop.name << "' on '" << nodeType
+                << "' expects an array literal at line " << prop.line;
+            warnings_.push_back(oss.str());
+            return;
+        }
+
+        const std::optional<std::vector<std::string>> items =
+            stringArrayValues(prop.arrayValues);
+        if (!items.has_value()) {
+            std::ostringstream oss;
+            oss << "property '" << prop.name << "' on '" << nodeType
+                << "' expects an array of string-like values at line " << prop.line;
+            warnings_.push_back(oss.str());
+            return;
+        }
+
+        installStringListViewSource(static_cast<ui::ListView&>(*widget), *items);
+        return;
+    }
+
     if (prop.name == "items" && nodeType == "Dropdown") {
         if (prop.hasObjectValue()) {
             std::ostringstream oss;
@@ -1627,6 +1927,63 @@ void LayoutBuilder::applyStandardProperty(
         }
 
         static_cast<ui::Dropdown&>(*widget).setItems(*items);
+        return;
+    }
+
+    if (prop.name == "spans" && nodeType == "RichText") {
+        if (prop.hasObjectValue()) {
+            std::ostringstream oss;
+            oss << "property '" << prop.name << "' on '" << nodeType
+                << "' does not accept object values at line " << prop.line;
+            warnings_.push_back(oss.str());
+            return;
+        }
+
+        if (!prop.hasBinding()) {
+            std::ostringstream oss;
+            oss << "property '" << prop.name << "' on '" << nodeType
+                << "' requires a direct array path at line " << prop.line;
+            warnings_.push_back(oss.str());
+            return;
+        }
+
+        auto preparedBinding = prepareBinding(
+            *prop.bindingPath,
+            scope,
+            prop.line,
+            "property '" + prop.name + "' on '" + nodeType + "'",
+            false);
+        if (!preparedBinding.has_value()) {
+            return;
+        }
+
+        if (!preparedBinding->evaluateNode) {
+            std::ostringstream oss;
+            oss << "property '" << prop.name << "' on '" << nodeType
+                << "' requires a direct array path at line " << prop.line;
+            warnings_.push_back(oss.str());
+            return;
+        }
+
+        registerNodeBinding(
+            widget,
+            prop.name,
+            std::move(preparedBinding->dependencyPaths),
+            {},
+            std::move(preparedBinding->evaluateNode),
+            [weakWidget = std::weak_ptr<ui::Widget>(widget)](const ModelNode& node) {
+                auto lockedWidget = weakWidget.lock();
+                if (!lockedWidget) {
+                    return;
+                }
+
+                const std::optional<std::vector<ui::TextSpan>> spans = richTextSpansNode(node);
+                if (!spans.has_value()) {
+                    return;
+                }
+
+                static_cast<ui::RichTextWidget&>(*lockedWidget).setSpans(*spans);
+            });
         return;
     }
 

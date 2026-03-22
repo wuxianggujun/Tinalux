@@ -13,8 +13,10 @@
 #include "tinalux/ui/Checkbox.h"
 #include "tinalux/ui/Dropdown.h"
 #include "tinalux/ui/Label.h"
+#include "tinalux/ui/ListView.h"
 #include "tinalux/ui/Panel.h"
 #include "tinalux/ui/ProgressBar.h"
+#include "tinalux/ui/RichText.h"
 #include "tinalux/ui/ScrollView.h"
 #include "tinalux/ui/Slider.h"
 #include "tinalux/ui/TextInput.h"
@@ -397,6 +399,134 @@ VBox(id: root) {
         expect(
             choiceMirroredValue == 2,
             "declarative selection action should observe the updated bound property value");
+    }
+
+    {
+        const std::string source = R"(
+VBox(id: root, 10) {
+    ListView(id: inbox, items: ${model.entries}, selectedIndex: ${model.selected}, preferredHeight: 180),
+    RichText(id: summary, spans: ${model.summarySpans})
+}
+)";
+
+        markup::LoadResult result = markup::LayoutLoader::load(source, theme);
+        expectLoadOk(result, "ListView and RichText binding markup should load");
+        expect(result.warnings.empty(), "ListView and RichText binding markup should not emit warnings");
+
+        auto viewModel = markup::ViewModel::create();
+        int summaryClicks = 0;
+        viewModel->setArray(
+            "entries",
+            {
+                markup::ModelNode(core::Value(std::string("Inbox"))),
+                markup::ModelNode(core::Value(std::string("Pending"))),
+                markup::ModelNode(core::Value(std::string("Review"))),
+                markup::ModelNode(core::Value(std::string("Done"))),
+            });
+        viewModel->setInt("selected", 2);
+        viewModel->setArray(
+            "summarySpans",
+            {
+                markup::ModelNode::object({
+                    {"text", markup::ModelNode(core::Value(std::string("Release Notes")))},
+                    {"role", markup::ModelNode(core::Value::enumValue("Heading"))},
+                    {"bold", markup::ModelNode(core::Value(true))},
+                    {"fontSize", markup::ModelNode(core::Value(24.0f))},
+                }),
+                markup::ModelNode::object({
+                    {"text", markup::ModelNode(core::Value(std::string(" Ship now")))},
+                    {"color", markup::ModelNode(core::Value(core::Color(0xFF225588u)))},
+                    {"underline", markup::ModelNode(core::Value(true))},
+                    {"fontFamilies", markup::ModelNode::array({
+                        markup::ModelNode(core::Value(std::string("Consolas"))),
+                        markup::ModelNode(core::Value(std::string("Segoe UI"))),
+                    })},
+                    {"onClick", markup::ModelNode(markup::ModelNode::Action(
+                        [&summaryClicks](const core::Value& value) {
+                            expect(value.isNone(), "RichText span onClick should receive an empty payload");
+                            ++summaryClicks;
+                        }))},
+                }),
+            });
+        result.handle.bindViewModel(viewModel);
+
+        ui::VBox* root = dynamic_cast<ui::VBox*>(result.handle.root().get());
+        ui::ListView* inbox = result.handle.findById<ui::ListView>("inbox");
+        ui::RichTextWidget* summary = result.handle.findById<ui::RichTextWidget>("summary");
+
+        expect(root != nullptr, "ListView and RichText binding root should materialize as VBox");
+        expect(inbox != nullptr, "ListView binding target should exist");
+        expect(summary != nullptr, "RichText binding target should exist");
+        expect(inbox->selectedIndex() == 2, "ListView should receive the initial bound selection");
+        expect(summary->spans().size() == 2, "RichText should receive the initial bound spans");
+        expect(summary->spans()[0].text == "Release Notes", "RichText should preserve the first bound span text");
+        expect(summary->spans()[0].role == ui::RichTextSpanRole::Heading, "RichText should resolve span roles from bound data");
+        expect(summary->spans()[0].bold, "RichText should resolve bound bool span properties");
+        expect(
+            summary->spans()[1].color.has_value()
+                && summary->spans()[1].color.value() == core::Color(0xFF225588u),
+            "RichText should resolve bound span colors");
+        expect(summary->spans()[1].underline, "RichText should resolve bound underline properties");
+        expect(summary->spans()[1].fontFamilies.size() == 2, "RichText should resolve bound font family arrays");
+        expect(static_cast<bool>(summary->spans()[1].onClick), "RichText should materialize bound span actions");
+
+        ui::RuntimeState runtime;
+        ui::ScopedRuntimeState scopedRuntime(runtime);
+        root->measure(ui::Constraints::tight(420.0f, 260.0f));
+        root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 420.0f, 260.0f));
+
+        expect(inbox->selectedItem() != nullptr, "ListView bound items should realize a selected widget");
+        expect(
+            dynamic_cast<ui::Label*>(inbox->selectedItem()) != nullptr,
+            "ListView bound items should materialize Label rows");
+
+        summary->spans()[1].onClick();
+        expect(summaryClicks == 1, "RichText bound span actions should remain invokable");
+
+        viewModel->setArray(
+            "entries",
+            {
+                markup::ModelNode(core::Value(std::string("North"))),
+                markup::ModelNode(core::Value(std::string("South"))),
+                markup::ModelNode(core::Value(std::string("West"))),
+            });
+        viewModel->setInt("selected", 1);
+        viewModel->setArray(
+            "summarySpans",
+            {
+                markup::ModelNode::object({
+                    {"text", markup::ModelNode(core::Value(std::string("1. Fix bindings")))},
+                    {"role", markup::ModelNode(core::Value::enumValue("OrderedItem"))},
+                    {"blockMarker", markup::ModelNode(core::Value(std::string("1.")))},
+                    {"blockLevel", markup::ModelNode(core::Value(1))},
+                    {"italic", markup::ModelNode(core::Value(true))},
+                    {"letterSpacing", markup::ModelNode(core::Value(1.5f))},
+                    {"wordSpacing", markup::ModelNode(core::Value(2.0f))},
+                    {"backgroundColor", markup::ModelNode(core::Value(core::Color(0x11224466u)))},
+                }),
+                markup::ModelNode::object({
+                    {"text", markup::ModelNode(core::Value(std::string(" Deprecated")))},
+                    {"strikethrough", markup::ModelNode(core::Value(true))},
+                }),
+            });
+
+        root->measure(ui::Constraints::tight(420.0f, 260.0f));
+        root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 420.0f, 260.0f));
+
+        expect(inbox->selectedIndex() == 1, "ListView bound selection should live-update from ViewModel");
+        expect(inbox->selectedItem() != nullptr, "ListView should keep a realized selection after bound updates");
+        expect(summary->spans().size() == 2, "RichText bound spans should live-update from ViewModel");
+        expect(summary->spans()[0].role == ui::RichTextSpanRole::OrderedItem, "RichText should live-update span roles");
+        expect(summary->spans()[0].blockMarker == "1.", "RichText should live-update block markers");
+        expect(summary->spans()[0].blockLevel == 1u, "RichText should live-update block levels");
+        expect(summary->spans()[0].italic, "RichText should live-update italic flags");
+        expect(nearlyEqual(summary->spans()[0].letterSpacing.value_or(0.0f), 1.5f), "RichText should live-update letter spacing");
+        expect(nearlyEqual(summary->spans()[0].wordSpacing.value_or(0.0f), 2.0f), "RichText should live-update word spacing");
+        expect(
+            summary->spans()[0].backgroundColor.has_value()
+                && summary->spans()[0].backgroundColor.value() == core::Color(0x11224466u),
+            "RichText should live-update background colors");
+        expect(summary->spans()[1].strikethrough, "RichText should live-update strikethrough flags");
     }
 
     {

@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 
+#include "../../src/ui/RuntimeState.h"
 #include "tinalux/core/Geometry.h"
 #include "tinalux/markup/LayoutLoader.h"
 #include "tinalux/rendering/rendering.h"
@@ -180,7 +181,7 @@ VBox(id: root, gap) {
     {
         const std::string source = R"(
 VBox(id: root, 10) {
-    ListView(id: inbox, preferredHeight: 240, selectedIndex: 2, style: {
+    ListView(id: inbox, items: ["Inbox", "Pending", "Review", "Done"], preferredHeight: 240, selectedIndex: 2, style: {
         itemCornerRadius: 16,
         selectionFillColor: #2200AAFF
     }),
@@ -196,7 +197,9 @@ VBox(id: root, 10) {
         expectLoadOk(result, "ListView and RichText markup should load");
         expect(result.warnings.empty(), "ListView and RichText markup should not emit warnings");
 
+        ui::VBox* root = dynamic_cast<ui::VBox*>(result.handle.root().get());
         ui::ListView* inbox = result.handle.findById<ui::ListView>("inbox");
+        expect(root != nullptr, "ListView and RichText root should materialize as VBox");
         expect(inbox != nullptr, "ListView should be constructible from markup");
         expect(nearlyEqual(inbox->preferredHeight(), 240.0f), "ListView preferredHeight should be parsed");
         expect(inbox->style() != nullptr, "ListView style block should install a custom style");
@@ -206,14 +209,19 @@ VBox(id: root, 10) {
         expect(
             inbox->style()->selectionFillColor == core::Color(0x2200AAFFu),
             "ListView style block should override selectionFillColor");
-        inbox->setItemFactory(
-            4,
-            [](std::size_t index, std::shared_ptr<ui::Widget>) -> std::shared_ptr<ui::Widget> {
-                return std::make_shared<ui::Label>("Item " + std::to_string(index));
-            });
+
+        ui::RuntimeState runtime;
+        ui::ScopedRuntimeState scopedRuntime(runtime);
+        root->measure(ui::Constraints::tight(420.0f, 320.0f));
+        root->arrange(core::Rect::MakeXYWH(0.0f, 0.0f, 420.0f, 320.0f));
+
         expect(
             inbox->selectedIndex() == 2,
-            "ListView should apply the declarative selectedIndex after a data source is attached");
+            "ListView should apply the declarative selectedIndex after a declarative data source is attached");
+        expect(inbox->selectedItem() != nullptr, "ListView declarative items should realize a selected widget");
+        expect(
+            dynamic_cast<ui::Label*>(inbox->selectedItem()) != nullptr,
+            "ListView declarative items should materialize Label rows");
 
         const ui::RichTextWidget* summary = result.handle.findById<ui::RichTextWidget>("summary");
         expect(summary != nullptr, "RichText should be constructible from markup");
