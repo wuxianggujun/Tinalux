@@ -27,6 +27,8 @@
 - 运行内容：
   - 安装 Ubuntu X11 构建依赖
   - 分别用 `gcc` / `clang` 执行 `scripts/validateTinaGlfwX11Linux.sh`
+- 失败回溯：
+  - 上传 `build/tina_glfw-linux-x11/**` 构建目录
 - 适合查看的场景：
   - GLFW / X11 / Linux 平台桥接改动
   - Linux 平台编译性回归
@@ -73,6 +75,9 @@
 - 运行内容：
   - `./tests/scripts/android_stage_script_smoke.ps1 -RepoRoot .`
   - `./tests/scripts/android_build_validate_smoke.ps1 -RepoRoot .`
+- 失败回溯：
+  - 保留 smoke 临时目录
+  - 上传 `ci-artifacts/android-build-scripts-smoke/**`
 - 适合查看的场景：
   - Android 打包脚本改动
   - SDK staging 改动

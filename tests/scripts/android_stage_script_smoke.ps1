@@ -8,7 +8,14 @@ $ErrorActionPreference = "Stop"
 function New-TempDirectory {
     param([string]$Prefix)
 
-    $path = Join-Path ([System.IO.Path]::GetTempPath()) ($Prefix + [System.Guid]::NewGuid().ToString("N"))
+    $parentRoot = if (-not [string]::IsNullOrWhiteSpace($env:TINALUX_TEST_TEMP_PARENT)) {
+        New-Item -ItemType Directory -Force -Path $env:TINALUX_TEST_TEMP_PARENT | Out-Null
+        [System.IO.Path]::GetFullPath($env:TINALUX_TEST_TEMP_PARENT)
+    } else {
+        [System.IO.Path]::GetTempPath()
+    }
+
+    $path = Join-Path $parentRoot ($Prefix + [System.Guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Force -Path $path | Out-Null
     return $path
 }
@@ -27,6 +34,7 @@ if (-not (Test-Path $stageScript)) {
     throw "Stage script not found: $stageScript"
 }
 
+$keepTempRoot = $env:TINALUX_KEEP_TEST_TEMP_ROOT -eq "1"
 $tempRoot = New-TempDirectory "tinalux-android-stage-smoke-"
 try {
     $sdkModuleRoot = Join-Path $tempRoot "android/tinalux-sdk"
@@ -59,6 +67,11 @@ try {
     & $stageScript -Abi arm64-v8a -SdkModuleRoot $sdkModuleRoot -SourceIcuData $sourceIcuData -ValidateOnly
 } finally {
     if (Test-Path $tempRoot) {
-        Remove-Item -Recurse -Force $tempRoot
+        if ($keepTempRoot) {
+            Write-Host "Preserved temp root:"
+            Write-Host "  $tempRoot"
+        } else {
+            Remove-Item -Recurse -Force $tempRoot
+        }
     }
 }

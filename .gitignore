@@ -55,6 +55,7 @@ Desktop.ini
 # Runtime logs and ad-hoc temp files
 logs/
 artifacts/
+ci-artifacts/
 *.log
 *.tmp
 *.temp

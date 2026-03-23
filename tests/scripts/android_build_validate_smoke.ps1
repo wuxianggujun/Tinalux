@@ -8,7 +8,14 @@ $ErrorActionPreference = "Stop"
 function New-TempDirectory {
     param([string]$Prefix)
 
-    $path = Join-Path ([System.IO.Path]::GetTempPath()) ($Prefix + [System.Guid]::NewGuid().ToString("N"))
+    $parentRoot = if (-not [string]::IsNullOrWhiteSpace($env:TINALUX_TEST_TEMP_PARENT)) {
+        New-Item -ItemType Directory -Force -Path $env:TINALUX_TEST_TEMP_PARENT | Out-Null
+        [System.IO.Path]::GetFullPath($env:TINALUX_TEST_TEMP_PARENT)
+    } else {
+        [System.IO.Path]::GetTempPath()
+    }
+
+    $path = Join-Path $parentRoot ($Prefix + [System.Guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Force -Path $path | Out-Null
     return $path
 }
@@ -27,6 +34,7 @@ if (-not (Test-Path $buildScript)) {
     throw "Build script not found: $buildScript"
 }
 
+$keepTempRoot = $env:TINALUX_KEEP_TEST_TEMP_ROOT -eq "1"
 $tempRoot = New-TempDirectory "tinalux-android-build-validate-smoke-"
 try {
     $fakeNdkRoot = Join-Path $tempRoot "Android/Sdk/ndk/27.0.12077973"
@@ -63,6 +71,11 @@ try {
     }
 } finally {
     if (Test-Path $tempRoot) {
-        Remove-Item -Recurse -Force $tempRoot
+        if ($keepTempRoot) {
+            Write-Host "Preserved temp root:"
+            Write-Host "  $tempRoot"
+        } else {
+            Remove-Item -Recurse -Force $tempRoot
+        }
     }
 }
