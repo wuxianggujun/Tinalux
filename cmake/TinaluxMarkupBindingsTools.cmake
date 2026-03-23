@@ -2,12 +2,17 @@ include_guard(GLOBAL)
 include(TinaluxMarkupCommonTools)
 
 # 低层 bindings 生成 helper。
+# 如果你只是在写页面，一般不用直接打开这个文件。
+# 这里只有两类事：
+# - 单文件 bindings 生成
+# - 目录扫描 bindings 生成
 
 function(tinalux_generate_markup_bindings)
     set(options NO_PRAGMA_ONCE)
     set(oneValueArgs TARGET INPUT OUTPUT NAMESPACE INCLUDE_GUARD)
     cmake_parse_arguments(TINALUX_MARKUP "${options}" "${oneValueArgs}" "" ${ARGN})
 
+    # 单文件：把一个 `.tui` 生成成一个 `.slots.h`。
     if(NOT TINALUX_MARKUP_INPUT)
         message(FATAL_ERROR "tinalux_generate_markup_bindings requires INPUT")
     endif()
@@ -74,6 +79,8 @@ function(tinalux_generate_markup_bindings_for_directory)
     set(oneValueArgs TARGET DIRECTORY OUTPUT_DIRECTORY NAMESPACE_PREFIX INDEX_HEADER)
     cmake_parse_arguments(TINALUX_MARKUP_DIR "${options}" "${oneValueArgs}" "" ${ARGN})
 
+    # 目录模式：递归扫描 `ui/**/*.tui`，批量生成 `.slots.h`，
+    # 并可选补一个总索引头。
     if(NOT TINALUX_MARKUP_DIR_DIRECTORY)
         message(FATAL_ERROR "tinalux_generate_markup_bindings_for_directory requires DIRECTORY")
     endif()

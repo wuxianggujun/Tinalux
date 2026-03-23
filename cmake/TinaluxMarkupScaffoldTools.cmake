@@ -2,12 +2,16 @@ include_guard(GLOBAL)
 include(TinaluxMarkupCommonTools)
 
 # 低层 page scaffold 生成 helper。
+# 如果你的目标只是“生成一个能直接开改的页面类”，
+# 正常应该先从 `tinalux_target_enable_markup_autogen(...)` /
+# `tinalux_add_markup_executable(...)` 走高层入口。
 
 function(tinalux_generate_markup_page_scaffold)
     set(options NO_PRAGMA_ONCE ONLY_IF_MISSING)
     set(oneValueArgs TARGET INPUT OUTPUT NAMESPACE MARKUP_HEADER CLASS_NAME INCLUDE_GUARD)
     cmake_parse_arguments(TINALUX_MARKUP_SCAFFOLD "${options}" "${oneValueArgs}" "" ${ARGN})
 
+    # 单文件：给一个 `.tui` 生成一份 `.page.h`。
     if(NOT TINALUX_MARKUP_SCAFFOLD_OUTPUT)
         message(FATAL_ERROR "tinalux_generate_markup_page_scaffold requires OUTPUT")
     endif()
@@ -142,6 +146,8 @@ function(tinalux_generate_markup_page_scaffolds_for_directory)
         ""
         ${ARGN})
 
+    # 目录模式：递归扫描布局目录，批量生成 `.page.h`，
+    # 并可选生成一个总索引头方便统一 include。
     if(NOT TARGET TinaluxMarkupActionHeaderTool)
         message(FATAL_ERROR
             "TinaluxMarkupActionHeaderTool is unavailable. "
