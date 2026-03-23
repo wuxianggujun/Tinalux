@@ -1,0 +1,41 @@
+name: android-build-scripts-smoke
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/android-build-scripts-smoke.yml"
+      - "scripts/build_android_native.ps1"
+      - "scripts/stage_android_validation_artifacts.ps1"
+      - "tests/scripts/android_stage_script_smoke.ps1"
+      - "tests/scripts/android_build_validate_smoke.ps1"
+      - "android/tinalux-sdk/**"
+  push:
+    paths:
+      - ".github/workflows/android-build-scripts-smoke.yml"
+      - "scripts/build_android_native.ps1"
+      - "scripts/stage_android_validation_artifacts.ps1"
+      - "tests/scripts/android_stage_script_smoke.ps1"
+      - "tests/scripts/android_build_validate_smoke.ps1"
+      - "android/tinalux-sdk/**"
+
+jobs:
+  smoke:
+    runs-on: windows-2022
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Android Stage Script Smoke
+        shell: pwsh
+        run: >
+          ./tests/scripts/android_stage_script_smoke.ps1
+          -RepoRoot .
+
+      - name: Run Android Build Validate Smoke
+        shell: pwsh
+        run: >
+          ./tests/scripts/android_build_validate_smoke.ps1
+          -RepoRoot .
