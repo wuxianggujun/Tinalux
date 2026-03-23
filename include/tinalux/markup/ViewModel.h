@@ -230,6 +230,14 @@ public:
     {
         return setAction(path, actions::make(std::forward<Handler>(handler)));
     }
+    bool appendAction(std::string_view path, ModelNode::Action action);
+    template <
+        typename Handler,
+        typename = std::enable_if_t<!std::is_same_v<std::decay_t<Handler>, ModelNode::Action>>>
+    bool appendAction(std::string_view path, Handler&& handler)
+    {
+        return appendAction(path, actions::make(std::forward<Handler>(handler)));
+    }
     bool setActions(std::initializer_list<actions::Binding> bindings);
     const ModelNode::Action* findAction(std::string_view path) const;
 
@@ -260,6 +268,7 @@ class ActionSlot;
 template <typename... Args>
 class ActionSlot<void(Args...)> {
 public:
+    constexpr ActionSlot() = default;
     constexpr explicit ActionSlot(std::string_view path)
         : path_(path)
     {
@@ -273,27 +282,129 @@ public:
         return actions::bind(path_, std::forward<Handler>(handler));
     }
 
+    template <typename Object, typename Method>
+        requires (
+            std::is_member_function_pointer_v<Method>
+            && std::is_invocable_v<Method, Object*, Args...>)
+    [[nodiscard]] actions::Binding bind(Object* object, Method method) const
+    {
+        return bind(
+            [object, method](Args... args) {
+                if (object == nullptr) {
+                    return;
+                }
+                std::invoke(method, object, std::forward<Args>(args)...);
+            });
+    }
+
     template <typename Handler>
     [[nodiscard]] actions::Binding operator()(Handler&& handler) const
     {
         return bind(std::forward<Handler>(handler));
     }
 
+    template <typename Object, typename Method>
+        requires (
+            std::is_member_function_pointer_v<Method>
+            && std::is_invocable_v<Method, Object*, Args...>)
+    [[nodiscard]] actions::Binding operator()(Object* object, Method method) const
+    {
+        return bind(object, method);
+    }
+
     template <typename Handler>
     bool connect(ViewModel& viewModel, Handler&& handler) const
     {
-        return viewModel.setAction(path_, std::forward<Handler>(handler));
+        return viewModel.appendAction(path_, std::forward<Handler>(handler));
     }
 
     template <typename Handler>
     bool connect(const std::shared_ptr<ViewModel>& viewModel, Handler&& handler) const
     {
         return viewModel != nullptr
-            && viewModel->setAction(path_, std::forward<Handler>(handler));
+            && viewModel->appendAction(path_, std::forward<Handler>(handler));
+    }
+
+    template <typename Object, typename Method>
+        requires (
+            std::is_member_function_pointer_v<Method>
+            && std::is_invocable_v<Method, Object*, Args...>)
+    bool connect(ViewModel& viewModel, Object* object, Method method) const
+    {
+        return connect(viewModel, bind(object, method).action);
+    }
+
+    template <typename Object, typename Method>
+        requires (
+            std::is_member_function_pointer_v<Method>
+            && std::is_invocable_v<Method, Object*, Args...>)
+    bool connect(const std::shared_ptr<ViewModel>& viewModel, Object* object, Method method) const
+    {
+        return connect(viewModel, bind(object, method).action);
     }
 
 private:
     std::string_view path_;
+};
+
+template <typename Signature>
+class SignalRef;
+
+template <typename... Args>
+class SignalRef<void(Args...)> {
+public:
+    using Slot = ActionSlot<void(Args...)>;
+
+    SignalRef() = default;
+    SignalRef(std::shared_ptr<ViewModel> viewModel, Slot slot)
+        : viewModel_(std::move(viewModel))
+        , slot_(slot)
+    {
+    }
+
+    [[nodiscard]] bool valid() const
+    {
+        return viewModel_ != nullptr && !slot_.path().empty();
+    }
+
+    [[nodiscard]] explicit operator bool() const
+    {
+        return valid();
+    }
+
+    template <typename Handler>
+    bool connect(Handler&& handler) const
+    {
+        return slot_.connect(viewModel_, std::forward<Handler>(handler));
+    }
+
+    template <typename Object, typename Method>
+        requires (
+            std::is_member_function_pointer_v<Method>
+            && std::is_invocable_v<Method, Object*, Args...>)
+    bool connect(Object* object, Method method) const
+    {
+        return slot_.connect(viewModel_, object, method);
+    }
+
+    template <typename Handler>
+    bool operator()(Handler&& handler) const
+    {
+        return connect(std::forward<Handler>(handler));
+    }
+
+    template <typename Object, typename Method>
+        requires (
+            std::is_member_function_pointer_v<Method>
+            && std::is_invocable_v<Method, Object*, Args...>)
+    bool operator()(Object* object, Method method) const
+    {
+        return connect(object, method);
+    }
+
+private:
+    std::shared_ptr<ViewModel> viewModel_ {};
+    Slot slot_ {};
 };
 
 #define TINALUX_ACTION_SLOT(name, signature) \
@@ -322,6 +433,8 @@ struct BindingDescriptor {
 struct InteractionBindingDescriptor {
     std::weak_ptr<ui::Widget> widget;
     std::string interactionName;
+    std::string actionPath;
+    core::ValueType payloadType = core::ValueType::None;
     std::function<const ModelNode*(
         const std::shared_ptr<ViewModel>&,
         const std::function<const ModelNode*(std::string_view)>&)> evaluateNode;

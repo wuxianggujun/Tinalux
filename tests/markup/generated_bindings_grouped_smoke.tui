@@ -1,0 +1,14 @@
+VBox {
+    TextInput(
+        id: form__queryInput,
+        text: ${model.query},
+        onTextChanged: ${model.onQueryChanged})
+    Button(
+        id: form__loginButton,
+        text: "Login",
+        onClick: ${model.onLoginClicked})
+    Button(
+        id: toolbar__actions__clearButton,
+        text: "Clear",
+        onClick: ${model.toolbar.onClearClicked})
+}

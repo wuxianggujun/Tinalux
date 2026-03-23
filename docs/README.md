@@ -9,7 +9,7 @@
 - 平台层：桌面端使用仓库内固定的 `3rdparty/tina_glfw`；`GLFWWindow` 已覆盖 Windows / macOS / Linux。Linux/X11 的 IME 与窗口链路代码已接通，但缺少真机运行验证。
 - Android：不再只是方案稿，当前已有 `AndroidWindow`、`AndroidRuntime`、JNI/C ABI、`android/host` 宿主层、`android/tinalux-sdk` 和 `android/validation-app` 验证工程。
 - UI：约束布局、VBox/HBox/Flex/Grid/Responsive、三阶段事件、主题系统、富文本、文本输入、资源管理、异步图片加载、图标注册、组件级渲染缓存都已落地。
-- Markup：轻量声明式布局 DSL 已落地，当前使用无 `@` 关键字语法，支持 `style / import / component / if / elseif / else / for / res(...)`、位置参数、可选裸标识符 `id`、`${model.xxx}` 单向/双向属性绑定、`${someId.someProperty}` 普通属性/样式绑定、`Slot`、树状 `ViewModel`，以及基于结构路径失效的整树重建，可构建 `Dialog` / `ScrollView` / `Dropdown` / `ImageWidget` 等节点。
+- Markup：轻量声明式布局 DSL 已落地，当前使用无 `@` 关键字语法，支持 `style / import / component / if / elseif / else / for / res(...)`、位置参数、可选裸标识符 `id`、`${model.xxx}` 单向/双向属性绑定、`${someId.someProperty}` 普通属性/样式绑定、`Slot`、树状 `ViewModel`、声明式事件绑定；如果你已经有 target，直接用 `tinalux_target_enable_markup_autogen(...)` 挂自动生成；如果你想连 `add_executable(...)` 都省掉，可以直接用更高层的 `tinalux_add_markup_executable(...)`。单文件和目录扫描都可直接生成强类型 `Page / ui / slots` 头文件，默认输出到 `${CMAKE_CURRENT_BINARY_DIR}/tinalux_markup/<target>`；普通页面开发默认只看 [`Markup页面推荐写法`](./Markup页面推荐写法.md)，主路线是 `Page + ui.xxx.onClick(...)`；`Handlers / slots::load / slots::actions...` 这些低层接口统一放到 [`Markup高级接口`](./Markup高级接口.md)。
 - 测试：源码中的 [`tests/CMakeLists.txt`](../tests/CMakeLists.txt) 当前包含 `66` 个 smoke 声明和 `2` 个脚本测试；当前工作区里的 `cmake-build-debug` 通过 `ctest -N -C Debug --test-dir cmake-build-debug` 可见 `68` 个测试。
 
 ## 优先阅读
@@ -22,6 +22,10 @@
   当前真实架构，而不是早期设计草案。
 - [UI框架能力清单](./UI框架能力清单.md)  
   按模块罗列已实现能力、部分实现项和明确未完成项。
+- [Markup页面推荐写法](./Markup页面推荐写法.md)  
+  正常页面开发只看这一份，默认主路线是 `Page + ui + onClick(...)`。
+- [Markup高级接口](./Markup高级接口.md)  
+  只有要碰 `Handlers / slots::load / slots::actions...` 时再看。
 - [MarkupDSL语法参考](./MarkupDSL语法参考.md)  
   当前生效的布局 DSL 语法、位置参数、`id` 规则、`if / elseif / else / for` 与 `id.property` 绑定限制。
 
@@ -43,6 +47,8 @@
 - [LinuxX11构建验证](./LinuxX11构建验证.md)
 - [IME进度记录-2026-03-16](./IME进度记录-2026-03-16.md)
 - [设计规则](./设计规则.md)
+- [Markup页面推荐写法](./Markup页面推荐写法.md)
+- [Markup高级接口](./Markup高级接口.md)
 - [阶段交付-Canvas收口](./阶段交付-Canvas收口.md)
 
 ## 历史归档

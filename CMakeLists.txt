@@ -86,6 +86,7 @@ if(MSVC)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(TinaluxMarkupTools)
 
 # --- GLFW (轻量窗口管理) ---
 if(NOT ANDROID)

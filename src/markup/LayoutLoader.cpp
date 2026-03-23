@@ -4,15 +4,12 @@
 #include <charconv>
 #include <cstdint>
 #include <cstdlib>
-#include <filesystem>
-#include <fstream>
 #include <optional>
 #include <sstream>
 #include <string_view>
-#include <unordered_set>
 
+#include "DocumentLoader.h"
 #include "tinalux/markup/LayoutBuilder.h"
-#include "tinalux/markup/Parser.h"
 #include "tinalux/ui/Theme.h"
 
 namespace tinalux::markup {
@@ -64,20 +61,6 @@ std::optional<core::Color> parseColorText(std::string_view text)
     }
 
     return core::Color(rawValue);
-}
-
-std::vector<std::string> formatParseDiagnostics(
-    const std::vector<ParseDiagnostic>& diagnostics)
-{
-    std::vector<std::string> messages;
-    messages.reserve(diagnostics.size());
-    for (const ParseDiagnostic& diagnostic : diagnostics) {
-        if (!diagnostic.isError()) {
-            continue;
-        }
-        messages.push_back(diagnostic.format());
-    }
-    return messages;
 }
 
 std::optional<core::Value> coerceBindingValue(
@@ -268,99 +251,6 @@ bool evaluateAndApplyBinding(
     }
 
     return applyBindingValue(binding, *value);
-}
-
-struct LoadedDocumentResult {
-    AstDocument document;
-    std::vector<std::string> errors;
-};
-
-void ensureBuiltinTypesRegistered()
-{
-    static bool registered = false;
-    if (!registered) {
-        registerBuiltinTypes();
-        registered = true;
-    }
-}
-
-LoadedDocumentResult loadDocumentFileRecursive(
-    const std::filesystem::path& path,
-    std::unordered_set<std::string>& activeDocuments)
-{
-    LoadedDocumentResult result;
-
-    std::error_code pathError;
-    const std::filesystem::path normalizedPath =
-        std::filesystem::weakly_canonical(path, pathError);
-    const std::filesystem::path resolvedPath =
-        pathError ? std::filesystem::absolute(path) : normalizedPath;
-    const std::string activeKey = resolvedPath.generic_string();
-
-    if (!activeDocuments.insert(activeKey).second) {
-        result.errors.push_back("cyclic markup import detected: " + activeKey);
-        return result;
-    }
-
-    std::ifstream file(resolvedPath);
-    if (!file.is_open()) {
-        activeDocuments.erase(activeKey);
-        result.errors.push_back("failed to open file: " + resolvedPath.generic_string());
-        return result;
-    }
-
-    std::ostringstream source;
-    source << file.rdbuf();
-
-    auto parseResult = Parser::parseDocument(
-        source.str(),
-        resolvedPath.parent_path().generic_string());
-    if (!parseResult.ok()) {
-        activeDocuments.erase(activeKey);
-        result.errors = formatParseDiagnostics(parseResult.diagnostics);
-        return result;
-    }
-
-    for (const auto& importPathText : parseResult.document.imports) {
-        const std::filesystem::path importPath =
-            resolvedPath.parent_path() / std::filesystem::path(importPathText);
-        auto imported = loadDocumentFileRecursive(importPath, activeDocuments);
-        for (auto& error : imported.errors) {
-            result.errors.push_back(std::move(error));
-        }
-        if (!imported.errors.empty()) {
-            continue;
-        }
-        if (imported.document.root) {
-            result.errors.push_back(
-                "imported markup file must not define a root layout: "
-                + importPath.generic_string());
-            continue;
-        }
-        for (auto& letProperty : imported.document.lets) {
-            result.document.lets.push_back(std::move(letProperty));
-        }
-        for (auto& style : imported.document.styles) {
-            result.document.styles.push_back(std::move(style));
-        }
-        for (auto& component : imported.document.components) {
-            result.document.components.push_back(std::move(component));
-        }
-    }
-
-    for (auto& letProperty : parseResult.document.lets) {
-        result.document.lets.push_back(std::move(letProperty));
-    }
-    for (auto& style : parseResult.document.styles) {
-        result.document.styles.push_back(std::move(style));
-    }
-    for (auto& component : parseResult.document.components) {
-        result.document.components.push_back(std::move(component));
-    }
-    result.document.root = std::move(parseResult.document.root);
-
-    activeDocuments.erase(activeKey);
-    return result;
 }
 
 } // namespace
@@ -922,13 +812,13 @@ const detail::BindingDescriptor* LayoutHandle::findBinding(
 
 LoadResult LayoutLoader::load(std::string_view source, const ui::Theme& theme)
 {
-    ensureBuiltinTypesRegistered();
+    detail::ensureBuiltinTypesRegistered();
 
     LoadResult result;
 
     auto parseResult = Parser::parseDocument(source);
     if (!parseResult.ok()) {
-        result.errors = formatParseDiagnostics(parseResult.diagnostics);
+        result.errors = detail::formatParseDiagnostics(parseResult.diagnostics);
         return result;
     }
 
@@ -958,11 +848,10 @@ LoadResult LayoutLoader::load(std::string_view source, const ui::Theme& theme)
 
 LoadResult LayoutLoader::loadFile(const std::string& path, const ui::Theme& theme)
 {
-    ensureBuiltinTypesRegistered();
+    detail::ensureBuiltinTypesRegistered();
 
     LoadResult result;
-    std::unordered_set<std::string> activeDocuments;
-    auto loadedDocument = loadDocumentFileRecursive(std::filesystem::path(path), activeDocuments);
+    auto loadedDocument = detail::loadDocumentFile(std::filesystem::path(path));
     if (!loadedDocument.errors.empty()) {
         result.errors = std::move(loadedDocument.errors);
         return result;

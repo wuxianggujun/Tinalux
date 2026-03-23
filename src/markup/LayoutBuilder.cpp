@@ -1572,6 +1572,12 @@ std::optional<LayoutBuilder::PreparedBinding> LayoutBuilder::prepareBinding(
     std::string directPath;
     if (directPathBinding) {
         directPath = normalizeScopedPath(expression->directPath());
+        const std::vector<std::string_view> parts = splitScopedPath(directPath);
+        if (!directPath.empty()
+            && !parts.empty()
+            && !scope.contains(std::string(parts.front()))) {
+            binding.externalDirectPath = directPath;
+        }
     }
 
     if (allowWriteBack && directPathBinding) {
@@ -2599,6 +2605,8 @@ void LayoutBuilder::applyStandardProperty(
             registerInteractionBinding(
                 widget,
                 *interactionName,
+                preparedBinding->externalDirectPath,
+                interactionInfo->payloadType,
                 std::move(preparedBinding->evaluateNode));
             return;
         }
@@ -2799,6 +2807,8 @@ void LayoutBuilder::registerComputedNodeBinding(
 void LayoutBuilder::registerInteractionBinding(
     const std::shared_ptr<ui::Widget>& widget,
     std::string interactionName,
+    std::string actionPath,
+    core::ValueType payloadType,
     std::function<const ModelNode*(
         const std::shared_ptr<ViewModel>&,
         const std::function<const ModelNode*(std::string_view)>&)> evaluateNode)
@@ -2806,6 +2816,8 @@ void LayoutBuilder::registerInteractionBinding(
     interactionBindings_.push_back(detail::InteractionBindingDescriptor {
         .widget = widget,
         .interactionName = std::move(interactionName),
+        .actionPath = std::move(actionPath),
+        .payloadType = payloadType,
         .evaluateNode = std::move(evaluateNode),
     });
 }

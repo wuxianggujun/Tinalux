@@ -476,6 +476,23 @@ bool ViewModel::setAction(std::string_view path, ModelNode::Action action)
     return setNode(path, ModelNode(std::move(action)));
 }
 
+bool ViewModel::appendAction(std::string_view path, ModelNode::Action action)
+{
+    const ModelNode::Action* existing = findAction(path);
+    if (existing == nullptr) {
+        return setAction(path, std::move(action));
+    }
+
+    ModelNode::Action chained = *existing;
+    ModelNode::Action appended = std::move(action);
+    return setAction(
+        path,
+        [chained = std::move(chained), appended = std::move(appended)](const core::Value& value) mutable {
+            chained(value);
+            appended(value);
+        });
+}
+
 bool ViewModel::setActions(std::initializer_list<actions::Binding> bindings)
 {
     bool changed = false;

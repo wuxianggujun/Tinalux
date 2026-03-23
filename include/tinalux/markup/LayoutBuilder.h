@@ -47,6 +47,7 @@ private:
     struct PreparedBinding {
         std::vector<std::string> dependencyPaths;
         std::string writeBackPath;
+        std::string externalDirectPath;
         std::function<std::optional<core::Value>(
             const std::shared_ptr<ViewModel>&,
             const std::function<const ModelNode*(std::string_view)>&)> evaluate;
@@ -191,6 +192,8 @@ private:
     void registerInteractionBinding(
         const std::shared_ptr<ui::Widget>& widget,
         std::string interactionName,
+        std::string actionPath,
+        core::ValueType payloadType,
         std::function<const ModelNode*(
             const std::shared_ptr<ViewModel>&,
             const std::function<const ModelNode*(std::string_view)>&)> evaluateNode);

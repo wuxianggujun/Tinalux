@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "tinalux/markup/Ast.h"
@@ -99,6 +100,61 @@ private:
     std::shared_ptr<std::uint64_t> bindingGeneration_ = std::make_shared<std::uint64_t>(0);
     std::shared_ptr<detail::LayoutHandleState> runtimeState_;
     std::vector<detail::InteractionBindingDescriptor> interactionBindings_;
+};
+
+template <typename W>
+class WidgetRef {
+public:
+    WidgetRef() = default;
+    WidgetRef(
+        LayoutHandle* handle,
+        std::shared_ptr<ViewModel> viewModel,
+        std::string id)
+        : handle_(handle)
+        , viewModel_(std::move(viewModel))
+        , id_(std::move(id))
+    {
+    }
+
+    [[nodiscard]] W* get() const
+    {
+        return handle_ ? handle_->findById<W>(id_) : nullptr;
+    }
+
+    [[nodiscard]] W* operator->() const
+    {
+        return get();
+    }
+
+    [[nodiscard]] operator W*() const
+    {
+        return get();
+    }
+
+    [[nodiscard]] bool valid() const
+    {
+        return get() != nullptr;
+    }
+
+    [[nodiscard]] explicit operator bool() const
+    {
+        return valid();
+    }
+
+    [[nodiscard]] LayoutHandle* handle() const
+    {
+        return handle_;
+    }
+
+    [[nodiscard]] const std::shared_ptr<ViewModel>& viewModel() const
+    {
+        return viewModel_;
+    }
+
+protected:
+    LayoutHandle* handle_ = nullptr;
+    std::shared_ptr<ViewModel> viewModel_ {};
+    std::string id_ {};
 };
 
 struct LoadResult {

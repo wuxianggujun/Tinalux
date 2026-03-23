@@ -105,6 +105,49 @@ tinalux_add_smoke_test(TinaluxMarkupLayoutRebindSmoke
     LINK_LIBS Tinalux::Markup
 )
 
+tinalux_add_smoke_test(TinaluxMarkupLayoutActionCatalogSmoke
+    SOURCE markup/layout_action_catalog_smoke.cpp
+    LINK_LIBS Tinalux::Markup
+)
+
+tinalux_add_markup_executable(
+    TARGET TinaluxMarkupGeneratedBindingsSmoke
+    SOURCE markup/generated_bindings_smoke.cpp
+    INPUT markup/generated_bindings_smoke.tui
+    NAMESPACE_PREFIX generated_bindings
+    OUTPUT_HEADER generated_bindings.markup.h
+)
+add_test(NAME TinaluxMarkupGeneratedBindingsSmoke COMMAND TinaluxMarkupGeneratedBindingsSmoke)
+set_property(GLOBAL APPEND PROPERTY TINALUX_SMOKE_TEST_TARGETS TinaluxMarkupGeneratedBindingsSmoke)
+
+tinalux_add_markup_executable(
+    TARGET TinaluxMarkupGeneratedBindingsDefaultSmoke
+    SOURCE markup/generated_bindings_default_smoke.cpp
+    INPUT markup/generated_bindings_smoke.tui
+)
+add_test(NAME TinaluxMarkupGeneratedBindingsDefaultSmoke COMMAND TinaluxMarkupGeneratedBindingsDefaultSmoke)
+set_property(GLOBAL APPEND PROPERTY TINALUX_SMOKE_TEST_TARGETS TinaluxMarkupGeneratedBindingsDefaultSmoke)
+
+tinalux_add_markup_executable(
+    TARGET TinaluxMarkupGeneratedBindingsGroupedSmoke
+    SOURCE markup/generated_bindings_grouped_smoke.cpp
+    INPUT markup/generated_bindings_grouped_smoke.tui
+    NAMESPACE_PREFIX grouped_bindings
+    OUTPUT_HEADER generated_grouped.markup.h
+)
+add_test(NAME TinaluxMarkupGeneratedBindingsGroupedSmoke COMMAND TinaluxMarkupGeneratedBindingsGroupedSmoke)
+set_property(GLOBAL APPEND PROPERTY TINALUX_SMOKE_TEST_TARGETS TinaluxMarkupGeneratedBindingsGroupedSmoke)
+
+tinalux_add_markup_executable(
+    TARGET TinaluxMarkupGeneratedBindingsScanSmoke
+    SOURCE markup/generated_bindings_scan_smoke.cpp
+    DIRECTORY markup/generated_bindings_scan
+    NAMESPACE_PREFIX generated_scan
+    INDEX_HEADER generated_scan.markup.h
+)
+add_test(NAME TinaluxMarkupGeneratedBindingsScanSmoke COMMAND TinaluxMarkupGeneratedBindingsScanSmoke)
+set_property(GLOBAL APPEND PROPERTY TINALUX_SMOKE_TEST_TARGETS TinaluxMarkupGeneratedBindingsScanSmoke)
+
 tinalux_add_smoke_test(TinaluxPlatformGLFWDpiScaleSmoke
     SOURCE platform/glfw_window_scale_smoke.cpp
     LINK_LIBS Tinalux::Platform
