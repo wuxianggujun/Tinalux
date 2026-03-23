@@ -86,14 +86,17 @@ jobs:
           path: 3rdparty/skia
           key: windows-skia-source-v1-${{ steps.skia-meta.outputs.revision }}
 
-      - name: Restore Skia Debug Build Cache
+      - name: Restore Skia Build Cache
         id: restore-skia-build-cache
         uses: actions/cache/restore@v4
         with:
           path: |
             build-ci/skia
             build-ci/CMakeFiles/tinalux_skia_Debug_gn_signature.txt
+            build-ci/CMakeFiles/tinalux_skia_Release_gn_signature.txt
           key: windows-skia-build-v1-${{ steps.skia-meta.outputs.revision }}-${{ hashFiles('cmake/SkiaConfig.cmake') }}
+          restore-keys: |
+            windows-skia-build-v1-${{ steps.skia-meta.outputs.revision }}-
 
       - name: Configure Desktop Smoke Build
         shell: pwsh
@@ -107,13 +110,14 @@ jobs:
         shell: pwsh
         run: ./scripts/runSmokeTests.ps1 -BuildDir build-ci -Config Debug
 
-      - name: Save Skia Debug Build Cache
-        if: ${{ success() && steps.skia-meta.outputs.revision != '' }}
+      - name: Save Skia Build Cache
+        if: ${{ success() && steps.skia-meta.outputs.revision != '' && steps.restore-skia-build-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
         with:
           path: |
             build-ci/skia
             build-ci/CMakeFiles/tinalux_skia_Debug_gn_signature.txt
+            build-ci/CMakeFiles/tinalux_skia_Release_gn_signature.txt
           key: windows-skia-build-v1-${{ steps.skia-meta.outputs.revision }}-${{ hashFiles('cmake/SkiaConfig.cmake') }}
 
       - name: Upload CTest Logs On Failure

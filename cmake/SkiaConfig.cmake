@@ -112,7 +112,26 @@ endfunction()
 
 function(_tinalux_write_skia_expected_signature out_var build_type signature_content)
     _tinalux_skia_expected_signature_path(_signature_path "${build_type}")
-    file(WRITE "${_signature_path}" "${signature_content}\n")
+    get_filename_component(_signature_directory "${_signature_path}" DIRECTORY)
+    file(MAKE_DIRECTORY "${_signature_directory}")
+
+    set(_expected_signature_content "${signature_content}\n")
+    set(_should_write_signature TRUE)
+    if(EXISTS "${_signature_path}")
+        file(READ "${_signature_path}" _existing_signature_content)
+        if(_existing_signature_content STREQUAL _expected_signature_content)
+            set(_should_write_signature FALSE)
+        endif()
+    endif()
+
+    if(_should_write_signature)
+        file(WRITE "${_signature_path}" "${_expected_signature_content}")
+    endif()
+
+    unset(_existing_signature_content)
+    unset(_expected_signature_content)
+    unset(_should_write_signature)
+    unset(_signature_directory)
     set(${out_var} "${_signature_path}" PARENT_SCOPE)
 endfunction()
 

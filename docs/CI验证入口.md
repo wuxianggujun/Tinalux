@@ -69,7 +69,9 @@
   - `./scripts/runSmokeTests.ps1 -BuildDir build-ci -Config Debug`
 - 当前附加能力：
   - 缓存 `3rdparty/skia`
-  - 缓存 `build-ci/skia` Debug 构建产物
+  - 缓存 `build-ci/skia` 以及 Debug / Release 的 Skia 签名文件
+  - build cache 允许按同一 `Skia revision` 前缀回退 restore，减小配置哈希变更时的冷启动成本
+  - `cmake/SkiaConfig.cmake` 的签名文件现在只在内容变化时改写，避免每次 configure 都重复触发 `gn gen`
   - 前置校验桌面 smoke 入口和 `android-scripts` 过滤契约
   - 失败时上传 `CTest` 日志，产物保留 `7` 天
   - 同时保留 `CMakeCache.txt`、`CMakeConfigureLog.yaml`、`build.ninja`、`.ninja_log`
