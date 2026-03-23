@@ -19,6 +19,7 @@ on:
       - "main.cpp"
       - "!tests/scripts/android_stage_script_smoke.ps1"
       - "!tests/scripts/android_build_validate_smoke.ps1"
+      - "!tests/scripts/android_smoke_test_helpers.ps1"
   push:
     paths:
       - ".github/workflows/windows-desktop-smoke.yml"
@@ -32,6 +33,7 @@ on:
       - "main.cpp"
       - "!tests/scripts/android_stage_script_smoke.ps1"
       - "!tests/scripts/android_build_validate_smoke.ps1"
+      - "!tests/scripts/android_smoke_test_helpers.ps1"
 
 jobs:
   smoke:
