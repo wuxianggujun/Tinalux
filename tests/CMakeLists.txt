@@ -173,6 +173,21 @@ tinalux_add_markup_executable(
 add_test(NAME TinaluxMarkupGeneratedBindingsScanSmoke COMMAND TinaluxMarkupGeneratedBindingsScanSmoke)
 set_property(GLOBAL APPEND PROPERTY TINALUX_SMOKE_TEST_TARGETS TinaluxMarkupGeneratedBindingsScanSmoke)
 
+tinalux_add_markup_executable(
+    TARGET TinaluxMarkupGeneratedPageScaffoldScanSmoke
+    SOURCE markup/generated_page_scaffold_scan_smoke.cpp
+    DIRECTORY markup/generated_bindings_scan
+    NAMESPACE_PREFIX generated_scan
+    INDEX_HEADER generated_scan.markup.h
+)
+tinalux_generate_markup_page_scaffolds_for_directory(
+    TARGET TinaluxMarkupGeneratedPageScaffoldScanSmoke
+    OUTPUT_DIRECTORY generated_scan_pages
+    INDEX_HEADER generated_scan.pages.h
+)
+add_test(NAME TinaluxMarkupGeneratedPageScaffoldScanSmoke COMMAND TinaluxMarkupGeneratedPageScaffoldScanSmoke)
+set_property(GLOBAL APPEND PROPERTY TINALUX_SMOKE_TEST_TARGETS TinaluxMarkupGeneratedPageScaffoldScanSmoke)
+
 tinalux_add_smoke_test(TinaluxPlatformGLFWDpiScaleSmoke
     SOURCE platform/glfw_window_scale_smoke.cpp
     LINK_LIBS Tinalux::Platform

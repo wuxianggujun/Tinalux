@@ -45,6 +45,30 @@ tinalux_generate_markup_page_scaffold(
 - 生成出来的代码默认就是 `Page + ui.xxx.onXxx(...)`
 - `ONLY_IF_MISSING` 打开后，文件已经存在就不会覆盖你的手改内容
 
+如果你挂的是目录扫描模式，也可以批量起骨架：
+
+```cmake
+tinalux_add_markup_executable(
+    TARGET MyApp
+    SOURCE src/main.cpp
+    DIRECTORY ui
+    NAMESPACE_PREFIX app_ui
+)
+
+tinalux_generate_markup_page_scaffolds_for_directory(
+    TARGET MyApp
+    OUTPUT_DIRECTORY src/pages
+    INDEX_HEADER app_ui.pages.h
+    ONLY_IF_MISSING
+)
+```
+
+这会把 `ui/auth/login.tui` 之类的文件批量生成成：
+
+- `src/pages/auth/login.page.h`
+- `src/pages/settings/profile.page.h`
+- 总索引头 `src/pages/app_ui.pages.h`
+
 ## 2. 推荐页面类写法
 
 ```cpp

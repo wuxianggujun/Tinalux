@@ -314,6 +314,24 @@ tinalux_generate_markup_page_scaffold(
 
 更适合“先起页面，再自己继续写”，而不是把业务逻辑长期放在生成文件里。
 
+如果你挂的是目录扫描模式，也可以批量生成一组页面骨架：
+
+```cmake
+tinalux_generate_markup_page_scaffolds_for_directory(
+    TARGET MyApp
+    OUTPUT_DIRECTORY src/pages
+    INDEX_HEADER app_ui.pages.h
+    ONLY_IF_MISSING
+)
+```
+
+这条 helper 会：
+
+- 递归扫描当前 target 已挂的 `ui/**/*.tui`
+- 为每个布局生成一份对应的 `.page.h`
+- 类名按相对路径自动展开，例如 `ui/auth/login.tui` 会得到 `AuthLoginPage`
+- 额外生成一个总索引头，方便你直接 `#include "app_ui.pages.h"`
+
 如果目录下有很多 `.tui`，默认推荐直接挂到目标上自动生成：
 
 ```cmake
