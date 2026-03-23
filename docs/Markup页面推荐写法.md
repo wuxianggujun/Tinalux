@@ -28,24 +28,26 @@ tinalux_target_enable_markup_autogen(
 )
 ```
 
-如果你想先自动起一个“推荐写法”的页面类骨架，也可以显式加一条：
+如果你想先自动起一个“推荐写法”的页面类骨架，**优先还是直接写在同一个 `tinalux_add_markup_executable(...)` 里**：
 
 ```cmake
-tinalux_generate_markup_page_scaffold(
+tinalux_add_markup_executable(
     TARGET LoginDemo
-    OUTPUT src/LoginPage.h
-    CLASS_NAME LoginPage
-    ONLY_IF_MISSING
+    SOURCE src/main.cpp
+    INPUT ui/login.tui
+    PAGE_SCAFFOLD_OUTPUT src/LoginPage.h
+    PAGE_SCAFFOLD_CLASS_NAME LoginPage
+    PAGE_SCAFFOLD_ONLY_IF_MISSING
 )
 ```
 
-这条 helper 的定位是**起手式**：
+这几个参数的定位是**起手式**：
 
 - 它会根据当前 target 已挂的单文件 markup 自动生成一个页面类
 - 生成出来的代码默认就是 `Page + ui.xxx.onXxx(...)`
-- `ONLY_IF_MISSING` 打开后，文件已经存在就不会覆盖你的手改内容
+- `PAGE_SCAFFOLD_ONLY_IF_MISSING` 打开后，文件已经存在就不会覆盖你的手改内容
 
-如果你挂的是目录扫描模式，也可以批量起骨架：
+如果你挂的是目录扫描模式，也一样优先写在同一个入口里：
 
 ```cmake
 tinalux_add_markup_executable(
@@ -53,13 +55,9 @@ tinalux_add_markup_executable(
     SOURCE src/main.cpp
     DIRECTORY ui
     NAMESPACE_PREFIX app_ui
-)
-
-tinalux_generate_markup_page_scaffolds_for_directory(
-    TARGET MyApp
-    OUTPUT_DIRECTORY src/pages
-    INDEX_HEADER app_ui.pages.h
-    ONLY_IF_MISSING
+    PAGE_SCAFFOLD_OUTPUT_DIRECTORY src/pages
+    PAGE_SCAFFOLD_INDEX_HEADER app_ui.pages.h
+    PAGE_SCAFFOLD_ONLY_IF_MISSING
 )
 ```
 
@@ -68,6 +66,10 @@ tinalux_generate_markup_page_scaffolds_for_directory(
 - `src/pages/auth/login.page.h`
 - `src/pages/settings/profile.page.h`
 - 总索引头 `src/pages/app_ui.pages.h`
+
+如果你真的要把生成动作拆出去单独调用，`tinalux_generate_markup_page_scaffold(...)` /
+`tinalux_generate_markup_page_scaffolds_for_directory(...)` 这两个 helper 还在，
+但它们现在更适合高级场景，不再是推荐主路线。
 
 ## 2. 推荐页面类写法
 

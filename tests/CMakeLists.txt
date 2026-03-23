@@ -134,11 +134,8 @@ tinalux_add_markup_executable(
     INPUT markup/generated_bindings_smoke.tui
     NAMESPACE_PREFIX scaffold_bindings
     OUTPUT_HEADER scaffold_bindings.markup.h
-)
-tinalux_generate_markup_page_scaffold(
-    TARGET TinaluxMarkupGeneratedPageScaffoldSmoke
-    OUTPUT generated_page_scaffold.h
-    CLASS_NAME GeneratedBindingsPage
+    PAGE_SCAFFOLD_OUTPUT generated_page_scaffold.h
+    PAGE_SCAFFOLD_CLASS_NAME GeneratedBindingsPage
 )
 add_test(NAME TinaluxMarkupGeneratedPageScaffoldSmoke COMMAND TinaluxMarkupGeneratedPageScaffoldSmoke)
 set_property(GLOBAL APPEND PROPERTY TINALUX_SMOKE_TEST_TARGETS TinaluxMarkupGeneratedPageScaffoldSmoke)
@@ -179,11 +176,8 @@ tinalux_add_markup_executable(
     DIRECTORY markup/generated_bindings_scan
     NAMESPACE_PREFIX generated_scan
     INDEX_HEADER generated_scan.markup.h
-)
-tinalux_generate_markup_page_scaffolds_for_directory(
-    TARGET TinaluxMarkupGeneratedPageScaffoldScanSmoke
-    OUTPUT_DIRECTORY generated_scan_pages
-    INDEX_HEADER generated_scan.pages.h
+    PAGE_SCAFFOLD_OUTPUT_DIRECTORY generated_scan_pages
+    PAGE_SCAFFOLD_INDEX_HEADER generated_scan.pages.h
 )
 add_test(NAME TinaluxMarkupGeneratedPageScaffoldScanSmoke COMMAND TinaluxMarkupGeneratedPageScaffoldScanSmoke)
 set_property(GLOBAL APPEND PROPERTY TINALUX_SMOKE_TEST_TARGETS TinaluxMarkupGeneratedPageScaffoldScanSmoke)

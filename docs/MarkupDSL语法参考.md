@@ -295,14 +295,16 @@ tinalux_add_markup_executable(
 
 更底层的 `tinalux_generate_markup_bindings(...)` 仍然保留，适合你要手工控制输出头路径、include guard 或自定义构建链时使用。
 
-如果你不想手写第一页页面类，也可以显式生成一个起手骨架：
+如果你不想手写第一页页面类，最省脑子的写法是继续放在同一个高层入口里：
 
 ```cmake
-tinalux_generate_markup_page_scaffold(
+tinalux_add_markup_executable(
     TARGET MyApp
-    OUTPUT src/LoginPage.h
-    CLASS_NAME LoginPage
-    ONLY_IF_MISSING
+    SOURCE src/main.cpp
+    INPUT ui/login.tui
+    PAGE_SCAFFOLD_OUTPUT src/LoginPage.h
+    PAGE_SCAFFOLD_CLASS_NAME LoginPage
+    PAGE_SCAFFOLD_ONLY_IF_MISSING
 )
 ```
 
@@ -314,14 +316,17 @@ tinalux_generate_markup_page_scaffold(
 
 更适合“先起页面，再自己继续写”，而不是把业务逻辑长期放在生成文件里。
 
-如果你挂的是目录扫描模式，也可以批量生成一组页面骨架：
+如果你挂的是目录扫描模式，也可以继续放在同一个入口里批量生成：
 
 ```cmake
-tinalux_generate_markup_page_scaffolds_for_directory(
+tinalux_add_markup_executable(
     TARGET MyApp
-    OUTPUT_DIRECTORY src/pages
-    INDEX_HEADER app_ui.pages.h
-    ONLY_IF_MISSING
+    SOURCE src/main.cpp
+    DIRECTORY ui
+    NAMESPACE_PREFIX app_ui
+    PAGE_SCAFFOLD_OUTPUT_DIRECTORY src/pages
+    PAGE_SCAFFOLD_INDEX_HEADER app_ui.pages.h
+    PAGE_SCAFFOLD_ONLY_IF_MISSING
 )
 ```
 
@@ -331,6 +336,10 @@ tinalux_generate_markup_page_scaffolds_for_directory(
 - 为每个布局生成一份对应的 `.page.h`
 - 类名按相对路径自动展开，例如 `ui/auth/login.tui` 会得到 `AuthLoginPage`
 - 额外生成一个总索引头，方便你直接 `#include "app_ui.pages.h"`
+
+底层 helper `tinalux_generate_markup_page_scaffold(...)` /
+`tinalux_generate_markup_page_scaffolds_for_directory(...)` 仍然保留，
+更适合你要拆分构建步骤或自己控制输出文件时使用。
 
 如果目录下有很多 `.tui`，默认推荐直接挂到目标上自动生成：
 

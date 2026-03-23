@@ -657,7 +657,7 @@ function(tinalux_generate_markup_page_scaffolds_for_directory)
 endfunction()
 
 function(tinalux_target_enable_markup_autogen)
-    set(options)
+    set(options PAGE_SCAFFOLD_ONLY_IF_MISSING)
     set(oneValueArgs
         TARGET
         INPUT
@@ -666,7 +666,11 @@ function(tinalux_target_enable_markup_autogen)
         NAMESPACE_PREFIX
         OUTPUT_DIRECTORY
         INDEX_HEADER
-        OUTPUT_HEADER)
+        OUTPUT_HEADER
+        PAGE_SCAFFOLD_OUTPUT
+        PAGE_SCAFFOLD_CLASS_NAME
+        PAGE_SCAFFOLD_OUTPUT_DIRECTORY
+        PAGE_SCAFFOLD_INDEX_HEADER)
     cmake_parse_arguments(TINALUX_MARKUP_AUTOGEN "${options}" "${oneValueArgs}" "" ${ARGN})
 
     if(NOT TINALUX_MARKUP_AUTOGEN_TARGET)
@@ -683,6 +687,12 @@ function(tinalux_target_enable_markup_autogen)
     if(NOT TINALUX_MARKUP_AUTOGEN_INPUT AND NOT TINALUX_MARKUP_AUTOGEN_DIRECTORY)
         message(FATAL_ERROR
             "tinalux_target_enable_markup_autogen requires either INPUT or DIRECTORY")
+    endif()
+    if(TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_OUTPUT
+       AND TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_OUTPUT_DIRECTORY)
+        message(FATAL_ERROR
+            "tinalux_target_enable_markup_autogen accepts PAGE_SCAFFOLD_OUTPUT or "
+            "PAGE_SCAFFOLD_OUTPUT_DIRECTORY, not both")
     endif()
 
     set(_tinalux_autogen_output_dir "${TINALUX_MARKUP_AUTOGEN_OUTPUT_DIRECTORY}")
@@ -723,6 +733,13 @@ function(tinalux_target_enable_markup_autogen)
         DIRECTORY)
 
     if(TINALUX_MARKUP_AUTOGEN_DIRECTORY)
+        if(TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_OUTPUT
+           OR TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_CLASS_NAME)
+            message(FATAL_ERROR
+                "directory markup autogen does not support PAGE_SCAFFOLD_OUTPUT or "
+                "PAGE_SCAFFOLD_CLASS_NAME; use PAGE_SCAFFOLD_OUTPUT_DIRECTORY instead")
+        endif()
+
         tinalux_generate_markup_bindings_for_directory(
             TARGET "${TINALUX_MARKUP_AUTOGEN_TARGET}"
             DIRECTORY "${TINALUX_MARKUP_AUTOGEN_DIRECTORY}"
@@ -756,7 +773,38 @@ function(tinalux_target_enable_markup_autogen)
             TARGET "${TINALUX_MARKUP_AUTOGEN_TARGET}"
             PROPERTY TINALUX_MARKUP_AUTOGEN_INDEX_HEADER
             "${_tinalux_autogen_index_header_abs}")
+
+        if(TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_OUTPUT_DIRECTORY
+           OR TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_INDEX_HEADER
+           OR TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_ONLY_IF_MISSING)
+            set(_tinalux_page_scaffold_dir_args
+                TARGET "${TINALUX_MARKUP_AUTOGEN_TARGET}")
+            if(NOT "${TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_OUTPUT_DIRECTORY}" STREQUAL "")
+                list(APPEND
+                    _tinalux_page_scaffold_dir_args
+                    OUTPUT_DIRECTORY
+                    "${TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_OUTPUT_DIRECTORY}")
+            endif()
+            if(NOT "${TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_INDEX_HEADER}" STREQUAL "")
+                list(APPEND
+                    _tinalux_page_scaffold_dir_args
+                    INDEX_HEADER
+                    "${TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_INDEX_HEADER}")
+            endif()
+            if(TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_ONLY_IF_MISSING)
+                list(APPEND _tinalux_page_scaffold_dir_args ONLY_IF_MISSING)
+            endif()
+            tinalux_generate_markup_page_scaffolds_for_directory(
+                ${_tinalux_page_scaffold_dir_args})
+        endif()
         return()
+    endif()
+
+    if(TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_OUTPUT_DIRECTORY
+       OR TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_INDEX_HEADER)
+        message(FATAL_ERROR
+            "single-file markup autogen does not support PAGE_SCAFFOLD_OUTPUT_DIRECTORY or "
+            "PAGE_SCAFFOLD_INDEX_HEADER; use PAGE_SCAFFOLD_OUTPUT instead")
     endif()
 
     set(_tinalux_single_output_header "${TINALUX_MARKUP_AUTOGEN_OUTPUT_HEADER}")
@@ -822,10 +870,33 @@ function(tinalux_target_enable_markup_autogen)
         TARGET "${TINALUX_MARKUP_AUTOGEN_TARGET}"
         PROPERTY TINALUX_MARKUP_AUTOGEN_INDEX_HEADER
         "${_tinalux_single_output_header_abs}")
+
+    if(TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_OUTPUT
+       OR TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_CLASS_NAME
+       OR TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_ONLY_IF_MISSING)
+        if(NOT TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_OUTPUT)
+            message(FATAL_ERROR
+                "single-file page scaffold generation requires PAGE_SCAFFOLD_OUTPUT")
+        endif()
+
+        set(_tinalux_page_scaffold_args
+            TARGET "${TINALUX_MARKUP_AUTOGEN_TARGET}"
+            OUTPUT "${TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_OUTPUT}")
+        if(NOT "${TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_CLASS_NAME}" STREQUAL "")
+            list(APPEND
+                _tinalux_page_scaffold_args
+                CLASS_NAME
+                "${TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_CLASS_NAME}")
+        endif()
+        if(TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_ONLY_IF_MISSING)
+            list(APPEND _tinalux_page_scaffold_args ONLY_IF_MISSING)
+        endif()
+        tinalux_generate_markup_page_scaffold(${_tinalux_page_scaffold_args})
+    endif()
 endfunction()
 
 function(tinalux_add_markup_executable)
-    set(options COPY_SKIA_DATA)
+    set(options COPY_SKIA_DATA PAGE_SCAFFOLD_ONLY_IF_MISSING)
     set(oneValueArgs
         TARGET
         SOURCE
@@ -835,7 +906,11 @@ function(tinalux_add_markup_executable)
         NAMESPACE_PREFIX
         OUTPUT_DIRECTORY
         INDEX_HEADER
-        OUTPUT_HEADER)
+        OUTPUT_HEADER
+        PAGE_SCAFFOLD_OUTPUT
+        PAGE_SCAFFOLD_CLASS_NAME
+        PAGE_SCAFFOLD_OUTPUT_DIRECTORY
+        PAGE_SCAFFOLD_INDEX_HEADER)
     set(multiValueArgs SOURCES LINK_LIBS)
     cmake_parse_arguments(TINALUX_MARKUP_EXE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -881,7 +956,11 @@ function(tinalux_add_markup_executable)
         NAMESPACE_PREFIX
         OUTPUT_DIRECTORY
         INDEX_HEADER
-        OUTPUT_HEADER)
+        OUTPUT_HEADER
+        PAGE_SCAFFOLD_OUTPUT
+        PAGE_SCAFFOLD_CLASS_NAME
+        PAGE_SCAFFOLD_OUTPUT_DIRECTORY
+        PAGE_SCAFFOLD_INDEX_HEADER)
         if(NOT "${TINALUX_MARKUP_EXE_${_tinalux_markup_exe_arg}}" STREQUAL "")
             list(APPEND
                 _tinalux_markup_exe_autogen_args
@@ -889,6 +968,9 @@ function(tinalux_add_markup_executable)
                 "${TINALUX_MARKUP_EXE_${_tinalux_markup_exe_arg}}")
         endif()
     endforeach()
+    if(TINALUX_MARKUP_EXE_PAGE_SCAFFOLD_ONLY_IF_MISSING)
+        list(APPEND _tinalux_markup_exe_autogen_args PAGE_SCAFFOLD_ONLY_IF_MISSING)
+    endif()
 
     tinalux_target_enable_markup_autogen(${_tinalux_markup_exe_autogen_args})
 endfunction()
