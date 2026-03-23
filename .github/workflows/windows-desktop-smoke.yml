@@ -1,0 +1,71 @@
+name: windows-desktop-smoke
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/windows-desktop-smoke.yml"
+      - "CMakeLists.txt"
+      - "cmake/**"
+      - "include/**"
+      - "src/**"
+      - "tests/**"
+      - "scripts/runSmokeTests.ps1"
+      - "syncSkia.bat"
+      - "syncSkia.sh"
+      - "main.cpp"
+  push:
+    paths:
+      - ".github/workflows/windows-desktop-smoke.yml"
+      - "CMakeLists.txt"
+      - "cmake/**"
+      - "include/**"
+      - "src/**"
+      - "tests/**"
+      - "scripts/runSmokeTests.ps1"
+      - "syncSkia.bat"
+      - "syncSkia.sh"
+      - "main.cpp"
+
+jobs:
+  smoke:
+    runs-on: windows-2022
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Sync Skia checkout and deps
+        shell: cmd
+        run: syncSkia.bat
+
+      - name: Configure Desktop Smoke Build
+        shell: pwsh
+        run: >
+          cmake -S . -B build-ci -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DTINALUX_BUILD_TESTS=ON
+          -DTINALUX_BUILD_SAMPLES=OFF
+
+      - name: Run Desktop Smoke Tests
+        shell: pwsh
+        run: ./scripts/runSmokeTests.ps1 -BuildDir build-ci -Config Debug
+
+      - name: Upload CTest Logs On Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-desktop-smoke-logs
+          path: |
+            build-ci/Testing/**
+            build-ci/CMakeFiles/CMakeOutput.log
+            build-ci/CMakeFiles/CMakeError.log

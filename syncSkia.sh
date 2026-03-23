@@ -8,5 +8,13 @@ else
 fi
 export PYTHONUTF8=1
 export GIT_SYNC_DEPS_SKIP_EMSDK=1
-python3 tools/git-sync-deps -v
+if command -v python3 >/dev/null 2>&1; then
+    _tinalux_python=python3
+elif command -v python >/dev/null 2>&1; then
+    _tinalux_python=python
+else
+    echo "error: python3/python not found" >&2
+    exit 1
+fi
+"${_tinalux_python}" tools/git-sync-deps -v
 cd ../..
