@@ -99,6 +99,11 @@ public:
 - `bindUi(ui)`
 - 先起本地控件别名，再直接绑事件
 
+仓库里可直接对照的可运行示例：
+
+- [`tests/markup/mental_model_smoke.cpp`](../tests/markup/mental_model_smoke.cpp)
+- [`tests/CMakeLists.txt`](../tests/CMakeLists.txt)
+
 ## 4. 哪些东西大多数时候不用管
 
 下面这些概念，普通页面开发大多数时候可以先忽略：

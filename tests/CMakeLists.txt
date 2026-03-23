@@ -129,6 +129,14 @@ add_test(NAME TinaluxMarkupGeneratedBindingsDefaultSmoke COMMAND TinaluxMarkupGe
 set_property(GLOBAL APPEND PROPERTY TINALUX_SMOKE_TEST_TARGETS TinaluxMarkupGeneratedBindingsDefaultSmoke)
 
 tinalux_add_markup_executable(
+    TARGET TinaluxMarkupMentalModelSmoke
+    SOURCE markup/mental_model_smoke.cpp
+    INPUT markup/generated_bindings_smoke.tui
+)
+add_test(NAME TinaluxMarkupMentalModelSmoke COMMAND TinaluxMarkupMentalModelSmoke)
+set_property(GLOBAL APPEND PROPERTY TINALUX_SMOKE_TEST_TARGETS TinaluxMarkupMentalModelSmoke)
+
+tinalux_add_markup_executable(
     TARGET TinaluxMarkupGeneratedPageScaffoldSmoke
     SOURCE markup/generated_page_scaffold_smoke.cpp
     INPUT markup/generated_bindings_smoke.tui
