@@ -29,6 +29,10 @@ function Assert-RepoSdkModuleContract {
     $buildFileContent = Get-Content -Path $buildFile -Raw
     $expectedPatterns = @(
         @{
+            Pattern = 'java\.srcDir\(projectDir\.resolve\("\.\./host/src/main/kotlin"\)\)'
+            Description = 'host Kotlin source path'
+        },
+        @{
             Pattern = 'manifest\.srcFile\("src/main/AndroidManifest\.xml"\)'
             Description = 'main manifest source path'
         },
@@ -46,6 +50,11 @@ function Assert-RepoSdkModuleContract {
         if ($buildFileContent -notmatch $expectedPattern.Pattern) {
             throw ("Android SDK module contract drifted. Missing {0} declaration in {1}" -f $expectedPattern.Description, $buildFile)
         }
+    }
+
+    $manifestContent = Get-Content -Path $manifestFile -Raw
+    if ($manifestContent -notmatch 'android:hasCode="true"') {
+        throw ("Android SDK module manifest drifted. Missing android:hasCode=""true"" in {0}" -f $manifestFile)
     }
 }
 
