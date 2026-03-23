@@ -129,6 +129,21 @@ add_test(NAME TinaluxMarkupGeneratedBindingsDefaultSmoke COMMAND TinaluxMarkupGe
 set_property(GLOBAL APPEND PROPERTY TINALUX_SMOKE_TEST_TARGETS TinaluxMarkupGeneratedBindingsDefaultSmoke)
 
 tinalux_add_markup_executable(
+    TARGET TinaluxMarkupGeneratedPageScaffoldSmoke
+    SOURCE markup/generated_page_scaffold_smoke.cpp
+    INPUT markup/generated_bindings_smoke.tui
+    NAMESPACE_PREFIX scaffold_bindings
+    OUTPUT_HEADER scaffold_bindings.markup.h
+)
+tinalux_generate_markup_page_scaffold(
+    TARGET TinaluxMarkupGeneratedPageScaffoldSmoke
+    OUTPUT generated_page_scaffold.h
+    CLASS_NAME GeneratedBindingsPage
+)
+add_test(NAME TinaluxMarkupGeneratedPageScaffoldSmoke COMMAND TinaluxMarkupGeneratedPageScaffoldSmoke)
+set_property(GLOBAL APPEND PROPERTY TINALUX_SMOKE_TEST_TARGETS TinaluxMarkupGeneratedPageScaffoldSmoke)
+
+tinalux_add_markup_executable(
     TARGET TinaluxMarkupGeneratedBindingsGroupedSmoke
     SOURCE markup/generated_bindings_grouped_smoke.cpp
     INPUT markup/generated_bindings_grouped_smoke.tui

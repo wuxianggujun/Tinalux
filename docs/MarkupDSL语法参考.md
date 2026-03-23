@@ -295,6 +295,25 @@ tinalux_add_markup_executable(
 
 更底层的 `tinalux_generate_markup_bindings(...)` 仍然保留，适合你要手工控制输出头路径、include guard 或自定义构建链时使用。
 
+如果你不想手写第一页页面类，也可以显式生成一个起手骨架：
+
+```cmake
+tinalux_generate_markup_page_scaffold(
+    TARGET MyApp
+    OUTPUT src/LoginPage.h
+    CLASS_NAME LoginPage
+    ONLY_IF_MISSING
+)
+```
+
+这条 helper 会复用当前 target 的单文件 markup autogen 配置，生成的骨架默认就是：
+
+- 持有 `Page`
+- 在构造里通过 `ui.xxx.onXxx(...)` 直接绑事件
+- 每个事件先生成一个同名 starter 方法，方便你继续往里填业务逻辑
+
+更适合“先起页面，再自己继续写”，而不是把业务逻辑长期放在生成文件里。
+
 如果目录下有很多 `.tui`，默认推荐直接挂到目标上自动生成：
 
 ```cmake

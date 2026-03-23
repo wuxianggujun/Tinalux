@@ -40,6 +40,14 @@ struct ActionCatalogHeaderOptions {
     bool pragmaOnce = true;
 };
 
+struct ActionCatalogPageScaffoldOptions {
+    std::string includeGuard;
+    std::string slotNamespace;
+    std::string markupHeaderInclude;
+    std::string className;
+    bool pragmaOnce = true;
+};
+
 struct ActionCatalogResult {
     std::vector<ActionSlotInfo> slots;
     std::vector<WidgetAccessInfo> widgets;
@@ -62,6 +70,10 @@ public:
     static std::string emitHeader(
         const ActionCatalogResult& catalog,
         const ActionCatalogHeaderOptions& options = {});
+
+    static std::string emitPageScaffold(
+        const ActionCatalogResult& catalog,
+        const ActionCatalogPageScaffoldOptions& options = {});
 };
 
 } // namespace tinalux::markup

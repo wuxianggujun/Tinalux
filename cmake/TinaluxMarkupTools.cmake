@@ -239,6 +239,129 @@ function(tinalux_generate_markup_bindings_for_directory)
     endif()
 endfunction()
 
+function(tinalux_generate_markup_page_scaffold)
+    set(options NO_PRAGMA_ONCE ONLY_IF_MISSING)
+    set(oneValueArgs TARGET INPUT OUTPUT NAMESPACE MARKUP_HEADER CLASS_NAME INCLUDE_GUARD)
+    cmake_parse_arguments(TINALUX_MARKUP_SCAFFOLD "${options}" "${oneValueArgs}" "" ${ARGN})
+
+    if(NOT TINALUX_MARKUP_SCAFFOLD_OUTPUT)
+        message(FATAL_ERROR "tinalux_generate_markup_page_scaffold requires OUTPUT")
+    endif()
+    if(NOT TARGET TinaluxMarkupActionHeaderTool)
+        message(FATAL_ERROR
+            "TinaluxMarkupActionHeaderTool is unavailable. "
+            "Ensure src/markup/CMakeLists.txt is included before calling "
+            "tinalux_generate_markup_page_scaffold.")
+    endif()
+
+    set(_tinalux_scaffold_input "${TINALUX_MARKUP_SCAFFOLD_INPUT}")
+    set(_tinalux_scaffold_namespace "${TINALUX_MARKUP_SCAFFOLD_NAMESPACE}")
+    set(_tinalux_scaffold_markup_header "${TINALUX_MARKUP_SCAFFOLD_MARKUP_HEADER}")
+    if(TINALUX_MARKUP_SCAFFOLD_TARGET)
+        if(NOT TARGET "${TINALUX_MARKUP_SCAFFOLD_TARGET}")
+            message(FATAL_ERROR
+                "tinalux_generate_markup_page_scaffold TARGET '${TINALUX_MARKUP_SCAFFOLD_TARGET}' does not exist")
+        endif()
+
+        if(NOT _tinalux_scaffold_input)
+            get_property(
+                _tinalux_scaffold_input
+                TARGET "${TINALUX_MARKUP_SCAFFOLD_TARGET}"
+                PROPERTY TINALUX_MARKUP_AUTOGEN_INPUT)
+        endif()
+        if(NOT _tinalux_scaffold_namespace)
+            get_property(
+                _tinalux_scaffold_namespace
+                TARGET "${TINALUX_MARKUP_SCAFFOLD_TARGET}"
+                PROPERTY TINALUX_MARKUP_AUTOGEN_NAMESPACE)
+        endif()
+        if(NOT _tinalux_scaffold_markup_header)
+            get_property(
+                _tinalux_scaffold_markup_header
+                TARGET "${TINALUX_MARKUP_SCAFFOLD_TARGET}"
+                PROPERTY TINALUX_MARKUP_AUTOGEN_OUTPUT_HEADER)
+        endif()
+    endif()
+
+    if(NOT _tinalux_scaffold_input)
+        message(FATAL_ERROR
+            "tinalux_generate_markup_page_scaffold requires INPUT, or a TARGET with single-file markup autogen")
+    endif()
+    if(NOT _tinalux_scaffold_namespace)
+        message(FATAL_ERROR
+            "tinalux_generate_markup_page_scaffold requires NAMESPACE, or a TARGET with single-file markup autogen")
+    endif()
+    if(NOT _tinalux_scaffold_markup_header)
+        message(FATAL_ERROR
+            "tinalux_generate_markup_page_scaffold requires MARKUP_HEADER, or a TARGET with single-file markup autogen")
+    endif()
+
+    get_filename_component(
+        _tinalux_scaffold_input_abs
+        "${_tinalux_scaffold_input}"
+        ABSOLUTE
+        BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+    get_filename_component(
+        _tinalux_scaffold_output_abs
+        "${TINALUX_MARKUP_SCAFFOLD_OUTPUT}"
+        ABSOLUTE
+        BASE_DIR "${CMAKE_CURRENT_BINARY_DIR}")
+    get_filename_component(
+        _tinalux_scaffold_output_dir
+        "${_tinalux_scaffold_output_abs}"
+        DIRECTORY)
+
+    set(_tinalux_scaffold_markup_include "${_tinalux_scaffold_markup_header}")
+    if(IS_ABSOLUTE "${_tinalux_scaffold_markup_header}")
+        file(RELATIVE_PATH
+            _tinalux_scaffold_markup_include
+            "${_tinalux_scaffold_output_dir}"
+            "${_tinalux_scaffold_markup_header}")
+        string(REPLACE "\\" "/" _tinalux_scaffold_markup_include "${_tinalux_scaffold_markup_include}")
+    endif()
+
+    set(_tinalux_scaffold_command
+        "$<TARGET_FILE:TinaluxMarkupActionHeaderTool>"
+        --input "${_tinalux_scaffold_input_abs}"
+        --namespace "${_tinalux_scaffold_namespace}"
+        --scaffold-output "${_tinalux_scaffold_output_abs}"
+        --scaffold-markup-header "${_tinalux_scaffold_markup_include}")
+    if(TINALUX_MARKUP_SCAFFOLD_CLASS_NAME)
+        list(APPEND _tinalux_scaffold_command
+            --scaffold-class "${TINALUX_MARKUP_SCAFFOLD_CLASS_NAME}")
+    endif()
+    if(TINALUX_MARKUP_SCAFFOLD_INCLUDE_GUARD)
+        list(APPEND _tinalux_scaffold_command
+            --scaffold-include-guard "${TINALUX_MARKUP_SCAFFOLD_INCLUDE_GUARD}")
+    endif()
+    if(TINALUX_MARKUP_SCAFFOLD_ONLY_IF_MISSING)
+        list(APPEND _tinalux_scaffold_command --scaffold-only-if-missing)
+    endif()
+    if(TINALUX_MARKUP_SCAFFOLD_NO_PRAGMA_ONCE)
+        list(APPEND _tinalux_scaffold_command --no-pragma-once)
+    endif()
+
+    add_custom_command(
+        OUTPUT "${_tinalux_scaffold_output_abs}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${_tinalux_scaffold_output_dir}"
+        COMMAND ${_tinalux_scaffold_command}
+        DEPENDS "${_tinalux_scaffold_input_abs}" TinaluxMarkupActionHeaderTool
+        COMMENT "Generating markup page scaffold: ${_tinalux_scaffold_output_abs}"
+        VERBATIM
+    )
+
+    if(TINALUX_MARKUP_SCAFFOLD_TARGET)
+        string(SHA1 _tinalux_scaffold_hash "${_tinalux_scaffold_output_abs}")
+        string(MAKE_C_IDENTIFIER
+            "tinalux_markup_page_scaffold_${TINALUX_MARKUP_SCAFFOLD_TARGET}_${_tinalux_scaffold_hash}"
+            _tinalux_scaffold_target)
+        add_custom_target("${_tinalux_scaffold_target}" DEPENDS "${_tinalux_scaffold_output_abs}")
+        add_dependencies("${TINALUX_MARKUP_SCAFFOLD_TARGET}" "${_tinalux_scaffold_target}")
+        target_sources("${TINALUX_MARKUP_SCAFFOLD_TARGET}" PRIVATE "${_tinalux_scaffold_output_abs}")
+        target_include_directories("${TINALUX_MARKUP_SCAFFOLD_TARGET}" PRIVATE "${_tinalux_scaffold_output_dir}")
+    endif()
+endfunction()
+
 function(tinalux_target_enable_markup_autogen)
     set(options)
     set(oneValueArgs
@@ -321,6 +444,10 @@ function(tinalux_target_enable_markup_autogen)
 
         set_property(
             TARGET "${TINALUX_MARKUP_AUTOGEN_TARGET}"
+            PROPERTY TINALUX_MARKUP_AUTOGEN_MODE
+            "DIRECTORY")
+        set_property(
+            TARGET "${TINALUX_MARKUP_AUTOGEN_TARGET}"
             PROPERTY TINALUX_MARKUP_AUTOGEN_OUTPUT_DIRECTORY
             "${_tinalux_autogen_output_dir_abs}")
         set_property(
@@ -369,6 +496,22 @@ function(tinalux_target_enable_markup_autogen)
         PRIVATE
             "${_tinalux_single_output_header_dir}")
 
+    set_property(
+        TARGET "${TINALUX_MARKUP_AUTOGEN_TARGET}"
+        PROPERTY TINALUX_MARKUP_AUTOGEN_MODE
+        "INPUT")
+    set_property(
+        TARGET "${TINALUX_MARKUP_AUTOGEN_TARGET}"
+        PROPERTY TINALUX_MARKUP_AUTOGEN_INPUT
+        "${TINALUX_MARKUP_AUTOGEN_INPUT}")
+    set_property(
+        TARGET "${TINALUX_MARKUP_AUTOGEN_TARGET}"
+        PROPERTY TINALUX_MARKUP_AUTOGEN_NAMESPACE
+        "${_tinalux_single_namespace}")
+    set_property(
+        TARGET "${TINALUX_MARKUP_AUTOGEN_TARGET}"
+        PROPERTY TINALUX_MARKUP_AUTOGEN_OUTPUT_HEADER
+        "${_tinalux_single_output_header_abs}")
     set_property(
         TARGET "${TINALUX_MARKUP_AUTOGEN_TARGET}"
         PROPERTY TINALUX_MARKUP_AUTOGEN_OUTPUT_DIRECTORY

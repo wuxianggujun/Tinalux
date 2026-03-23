@@ -286,6 +286,43 @@ VBox {
         expect(
             header.find("demo::load(const ::tinalux::ui::Theme& theme)") == std::string::npos,
             "facade namespace should not keep a redundant free load helper");
+
+        const std::string scaffold = markup::LayoutActionCatalog::emitPageScaffold(
+            catalog,
+            {
+                .includeGuard = "TINALUX_GENERATED_LOGIN_PAGE_H",
+                .slotNamespace = "demo::slots",
+                .markupHeaderInclude = "login.markup.h",
+                .className = "LoginPage",
+            });
+        expect(
+            scaffold.find("#include \"login.markup.h\"") != std::string::npos,
+            "page scaffold should include the generated markup header");
+        expect(
+            scaffold.find("class LoginPage {") != std::string::npos,
+            "page scaffold should emit the requested class name");
+        expect(
+            scaffold.find("demo::Page page {}") != std::string::npos,
+            "page scaffold should hold the generated facade page directly");
+        expect(
+            scaffold.find("ui.applyButton.onClick(this, &LoginPage::onApplyButtonClick);")
+                != std::string::npos,
+            "page scaffold should bind button events on the generated ui object");
+        expect(
+            scaffold.find("ui.profileDialog.onDismiss(this, &LoginPage::onProfileDialogDismiss);")
+                != std::string::npos,
+            "page scaffold should bind non-click widget events on the generated ui object");
+        expect(
+            scaffold.find(
+                "ui.sharedSlider.onValueChanged(this, &LoginPage::onSharedSliderValueChanged);")
+                != std::string::npos,
+            "page scaffold should bind payload events with explicit widget-qualified method names");
+        expect(
+            scaffold.find(
+                "void onSharedSliderValueChanged(const ::tinalux::core::Value& value)")
+                != std::string::npos
+                && scaffold.find("(void)value;") != std::string::npos,
+            "page scaffold should emit inline starter methods with payload placeholders");
     }
 
     {
@@ -332,6 +369,24 @@ VBox {
         expect(
             groupedHeader.find("clearButton {}") != std::string::npos,
             "grouped ids should expose deep leaf widgets inside child groups");
+
+        const std::string groupedScaffold = markup::LayoutActionCatalog::emitPageScaffold(
+            groupedCatalog,
+            {
+                .slotNamespace = "grouped::slots",
+                .markupHeaderInclude = "grouped.markup.h",
+                .className = "GroupedPage",
+            });
+        expect(
+            groupedScaffold.find(
+                "ui.form.queryInput.onTextChanged(this, &GroupedPage::onFormQueryInputTextChanged);")
+                != std::string::npos,
+            "grouped ids should flatten into explicit ui access paths inside the page scaffold");
+        expect(
+            groupedScaffold.find(
+                "ui.toolbar.actions.clearButton.onClick(this, &GroupedPage::onToolbarActionsClearButtonClick);")
+                != std::string::npos,
+            "page scaffold should preserve nested ui groups in generated bindings");
     }
 
     {

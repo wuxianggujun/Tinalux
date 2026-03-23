@@ -28,6 +28,23 @@ tinalux_target_enable_markup_autogen(
 )
 ```
 
+如果你想先自动起一个“推荐写法”的页面类骨架，也可以显式加一条：
+
+```cmake
+tinalux_generate_markup_page_scaffold(
+    TARGET LoginDemo
+    OUTPUT src/LoginPage.h
+    CLASS_NAME LoginPage
+    ONLY_IF_MISSING
+)
+```
+
+这条 helper 的定位是**起手式**：
+
+- 它会根据当前 target 已挂的单文件 markup 自动生成一个页面类
+- 生成出来的代码默认就是 `Page + ui.xxx.onXxx(...)`
+- `ONLY_IF_MISSING` 打开后，文件已经存在就不会覆盖你的手改内容
+
 ## 2. 推荐页面类写法
 
 ```cpp

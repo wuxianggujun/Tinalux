@@ -441,6 +441,131 @@ std::optional<std::string> deriveFacadeNamespace(std::string_view slotNamespace)
     return std::string(parent);
 }
 
+void collectUiAccessExprs(
+    const UiGroupSpec& node,
+    std::string_view baseExpr,
+    std::unordered_map<std::string, std::string>& out)
+{
+    for (const auto& leaf : node.leaves) {
+        if (leaf.widget == nullptr) {
+            continue;
+        }
+        out.emplace(
+            leaf.widget->id,
+            std::string(baseExpr) + "." + leaf.fieldName);
+    }
+
+    for (const auto& group : node.groups) {
+        collectUiAccessExprs(
+            group,
+            std::string(baseExpr) + "." + group.fieldName,
+            out);
+    }
+}
+
+std::string makePascalCaseIdentifier(std::string_view value)
+{
+    std::string result;
+    result.reserve(value.size());
+
+    bool capitalizeNext = true;
+    for (const char ch : value) {
+        const unsigned char code = static_cast<unsigned char>(ch);
+        if (!std::isalnum(code)) {
+            capitalizeNext = true;
+            continue;
+        }
+
+        if (capitalizeNext) {
+            result.push_back(static_cast<char>(std::toupper(code)));
+            capitalizeNext = false;
+            continue;
+        }
+
+        result.push_back(ch);
+    }
+
+    return result;
+}
+
+std::string makeScaffoldHandlerMethodName(
+    std::string_view widgetId,
+    std::string_view interactionName)
+{
+    std::string methodName = "on";
+    for (const auto& segment : splitUiPathSegments(widgetId)) {
+        methodName += makePascalCaseIdentifier(segment);
+    }
+
+    if (interactionName.starts_with("on")
+        && interactionName.size() > 2
+        && std::isupper(static_cast<unsigned char>(interactionName[2]))) {
+        methodName += std::string(interactionName.substr(2));
+    } else {
+        methodName += makePascalCaseIdentifier(interactionName);
+    }
+
+    if (methodName == "on") {
+        return "onEvent";
+    }
+    return methodName;
+}
+
+std::string scaffoldParameterName(const ActionSlotInfo& slot)
+{
+    if (slot.genericPayload) {
+        return "value";
+    }
+
+    switch (slot.payloadType) {
+    case core::ValueType::None:
+        return {};
+    case core::ValueType::Bool:
+        return "checked";
+    case core::ValueType::Int:
+        return "value";
+    case core::ValueType::Float:
+        return "value";
+    case core::ValueType::String:
+    case core::ValueType::Enum:
+        return "text";
+    case core::ValueType::Color:
+        return "value";
+    }
+
+    return "value";
+}
+
+std::string scaffoldParameterDeclaration(const ActionSlotInfo& slot)
+{
+    const std::string parameterName = scaffoldParameterName(slot);
+    if (parameterName.empty()) {
+        return {};
+    }
+
+    if (slot.genericPayload) {
+        return "const ::tinalux::core::Value& " + parameterName;
+    }
+
+    switch (slot.payloadType) {
+    case core::ValueType::Bool:
+        return "bool " + parameterName;
+    case core::ValueType::Int:
+        return "int " + parameterName;
+    case core::ValueType::Float:
+        return "float " + parameterName;
+    case core::ValueType::String:
+    case core::ValueType::Enum:
+        return "std::string_view " + parameterName;
+    case core::ValueType::Color:
+        return "const ::tinalux::core::Value& " + parameterName;
+    case core::ValueType::None:
+        return {};
+    }
+
+    return "const ::tinalux::core::Value& " + parameterName;
+}
+
 void emitHandlersBindingHelper(
     std::ostringstream& out,
     const ActionCatalogResult& catalog,
@@ -1172,6 +1297,103 @@ std::string LayoutActionCatalog::emitHeader(
         out << "};\n\n";
         out << "} // namespace " << *facadeNamespace << "\n";
     }
+
+    if (!options.includeGuard.empty()) {
+        out << "\n#endif // " << options.includeGuard << "\n";
+    }
+
+    return out.str();
+}
+
+std::string LayoutActionCatalog::emitPageScaffold(
+    const ActionCatalogResult& catalog,
+    const ActionCatalogPageScaffoldOptions& options)
+{
+    std::ostringstream out;
+
+    if (options.pragmaOnce) {
+        out << "#pragma once\n\n";
+    }
+
+    if (!options.includeGuard.empty()) {
+        out << "#ifndef " << options.includeGuard << "\n";
+        out << "#define " << options.includeGuard << "\n\n";
+    }
+
+    out << "#include <string_view>\n";
+    out << "#include \"tinalux/ui/Theme.h\"\n";
+    out << "#include \"" << options.markupHeaderInclude << "\"\n\n";
+
+    const std::optional<std::string> facadeNamespace =
+        deriveFacadeNamespace(options.slotNamespace);
+    const std::string pageType = facadeNamespace.has_value()
+        ? *facadeNamespace + "::Page"
+        : "Page";
+    const std::string className = options.className.empty()
+        ? "GeneratedPage"
+        : options.className;
+
+    const UiGroupSpec uiRoot = buildUiGroupTree(catalog.widgets);
+    std::unordered_map<std::string, std::string> uiExprByWidgetId;
+    uiExprByWidgetId.reserve(catalog.widgets.size());
+    collectUiAccessExprs(uiRoot, "ui", uiExprByWidgetId);
+
+    std::unordered_map<std::string, const ActionSlotInfo*> slotBySymbol;
+    slotBySymbol.reserve(catalog.slots.size());
+    for (const auto& slot : catalog.slots) {
+        slotBySymbol.emplace(slot.symbolName, &slot);
+    }
+
+    out << "class " << className << " {\n";
+    out << "public:\n";
+    if (catalog.widgetEvents.empty()) {
+        out << "    explicit " << className << "(const ::tinalux::ui::Theme& theme)\n";
+        out << "        : page(theme)\n";
+        out << "    {\n";
+        out << "    }\n\n";
+    } else {
+        out << "    explicit " << className << "(const ::tinalux::ui::Theme& theme)\n";
+        out << "        : page(theme, [&](auto& ui) {\n";
+        for (const auto& event : catalog.widgetEvents) {
+            const auto uiExprIt = uiExprByWidgetId.find(event.widgetId);
+            if (uiExprIt == uiExprByWidgetId.end()) {
+                continue;
+            }
+            out << "            " << uiExprIt->second << "."
+                << makeEventHandlerMethodName(event.interactionName)
+                << "(this, &" << className << "::"
+                << makeScaffoldHandlerMethodName(event.widgetId, event.interactionName)
+                << ");\n";
+        }
+        out << "        })\n";
+        out << "    {\n";
+        out << "    }\n\n";
+    }
+
+    out << "    " << pageType << " page {};\n";
+
+    if (!catalog.widgetEvents.empty()) {
+        out << "\nprivate:\n";
+        for (const auto& event : catalog.widgetEvents) {
+            const auto slotIt = slotBySymbol.find(event.slotSymbolName);
+            if (slotIt == slotBySymbol.end() || slotIt->second == nullptr) {
+                continue;
+            }
+
+            const ActionSlotInfo& slot = *slotIt->second;
+            const std::string parameterDecl = scaffoldParameterDeclaration(slot);
+            const std::string parameterName = scaffoldParameterName(slot);
+            out << "    void " << makeScaffoldHandlerMethodName(event.widgetId, event.interactionName)
+                << "(" << parameterDecl << ")\n";
+            out << "    {\n";
+            if (!parameterName.empty()) {
+                out << "        (void)" << parameterName << ";\n";
+            }
+            out << "    }\n\n";
+        }
+    }
+
+    out << "};\n";
 
     if (!options.includeGuard.empty()) {
         out << "\n#endif // " << options.includeGuard << "\n";

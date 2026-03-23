@@ -1,3 +1,4 @@
+#include <cctype>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -12,10 +13,82 @@ namespace {
 struct ToolOptions {
     std::string inputPath;
     std::string outputPath;
+    std::string scaffoldOutputPath;
     std::string slotNamespace;
     std::string includeGuard;
+    std::string scaffoldIncludeGuard;
+    std::string scaffoldMarkupHeader;
+    std::string scaffoldClassName;
     bool pragmaOnce = true;
+    bool scaffoldOnlyIfMissing = false;
 };
+
+std::string makeDefaultScaffoldClassName(const std::string& inputPath)
+{
+    const std::string stem = std::filesystem::path(inputPath).stem().string();
+    std::string className;
+    className.reserve(stem.size() + 4);
+
+    bool capitalizeNext = true;
+    for (const char ch : stem) {
+        const unsigned char code = static_cast<unsigned char>(ch);
+        if (!std::isalnum(code)) {
+            capitalizeNext = true;
+            continue;
+        }
+
+        if (capitalizeNext) {
+            className.push_back(static_cast<char>(std::toupper(code)));
+            capitalizeNext = false;
+            continue;
+        }
+
+        className.push_back(ch);
+    }
+
+    if (className.empty()) {
+        className = "Generated";
+    }
+    if (std::isdigit(static_cast<unsigned char>(className.front()))) {
+        className.insert(0, "Generated");
+    }
+
+    className += "Page";
+    return className;
+}
+
+bool writeTextFile(
+    const std::string& outputPathText,
+    const std::string& content,
+    bool onlyIfMissing)
+{
+    const std::filesystem::path outputPath(outputPathText);
+    if (onlyIfMissing && std::filesystem::exists(outputPath)) {
+        return true;
+    }
+
+    std::error_code directoryError;
+    std::filesystem::create_directories(outputPath.parent_path(), directoryError);
+    if (directoryError) {
+        std::cerr << "error: failed to create output directory for "
+                  << outputPath.generic_string() << '\n';
+        return false;
+    }
+
+    std::ofstream output(outputPath, std::ios::binary);
+    if (!output.is_open()) {
+        std::cerr << "error: failed to open output file: " << outputPathText << '\n';
+        return false;
+    }
+
+    output << content;
+    if (!output.good()) {
+        std::cerr << "error: failed to write output file: " << outputPathText << '\n';
+        return false;
+    }
+
+    return true;
+}
 
 std::optional<ToolOptions> parseOptions(int argc, char** argv)
 {
@@ -46,6 +119,13 @@ std::optional<ToolOptions> parseOptions(int argc, char** argv)
             }
             continue;
         }
+        if (arg == "--scaffold-output") {
+            options.scaffoldOutputPath = requireValue("--scaffold-output");
+            if (options.scaffoldOutputPath.empty()) {
+                return std::nullopt;
+            }
+            continue;
+        }
         if (arg == "--namespace") {
             options.slotNamespace = requireValue("--namespace");
             if (options.slotNamespace.empty()) {
@@ -60,8 +140,33 @@ std::optional<ToolOptions> parseOptions(int argc, char** argv)
             }
             continue;
         }
+        if (arg == "--scaffold-include-guard") {
+            options.scaffoldIncludeGuard = requireValue("--scaffold-include-guard");
+            if (options.scaffoldIncludeGuard.empty()) {
+                return std::nullopt;
+            }
+            continue;
+        }
+        if (arg == "--scaffold-markup-header") {
+            options.scaffoldMarkupHeader = requireValue("--scaffold-markup-header");
+            if (options.scaffoldMarkupHeader.empty()) {
+                return std::nullopt;
+            }
+            continue;
+        }
+        if (arg == "--scaffold-class") {
+            options.scaffoldClassName = requireValue("--scaffold-class");
+            if (options.scaffoldClassName.empty()) {
+                return std::nullopt;
+            }
+            continue;
+        }
         if (arg == "--no-pragma-once") {
             options.pragmaOnce = false;
+            continue;
+        }
+        if (arg == "--scaffold-only-if-missing") {
+            options.scaffoldOnlyIfMissing = true;
             continue;
         }
 
@@ -69,12 +174,34 @@ std::optional<ToolOptions> parseOptions(int argc, char** argv)
         return std::nullopt;
     }
 
-    if (options.inputPath.empty() || options.outputPath.empty()) {
+    if (options.inputPath.empty()
+        || (options.outputPath.empty() && options.scaffoldOutputPath.empty())) {
         std::cerr
-            << "usage: TinaluxMarkupActionHeaderTool --input <layout.tui> --output <generated.h> "
+            << "usage: TinaluxMarkupActionHeaderTool --input <layout.tui> "
+               "[--output <generated.h>] [--scaffold-output <page.h>] "
                "[--namespace app::login::slots] [--include-guard APP_LOGIN_SLOTS_H] "
-               "[--no-pragma-once]\n";
+               "[--scaffold-include-guard APP_LOGIN_PAGE_H] "
+               "[--scaffold-markup-header login.markup.h] [--scaffold-class LoginPage] "
+               "[--scaffold-only-if-missing] [--no-pragma-once]\n";
         return std::nullopt;
+    }
+
+    if (!options.scaffoldOutputPath.empty()) {
+        if (options.slotNamespace.empty()) {
+            std::cerr << "missing --namespace for --scaffold-output\n";
+            return std::nullopt;
+        }
+        if (options.scaffoldMarkupHeader.empty()) {
+            std::cerr << "missing --scaffold-markup-header for --scaffold-output\n";
+            return std::nullopt;
+        }
+        if (!options.slotNamespace.ends_with("::slots")) {
+            std::cerr << "--scaffold-output requires a --namespace that ends with ::slots\n";
+            return std::nullopt;
+        }
+        if (options.scaffoldClassName.empty()) {
+            options.scaffoldClassName = makeDefaultScaffoldClassName(options.inputPath);
+        }
     }
 
     return options;
@@ -101,34 +228,36 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    const std::string header = tinalux::markup::LayoutActionCatalog::emitHeader(
-        catalog,
-        {
-            .includeGuard = options->includeGuard,
-            .slotNamespace = options->slotNamespace,
-            .layoutFilePath = options->inputPath,
-            .pragmaOnce = options->pragmaOnce,
-        });
-
-    std::error_code directoryError;
-    const std::filesystem::path outputPath(options->outputPath);
-    std::filesystem::create_directories(outputPath.parent_path(), directoryError);
-    if (directoryError) {
-        std::cerr << "error: failed to create output directory for "
-                  << outputPath.generic_string() << '\n';
-        return 1;
+    if (!options->outputPath.empty()) {
+        const std::string header = tinalux::markup::LayoutActionCatalog::emitHeader(
+            catalog,
+            {
+                .includeGuard = options->includeGuard,
+                .slotNamespace = options->slotNamespace,
+                .layoutFilePath = options->inputPath,
+                .pragmaOnce = options->pragmaOnce,
+            });
+        if (!writeTextFile(options->outputPath, header, false)) {
+            return 1;
+        }
     }
 
-    std::ofstream output(options->outputPath, std::ios::binary);
-    if (!output.is_open()) {
-        std::cerr << "error: failed to open output file: " << options->outputPath << '\n';
-        return 1;
-    }
-
-    output << header;
-    if (!output.good()) {
-        std::cerr << "error: failed to write output file: " << options->outputPath << '\n';
-        return 1;
+    if (!options->scaffoldOutputPath.empty()) {
+        const std::string scaffold = tinalux::markup::LayoutActionCatalog::emitPageScaffold(
+            catalog,
+            {
+                .includeGuard = options->scaffoldIncludeGuard,
+                .slotNamespace = options->slotNamespace,
+                .markupHeaderInclude = options->scaffoldMarkupHeader,
+                .className = options->scaffoldClassName,
+                .pragmaOnce = options->pragmaOnce,
+            });
+        if (!writeTextFile(
+                options->scaffoldOutputPath,
+                scaffold,
+                options->scaffoldOnlyIfMissing)) {
+            return 1;
+        }
     }
 
     return 0;
