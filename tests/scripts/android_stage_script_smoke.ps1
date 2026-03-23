@@ -50,6 +50,7 @@ try {
     }
 
     & $stageScript -Abi arm64-v8a -SdkModuleRoot $sdkModuleRoot -SourceIcuData $sourceIcuData -ValidateOnly
+    & $stageScript -Abi arm64-v8a -SourceIcuData $sourceIcuData -ValidateOnly
 } finally {
     if (Test-Path $tempRoot) {
         if ($keepTempRoot) {

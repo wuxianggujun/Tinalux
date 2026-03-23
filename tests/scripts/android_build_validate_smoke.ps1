@@ -54,6 +54,18 @@ try {
     if (Test-Path $stagedLibrary) {
         throw "ValidateOnly should not stage a native library, but found $stagedLibrary"
     }
+
+    & $buildScript `
+        -Abi arm64-v8a `
+        -ApiLevel 26 `
+        -BuildType Release `
+        -NdkPath $fakeNdkRoot `
+        -CmakePath $cmakePath `
+        -Generator Ninja `
+        -NinjaPath $cmakePath `
+        -StageToSdk `
+        -ValidateOnly `
+        -SourceIcuData $sourceIcuData
 } finally {
     if (Test-Path $tempRoot) {
         if ($keepTempRoot) {

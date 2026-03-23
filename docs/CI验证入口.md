@@ -84,6 +84,7 @@
   - `android/tinalux-sdk/src/main/AndroidManifest.xml`
 - 当前说明：
   - 该链路校验 PowerShell 脚本和已提交的 SDK 模块 staging 约定
+  - 同时覆盖默认 `SdkModuleRoot` 解析和自定义 SDK 模块快照路径
   - 当前不覆盖 `android/host/**` 和 `android/validation-app/**` 的 Gradle / 运行时行为
 - 运行内容：
   - `./tests/scripts/android_stage_script_smoke.ps1 -RepoRoot .`
