@@ -36,6 +36,28 @@
 - [MarkupDSL语法参考](./MarkupDSL语法参考.md)  
   只讲 `.tui` 本身怎么写，已按“最常用 / 较少使用”分区。
 
+## Markup 怎么看
+
+如果你现在主要是在用 Markup 做页面开发，直接按这个顺序走：
+
+1. [Markup一页式速查](./Markup一页式速查.md)  
+   先跑 `TinaluxRunMarkupMentalModelExamples`，先确认主路线没偏。
+2. [samples/markup 模板区](../samples/markup/README.md)  
+   四选一，决定你是单文件、目录扫描，还是 scaffold 起手。
+3. [Markup常见问题](./Markup常见问题.md)  
+   专门解 `page.ui`、命名空间、scaffold、为什么不先看 `Handlers`。
+4. [Markup页面推荐写法](./Markup页面推荐写法.md)  
+   抄 CMake 和 C++ 页面起手式。
+5. 按需再查：
+   [Markup高级接口](./Markup高级接口.md) / [MarkupDSL语法参考](./MarkupDSL语法参考.md)
+
+一句话记忆：
+
+- 先跑最小基准
+- 再选模板
+- 有困惑先看 FAQ
+- 最后抄代码
+
 ## 当前文档
 
 - [目录结构规划](./目录结构规划.md)  
