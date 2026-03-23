@@ -15,6 +15,7 @@ on:
       - "tests/scripts/android_stage_script_smoke.ps1"
       - "tests/scripts/android_build_validate_smoke.ps1"
       - "android/tinalux-sdk/build.gradle.kts"
+      - "android/tinalux-sdk/consumer-rules.pro"
       - "android/tinalux-sdk/src/main/AndroidManifest.xml"
   push:
     paths:
@@ -25,6 +26,7 @@ on:
       - "tests/scripts/android_stage_script_smoke.ps1"
       - "tests/scripts/android_build_validate_smoke.ps1"
       - "android/tinalux-sdk/build.gradle.kts"
+      - "android/tinalux-sdk/consumer-rules.pro"
       - "android/tinalux-sdk/src/main/AndroidManifest.xml"
 
 jobs:

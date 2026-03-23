@@ -19,8 +19,9 @@ function Assert-RepoSdkModuleContract {
     $sdkModuleRoot = Join-Path $RepoRootPath "android/tinalux-sdk"
     $buildFile = Join-Path $sdkModuleRoot "build.gradle.kts"
     $manifestFile = Join-Path $sdkModuleRoot "src/main/AndroidManifest.xml"
+    $consumerRulesFile = Join-Path $sdkModuleRoot "consumer-rules.pro"
 
-    foreach ($requiredPath in @($buildFile, $manifestFile)) {
+    foreach ($requiredPath in @($buildFile, $manifestFile, $consumerRulesFile)) {
         if (-not (Test-Path $requiredPath)) {
             throw "Expected Android SDK module contract file was not found: $requiredPath"
         }
@@ -43,6 +44,10 @@ function Assert-RepoSdkModuleContract {
         @{
             Pattern = 'assets\.srcDirs\("src/main/assets"\)'
             Description = 'runtime asset staging path'
+        },
+        @{
+            Pattern = 'consumerProguardFiles\("consumer-rules\.pro"\)'
+            Description = 'consumer ProGuard rules path'
         }
     )
 
@@ -67,6 +72,7 @@ function Copy-RepoSdkModuleContractSnapshot {
     $sourceSdkModuleRoot = Join-Path $RepoRootPath "android/tinalux-sdk"
     $filesToCopy = @(
         "build.gradle.kts",
+        "consumer-rules.pro",
         "src/main/AndroidManifest.xml"
     )
 

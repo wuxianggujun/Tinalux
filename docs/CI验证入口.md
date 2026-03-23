@@ -82,10 +82,12 @@
   - `tests/scripts/android_stage_script_smoke.ps1`
   - `tests/scripts/android_build_validate_smoke.ps1`
   - `android/tinalux-sdk/build.gradle.kts`
+  - `android/tinalux-sdk/consumer-rules.pro`
   - `android/tinalux-sdk/src/main/AndroidManifest.xml`
 - 当前说明：
   - 该链路校验 PowerShell 脚本和已提交的 SDK 模块 staging 约定
   - 也会校验 SDK 模块仍引用 `android/host` Kotlin 源码，并保持 `android:hasCode="true"`
+  - 也会校验 SDK 模块的 `consumer-rules.pro` 仍与 `build.gradle.kts` 对齐
   - 同时覆盖默认 `SdkModuleRoot` 解析和自定义 SDK 模块快照路径
   - 默认 `ValidateOnly` 路径也会校验对仓库内已 staged SDK 产物无副作用
   - 当前不覆盖 `android/host/**` 和 `android/validation-app/**` 的 Gradle / 运行时行为
