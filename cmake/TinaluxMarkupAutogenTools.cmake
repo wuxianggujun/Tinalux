@@ -4,6 +4,9 @@ include(TinaluxMarkupBindingsTools)
 include(TinaluxMarkupScaffoldTools)
 
 # 高层 autogen / executable 入口实现。
+# 正常页面开发真正常用的只有两个入口：
+# - tinalux_target_enable_markup_autogen(...)
+# - tinalux_add_markup_executable(...)
 
 function(tinalux_target_enable_markup_autogen)
     set(options PAGE_SCAFFOLD_ONLY_IF_MISSING)
@@ -22,6 +25,7 @@ function(tinalux_target_enable_markup_autogen)
         PAGE_SCAFFOLD_INDEX_HEADER)
     cmake_parse_arguments(TINALUX_MARKUP_AUTOGEN "${options}" "${oneValueArgs}" "" ${ARGN})
 
+    # 第一段：先做参数合法性校验，尽早把“同时传了互斥参数”这类问题拦掉。
     if(NOT TINALUX_MARKUP_AUTOGEN_TARGET)
         message(FATAL_ERROR "tinalux_target_enable_markup_autogen requires TARGET")
     endif()
@@ -44,6 +48,7 @@ function(tinalux_target_enable_markup_autogen)
             "PAGE_SCAFFOLD_OUTPUT_DIRECTORY, not both")
     endif()
 
+    # 第二段：把输出目录 / 总索引头补成稳定默认值。
     set(_tinalux_autogen_output_dir "${TINALUX_MARKUP_AUTOGEN_OUTPUT_DIRECTORY}")
     if(NOT _tinalux_autogen_output_dir)
         _tinalux_markup_default_autogen_output_dir(
@@ -81,6 +86,9 @@ function(tinalux_target_enable_markup_autogen)
         "${_tinalux_autogen_index_header_abs}"
         DIRECTORY)
 
+    # 第三段：目录模式。
+    # 这条分支会批量扫描 `ui/**/*.tui`，生成整目录 bindings，
+    # 可选顺手再批量起 page scaffold。
     if(TINALUX_MARKUP_AUTOGEN_DIRECTORY)
         if(TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_OUTPUT
            OR TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_CLASS_NAME)
@@ -149,6 +157,8 @@ function(tinalux_target_enable_markup_autogen)
         return()
     endif()
 
+    # 第四段：单文件模式。
+    # 这条分支只处理一个 `.tui`，命名空间和输出头都可以自动推导。
     if(TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_OUTPUT_DIRECTORY
        OR TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_INDEX_HEADER)
         message(FATAL_ERROR
@@ -220,6 +230,7 @@ function(tinalux_target_enable_markup_autogen)
         PROPERTY TINALUX_MARKUP_AUTOGEN_INDEX_HEADER
         "${_tinalux_single_output_header_abs}")
 
+    # 第五段：如果用户顺手要页面类骨架，就在同一个高层入口里一起生成。
     if(TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_OUTPUT
        OR TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_CLASS_NAME
        OR TINALUX_MARKUP_AUTOGEN_PAGE_SCAFFOLD_ONLY_IF_MISSING)
@@ -263,6 +274,10 @@ function(tinalux_add_markup_executable)
     set(multiValueArgs SOURCES LINK_LIBS)
     cmake_parse_arguments(TINALUX_MARKUP_EXE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
+    # 这是更高一层的便捷包装：
+    # 1. 先 add_executable(...)
+    # 2. 默认链接 Tinalux::Markup
+    # 3. 再把其余参数原样转发给 autogen 入口
     if(NOT TINALUX_MARKUP_EXE_TARGET)
         message(FATAL_ERROR "tinalux_add_markup_executable requires TARGET")
     endif()
@@ -296,6 +311,8 @@ function(tinalux_add_markup_executable)
         endif()
     endif()
 
+    # 把高层 helper 自己消费掉的参数留在本层，
+    # 其余 autogen 参数尽量原样平铺转发，减少心智分叉。
     set(_tinalux_markup_exe_autogen_args
         TARGET "${TINALUX_MARKUP_EXE_TARGET}")
     foreach(_tinalux_markup_exe_arg

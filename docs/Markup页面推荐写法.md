@@ -15,7 +15,51 @@
 并继续按 `Common / Bindings / Scaffold / Autogen` 拆分，
 这样主入口文件不会再堆一大段实现细节。
 
-## 1. 最小 CMake
+## 1. 先抄这三段
+
+如果你现在只想“先跑起来”，直接抄下面其中一段：
+
+单文件，新建 target：
+
+```cmake
+tinalux_add_markup_executable(
+    TARGET LoginDemo
+    SOURCE src/main.cpp
+    INPUT ui/login.tui
+)
+```
+
+单文件，已有 target：
+
+```cmake
+add_executable(LoginDemo src/main.cpp)
+target_link_libraries(LoginDemo PRIVATE Tinalux::Markup)
+
+tinalux_target_enable_markup_autogen(
+    TARGET LoginDemo
+    INPUT ui/login.tui
+)
+```
+
+目录扫描，顺手起页面骨架：
+
+```cmake
+tinalux_add_markup_executable(
+    TARGET MyApp
+    SOURCE src/main.cpp
+    DIRECTORY ui
+    PAGE_SCAFFOLD_OUTPUT_DIRECTORY src/pages
+    PAGE_SCAFFOLD_ONLY_IF_MISSING
+)
+```
+
+日常开发里，先把它理解成这句话就够了：
+
+- 单文件用 `INPUT`
+- 批量扫描用 `DIRECTORY`
+- 想少写样板就优先用 `tinalux_add_markup_executable(...)`
+
+## 2. 最小 CMake
 
 ```cmake
 tinalux_add_markup_executable(
@@ -86,7 +130,7 @@ tinalux_add_markup_executable(
 `tinalux_generate_markup_page_scaffolds_for_directory(...)` 这两个 helper 还在，
 但它们现在更适合高级场景，不再是推荐主路线。
 
-## 2. 推荐页面类写法
+## 3. 推荐页面类写法
 
 ```cpp
 #include "login.markup.h"
@@ -122,7 +166,7 @@ public:
 - 事件直接绑在控件对象上，不再绕回 `Handlers`
 - 业务状态成员最好放在 `Page page;` 前面，避免 `page` 构造时回调访问还没构造好的成员
 
-## 3. 分组控件写法
+## 4. 分组控件写法
 
 如果你在 markup 里写：
 
@@ -140,7 +184,7 @@ page.ui.form.loginButton.onClick(this, &LoginPage::submitLogin);
 page.ui.toolbar.actions.clearButton.onClick(this, &LoginPage::clearQuery);
 ```
 
-## 4. 常用事件对象方法
+## 5. 常用事件对象方法
 
 除了 `onClick(...)`、`onTextChanged(...)`，常见控件现在也可以直接在对象上绑事件：
 
@@ -177,7 +221,7 @@ public:
 - 构造页面时，用 `ui.xxx.onXxx(...)` 绑定事件
 - 页面构造完成后，用 `page.ui.xxx->...` 操作控件对象
 
-## 5. 默认只记这一套
+## 6. 默认只记这一套
 
 正常页面开发，优先只记这一套：
 
