@@ -26,6 +26,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -69,5 +70,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-tina-glfw-x11-${{ matrix.compiler }}
+          retention-days: 7
           path: |
             build/tina_glfw-linux-x11/**

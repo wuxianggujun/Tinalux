@@ -9,6 +9,7 @@
 - 它们分别覆盖 Linux X11 构建、Windows 桌面 smoke、Android 脚本级 smoke
 - 三条 workflow 现已统一启用并发取消策略：
   `concurrency: ${{ github.workflow }}-${{ github.ref }}`
+- 三条 workflow 现已具备显式运行超时，失败产物统一保留 `7` 天
 - `P1` 真机验证仍未自动化，继续按 backlog / TODO 管理
 
 ## Workflow 选择
@@ -27,8 +28,10 @@
 - 运行内容：
   - 安装 Ubuntu X11 构建依赖
   - 分别用 `gcc` / `clang` 执行 `scripts/validateTinaGlfwX11Linux.sh`
+- 运行边界：
+  - job 超时 `30` 分钟
 - 失败回溯：
-  - 上传 `build/tina_glfw-linux-x11/**` 构建目录
+  - 上传 `build/tina_glfw-linux-x11/**` 构建目录，产物保留 `7` 天
 - 适合查看的场景：
   - GLFW / X11 / Linux 平台桥接改动
   - Linux 平台编译性回归
@@ -46,7 +49,6 @@
   - `tests/**`
   - `scripts/runSmokeTests.ps1`
   - `syncSkia.bat`
-  - `syncSkia.sh`
   - `main.cpp`
 - 当前排除：
   - `tests/scripts/android_stage_script_smoke.ps1`
@@ -59,7 +61,8 @@
 - 当前附加能力：
   - 缓存 `3rdparty/skia`
   - 缓存 `build-ci/skia` Debug 构建产物
-  - 失败时上传 `CTest` 日志
+  - 失败时上传 `CTest` 日志，产物保留 `7` 天
+  - 仅 `syncSkia.bat` 变更会触发该链路，避免 `syncSkia.sh` 的无效触发
 - 适合查看的场景：
   - 核心 C++ 源码改动
   - CMake / Skia 集成改动
@@ -81,7 +84,7 @@
   - `./tests/scripts/android_build_validate_smoke.ps1 -RepoRoot .`
 - 失败回溯：
   - 保留 smoke 临时目录
-  - 上传 `ci-artifacts/android-build-scripts-smoke/**`
+  - 上传 `ci-artifacts/android-build-scripts-smoke/**`，产物保留 `7` 天
 - 适合查看的场景：
   - Android 打包脚本改动
   - SDK staging 改动
@@ -99,4 +102,4 @@
 - Android 真机编译、安装、渲染、输入、生命周期闭环
 - Linux/X11 真机运行时与 IME 差异验证
 - macOS / Metal 桌面验证
-- 更完整的平台矩阵和更细粒度的缓存策略
+- 更完整的平台矩阵、更细粒度的缓存策略，以及按目录进一步精炼的触发规则
