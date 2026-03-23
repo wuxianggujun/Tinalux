@@ -60,7 +60,9 @@ cmake --build cmake-build-debug --config Debug --target TinaluxRunMarkupMentalMo
 1. `docs/Markup一页式速查.md`
 2. `samples/markup/README.md`
 3. `docs/Markup页面推荐写法.md`
-4. 只有遇到特定问题，再看：
+4. 带着概念困惑时，先看：
+   `docs/Markup常见问题.md`
+5. 只有遇到特定问题，再看：
    `docs/Markup高级接口.md` / `docs/MarkupDSL语法参考.md`
 
 可以把它理解成：

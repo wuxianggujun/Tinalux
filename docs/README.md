@@ -29,6 +29,8 @@
   直接可抄的四种模板：单文件、目录扫描、单文件 scaffold、目录扫描 scaffold。
 - [Markup页面推荐写法](./Markup页面推荐写法.md)  
   正常页面开发的抄代码版，默认主路线是 `Page + ui + onClick(...)`。
+- [Markup常见问题](./Markup常见问题.md)  
+  只回答高频困惑：`page.ui`、命名空间、scaffold、为什么不先看 `Handlers`。
 - [Markup高级接口](./Markup高级接口.md)  
   只在低层场景反查：`Handlers / slots::load / slots::actions / attachUi(...)`。
 - [MarkupDSL语法参考](./MarkupDSL语法参考.md)  
@@ -54,6 +56,7 @@
 - [设计规则](./设计规则.md)
 - [Markup一页式速查](./Markup一页式速查.md)
 - [Markup页面推荐写法](./Markup页面推荐写法.md)
+- [Markup常见问题](./Markup常见问题.md)
 - [Markup高级接口](./Markup高级接口.md)
 - [阶段交付-Canvas收口](./阶段交付-Canvas收口.md)
 
