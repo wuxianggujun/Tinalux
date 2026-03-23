@@ -4,6 +4,20 @@
 
 **普通页面开发，到底只需要记什么？**
 
+## 0. 想最快验证主路线，先跑这个
+
+如果你现在不想先读概念，想先确认仓库里的推荐主路线没偏，直接跑：
+
+```powershell
+cmake -S . -B cmake-build-debug
+cmake --build cmake-build-debug --config Debug --target TinaluxRunMarkupMentalModelExamples
+```
+
+这会直接构建并运行两份“官方最小基准示例”：
+
+- [`tests/markup/mental_model_smoke.cpp`](../tests/markup/mental_model_smoke.cpp)
+- [`tests/markup/mental_model_scan_smoke.cpp`](../tests/markup/mental_model_scan_smoke.cpp)
+
 ## 1. 只记两个 CMake 入口
 
 日常开发只记这两个就够了：
@@ -132,11 +146,8 @@ public:
 - [`tests/markup/mental_model_scan_smoke.cpp`](../tests/markup/mental_model_scan_smoke.cpp)
 - [`tests/CMakeLists.txt`](../tests/CMakeLists.txt)
 
-如果你想直接跑仓库里持续回归的最小基准，也可以用：
-
-```powershell
-cmake --build cmake-build-debug --config Debug --target TinaluxRunMarkupMentalModelExamples
-```
+上面那条 `TinaluxRunMarkupMentalModelExamples` 命令，
+跑的就是这里这两份受测版最小基准示例。
 
 ## 5. 哪些东西大多数时候不用管
 
