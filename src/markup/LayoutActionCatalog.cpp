@@ -63,6 +63,62 @@ std::string makeUniqueSymbolName(
     }
 }
 
+std::vector<std::string> scaffoldInitializationExamples(
+    std::string_view widgetType,
+    std::string_view aliasName)
+{
+    const std::string alias(aliasName);
+
+    if (widgetType == "Button") {
+        return {
+            "// " + alias + "->setEnabled(false);",
+        };
+    }
+    if (widgetType == "TextInput") {
+        return {
+            "// " + alias + "->setText(\"seed\");",
+        };
+    }
+    if (widgetType == "Dropdown") {
+        return {
+            "// " + alias + "->setItems({\"Alpha\", \"Beta\"});",
+            "// " + alias + "->setSelectedIndex(0);",
+        };
+    }
+    if (widgetType == "Checkbox") {
+        return {
+            "// " + alias + "->setChecked(true);",
+        };
+    }
+    if (widgetType == "Radio") {
+        return {
+            "// " + alias + "->setSelected(true);",
+        };
+    }
+    if (widgetType == "Toggle") {
+        return {
+            "// " + alias + "->setOn(true);",
+        };
+    }
+    if (widgetType == "Slider" || widgetType == "ProgressBar") {
+        return {
+            "// " + alias + "->setValue(42.0f);",
+        };
+    }
+    if (widgetType == "Dialog") {
+        return {
+            "// " + alias + "->setDismissOnEscape(false);",
+        };
+    }
+    if (widgetType == "ListView") {
+        return {
+            "// " + alias + "->setSelectedIndex(0);",
+        };
+    }
+
+    return {};
+}
+
 struct UiLeafSpec {
     const WidgetAccessInfo* widget = nullptr;
     std::string preferredFieldName;
@@ -1445,8 +1501,28 @@ std::string LayoutActionCatalog::emitPageScaffold(
             }
             out << "\n";
             out << "        // TODO: initialize widget state here.\n";
-            out << "        // Example:\n";
-            out << "        // " << scaffoldWidgets.front().aliasName << "->...;\n";
+            out << "        // Examples:\n";
+            std::unordered_set<std::string> emittedExampleTypes;
+            bool emittedExample = false;
+            for (const auto& widget : scaffoldWidgets) {
+                const std::string widgetType = widget.widget != nullptr
+                    && !widget.widget->markupTypeName.empty()
+                    ? widget.widget->markupTypeName
+                    : "Widget";
+                if (!emittedExampleTypes.insert(widgetType).second) {
+                    continue;
+                }
+
+                const std::vector<std::string> examples =
+                    scaffoldInitializationExamples(widgetType, widget.aliasName);
+                for (const auto& example : examples) {
+                    out << "        " << example << "\n";
+                    emittedExample = true;
+                }
+            }
+            if (!emittedExample) {
+                out << "        // " << scaffoldWidgets.front().aliasName << "->...;\n";
+            }
         }
         out << "    }\n\n";
 

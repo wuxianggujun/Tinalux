@@ -265,6 +265,9 @@ tinalux_target_enable_markup_autogen(
 - 输出头：`MyApp.markup.h`
 - 命名空间：按输入文件 stem 推导，例如 `ui/login.tui` 会得到 `login::slots`
 
+也就是说，普通单文件页面大多数时候**不用主动写** `NAMESPACE`。
+只有你要固定生成符号路径，或者担心多个页面生成名撞车时，才需要手工指定。
+
 如果你连 `add_executable(...)` 这层都不想手写，现在也可以直接用更高层入口：
 
 ```cmake
@@ -312,7 +315,7 @@ tinalux_add_markup_executable(
 
 - 持有 `Page`
 - 固定分成 `initUi(ui)` 和 `bindUi(ui)` 两段
-- `initUi(ui)` 里会先生成按控件类型分组的本地别名，方便直接写 `queryInput->...`
+- `initUi(ui)` 里会先生成按控件类型分组的本地别名，并给常见控件补初始化示例
 - `bindUi(ui)` 里也会先生成同样的本地别名，再通过别名直接绑事件
 
 更适合“先起页面，再自己继续写”，而不是把业务逻辑长期放在生成文件里。

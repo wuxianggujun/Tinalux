@@ -28,6 +28,12 @@ tinalux_target_enable_markup_autogen(
 )
 ```
 
+大多数页面这里**不用主动写** `NAMESPACE` / `NAMESPACE_PREFIX`：
+
+- 单文件默认会按文件名自动推导，比如 `ui/login.tui -> login::slots`
+- 目录扫描默认只在你想统一挂一个前缀时，才需要补 `NAMESPACE_PREFIX`
+- 真正需要手写命名空间，通常只有两类场景：防重名，或者你就是想固定生成符号路径
+
 如果你想先自动起一个“推荐写法”的页面类骨架，**优先还是直接写在同一个 `tinalux_add_markup_executable(...)` 里**：
 
 ```cmake
@@ -46,7 +52,7 @@ tinalux_add_markup_executable(
 - 它会根据当前 target 已挂的单文件 markup 自动生成一个页面类
 - 生成出来的代码默认就是 `Page + ui.xxx.onXxx(...)`
 - 生成骨架会固定分成 `initUi(ui)` 和 `bindUi(ui)` 两段
-- `initUi(ui)` 里会先生成按控件类型分组的本地别名，方便你像 Qt 一样直接写 `queryInput->...`
+- `initUi(ui)` 里会先生成按控件类型分组的本地别名，并给常见控件补初始化示例
 - `bindUi(ui)` 里也会先生成同样的本地别名，再用别名直接绑事件
 - `PAGE_SCAFFOLD_ONLY_IF_MISSING` 打开后，文件已经存在就不会覆盖你的手改内容
 

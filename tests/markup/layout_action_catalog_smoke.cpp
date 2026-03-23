@@ -321,8 +321,12 @@ VBox {
                     != std::string::npos
                 && scaffold.find("// Button") != std::string::npos
                 && scaffold.find("// Dialog") != std::string::npos
-                && scaffold.find("// Example:") != std::string::npos,
-            "page scaffold should emit grouped Qt-style aliases inside the initialization section");
+                && scaffold.find("// Examples:") != std::string::npos
+                && scaffold.find("// applyButton->setEnabled(false);") != std::string::npos
+                && scaffold.find("// sharedSlider->setValue(42.0f);") != std::string::npos
+                && scaffold.find("// profileDialog->setDismissOnEscape(false);")
+                    != std::string::npos,
+            "page scaffold should emit grouped Qt-style aliases with useful initialization examples");
         expect(
             scaffold.find("// Qt-style local aliases for direct event binding.")
                 != std::string::npos
@@ -429,6 +433,8 @@ VBox {
                     != std::string::npos
                 && groupedScaffold.find(
                     "[[maybe_unused]] auto& toolbarActionsClearButton = ui.toolbar.actions.clearButton;")
+                    != std::string::npos
+                && groupedScaffold.find("// formQueryInput->setText(\"seed\");")
                     != std::string::npos,
             "grouped page scaffold should keep separate initUi and bindUi sections with direct aliases");
     }
