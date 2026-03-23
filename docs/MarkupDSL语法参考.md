@@ -313,7 +313,7 @@ tinalux_add_markup_executable(
 - 持有 `Page`
 - 固定分成 `initUi(ui)` 和 `bindUi(ui)` 两段
 - `initUi(ui)` 里会先生成按控件类型分组的本地别名，方便直接写 `queryInput->...`
-- 在 `bindUi(ui)` 里通过 `ui.xxx.onXxx(...)` 直接绑事件，默认用内联 lambda 占位
+- `bindUi(ui)` 里也会先生成同样的本地别名，再通过别名直接绑事件
 
 更适合“先起页面，再自己继续写”，而不是把业务逻辑长期放在生成文件里。
 

@@ -1375,6 +1375,15 @@ std::string LayoutActionCatalog::emitPageScaffold(
         });
     }
 
+    std::unordered_map<std::string, const ScaffoldWidgetSpec*> scaffoldWidgetById;
+    scaffoldWidgetById.reserve(scaffoldWidgets.size());
+    for (const auto& widget : scaffoldWidgets) {
+        if (widget.widget == nullptr) {
+            continue;
+        }
+        scaffoldWidgetById.emplace(widget.widget->id, &widget);
+    }
+
     std::unordered_map<std::string, const WidgetAccessInfo*> widgetById;
     widgetById.reserve(catalog.widgets.size());
     for (const auto& widget : catalog.widgets) {
@@ -1447,14 +1456,50 @@ std::string LayoutActionCatalog::emitPageScaffold(
         if (catalog.widgetEvents.empty()) {
             out << "        (void)ui;\n";
             out << "        // TODO: bind widget events here.\n";
+        } else {
+            out << "        // Qt-style local aliases for direct event binding.\n";
+            std::unordered_set<std::string> emittedWidgetAliases;
+            std::string currentAliasWidgetType;
+            for (const auto& event : catalog.widgetEvents) {
+                const auto widgetIt = widgetById.find(event.widgetId);
+                const auto scaffoldWidgetIt = scaffoldWidgetById.find(event.widgetId);
+                if (widgetIt == widgetById.end()
+                    || scaffoldWidgetIt == scaffoldWidgetById.end()
+                    || scaffoldWidgetIt->second == nullptr) {
+                    continue;
+                }
+
+                if (!emittedWidgetAliases.insert(event.widgetId).second) {
+                    continue;
+                }
+
+                const std::string widgetType = !widgetIt->second->markupTypeName.empty()
+                    ? widgetIt->second->markupTypeName
+                    : "Widget";
+                if (widgetType != currentAliasWidgetType) {
+                    if (!currentAliasWidgetType.empty()) {
+                        out << "\n";
+                    }
+                    currentAliasWidgetType = widgetType;
+                    out << "        // " << currentAliasWidgetType << "\n";
+                }
+
+                out << "        [[maybe_unused]] auto& "
+                    << scaffoldWidgetIt->second->aliasName << " = "
+                    << scaffoldWidgetIt->second->uiExpr << ";\n";
+            }
+            out << "\n";
         }
         std::string currentWidgetType;
         for (const auto& event : catalog.widgetEvents) {
             const auto uiExprIt = uiExprByWidgetId.find(event.widgetId);
             const auto slotIt = slotBySymbol.find(event.slotSymbolName);
             const auto widgetIt = widgetById.find(event.widgetId);
+            const auto scaffoldWidgetIt = scaffoldWidgetById.find(event.widgetId);
             if (uiExprIt == uiExprByWidgetId.end()
                 || widgetIt == widgetById.end()
+                || scaffoldWidgetIt == scaffoldWidgetById.end()
+                || scaffoldWidgetIt->second == nullptr
                 || slotIt == slotBySymbol.end()
                 || slotIt->second == nullptr) {
                 continue;
@@ -1474,7 +1519,7 @@ std::string LayoutActionCatalog::emitPageScaffold(
             const ActionSlotInfo& slot = *slotIt->second;
             const std::string parameterDecl = scaffoldParameterDeclaration(slot);
             const std::string parameterName = scaffoldParameterName(slot);
-            out << "        " << uiExprIt->second << "."
+            out << "        " << scaffoldWidgetIt->second->aliasName << "."
                 << makeEventHandlerMethodName(event.interactionName)
                 << "([this]";
             if (!parameterDecl.empty()) {

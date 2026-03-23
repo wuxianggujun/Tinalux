@@ -324,18 +324,26 @@ VBox {
                 && scaffold.find("// Example:") != std::string::npos,
             "page scaffold should emit grouped Qt-style aliases inside the initialization section");
         expect(
-            scaffold.find("ui.applyButton.onClick([this] {")
-                != std::string::npos,
-            "page scaffold should bind button events inline on the generated ui object");
+            scaffold.find("// Qt-style local aliases for direct event binding.")
+                != std::string::npos
+                && scaffold.find("[[maybe_unused]] auto& applyButton = ui.applyButton;")
+                    != std::string::npos
+                && scaffold.find("[[maybe_unused]] auto& sharedSlider = ui.sharedSlider;")
+                    != std::string::npos,
+            "page scaffold should emit direct widget aliases inside the binding section");
         expect(
-            scaffold.find("ui.profileDialog.onDismiss([this] {")
+            scaffold.find("applyButton.onClick([this] {")
                 != std::string::npos,
-            "page scaffold should bind non-click widget events inline on the generated ui object");
+            "page scaffold should bind button events inline through widget aliases");
+        expect(
+            scaffold.find("profileDialog.onDismiss([this] {")
+                != std::string::npos,
+            "page scaffold should bind non-click widget events inline through widget aliases");
         expect(
             scaffold.find(
-                "ui.sharedSlider.onValueChanged([this](const ::tinalux::core::Value& value) {")
+                "sharedSlider.onValueChanged([this](const ::tinalux::core::Value& value) {")
                 != std::string::npos,
-            "page scaffold should bind payload events inline with typed parameters");
+            "page scaffold should bind payload events inline through widget aliases");
         expect(
             scaffold.find("template <typename Ui>") != std::string::npos
                 && scaffold.find("void bindUi(Ui& ui)") != std::string::npos
@@ -402,14 +410,17 @@ VBox {
             });
         expect(
             groupedScaffold.find(
-                "ui.form.queryInput.onTextChanged([this](std::string_view text) {")
-                != std::string::npos,
-            "grouped ids should flatten into explicit inline ui access paths inside the page scaffold");
+                "[[maybe_unused]] auto& formQueryInput = ui.form.queryInput;")
+                    != std::string::npos
+                && groupedScaffold.find(
+                    "formQueryInput.onTextChanged([this](std::string_view text) {")
+                    != std::string::npos,
+            "grouped ids should flatten into direct widget aliases inside the binding section");
         expect(
             groupedScaffold.find(
-                "ui.toolbar.actions.clearButton.onClick([this] {")
+                "toolbarActionsClearButton.onClick([this] {")
                 != std::string::npos,
-            "page scaffold should preserve nested ui groups in inline generated bindings");
+            "page scaffold should preserve nested ui groups when binding through aliases");
         expect(
             groupedScaffold.find("void initUi(Ui& ui)") != std::string::npos
                 && groupedScaffold.find("void bindUi(Ui& ui)") != std::string::npos

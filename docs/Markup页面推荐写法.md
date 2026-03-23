@@ -47,7 +47,7 @@ tinalux_add_markup_executable(
 - 生成出来的代码默认就是 `Page + ui.xxx.onXxx(...)`
 - 生成骨架会固定分成 `initUi(ui)` 和 `bindUi(ui)` 两段
 - `initUi(ui)` 里会先生成按控件类型分组的本地别名，方便你像 Qt 一样直接写 `queryInput->...`
-- 事件默认放在 `bindUi(ui)` 里，用内联 lambda 占位
+- `bindUi(ui)` 里也会先生成同样的本地别名，再用别名直接绑事件
 - `PAGE_SCAFFOLD_ONLY_IF_MISSING` 打开后，文件已经存在就不会覆盖你的手改内容
 
 如果你挂的是目录扫描模式，也一样优先写在同一个入口里：
