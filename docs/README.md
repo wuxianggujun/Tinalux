@@ -11,6 +11,7 @@
 - UI：约束布局、VBox/HBox/Flex/Grid/Responsive、三阶段事件、主题系统、富文本、文本输入、资源管理、异步图片加载、图标注册、组件级渲染缓存都已落地。
 - Markup：轻量声明式布局 DSL 已落地，当前使用无 `@` 关键字语法，支持 `style / import / component / if / elseif / else / for / res(...)`、位置参数、可选裸标识符 `id`、`${model.xxx}` 单向/双向属性绑定、`${someId.someProperty}` 普通属性/样式绑定、`Slot`、树状 `ViewModel`、声明式事件绑定；默认高层入口就是 `tinalux_add_markup_executable(...)` / `tinalux_target_enable_markup_autogen(...)`，单文件和目录扫描都可直接生成强类型 `Page / ui / slots` 头文件，默认输出到 `${CMAKE_CURRENT_BINARY_DIR}/tinalux_markup/<target>`；同一个入口现在还能顺手生成页面类骨架，默认走 `Page + ui.xxx.onXxx(...)` 主路线；普通页面开发建议先看 [`Markup一页式速查`](./Markup一页式速查.md)，再看仓库里的 [`samples/markup`](../samples/markup/README.md) 模板区，最后按需看 [`Markup页面推荐写法`](./Markup页面推荐写法.md)；`Handlers / slots::load / slots::actions...` 和独立 scaffold helper 这些低层接口统一放到 [`Markup高级接口`](./Markup高级接口.md)。
 - 测试：源码中的 [`tests/CMakeLists.txt`](../tests/CMakeLists.txt) 当前包含 `74` 个 smoke 声明和 `2` 个脚本测试；当前工作区里的 `cmake-build-debug` 通过 `ctest -N -C Debug --test-dir cmake-build-debug` 可见 `76` 个测试。
+- Markup 最快验证入口：如果你只想确认推荐主路线没偏，可以直接构建运行 `TinaluxRunMarkupMentalModelExamples`，它会串起两份最小基准示例。
 
 ## 优先阅读
 

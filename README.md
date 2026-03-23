@@ -24,6 +24,18 @@ cmake -B build -S .
 cmake --build build
 ```
 
+如果你想最快验证仓库里推荐的 Markup 主路线，可以直接跑：
+
+```bash
+cmake -S . -B cmake-build-debug
+cmake --build cmake-build-debug --config Debug --target TinaluxRunMarkupMentalModelExamples
+```
+
+这会直接构建并运行两份“官方最小基准示例”：
+
+- `tests/markup/mental_model_smoke.cpp`
+- `tests/markup/mental_model_scan_smoke.cpp`
+
 如果需要显式选择桌面渲染后端，可设置环境变量 `TINALUX_DESKTOP_BACKEND`：
 
 - `auto`
@@ -56,3 +68,4 @@ cmake --build build
 - 先决定抄哪套模板
 - 再抄 CMake 和 C++ 页面起手式
 - 只有真的卡到 DSL 规则或低层接口，再往下看
+- 想最快确认主路线没偏，可以直接跑 `TinaluxRunMarkupMentalModelExamples`
