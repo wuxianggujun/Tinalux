@@ -50,7 +50,13 @@ try {
     }
 
     & $stageScript -Abi arm64-v8a -SdkModuleRoot $sdkModuleRoot -SourceIcuData $sourceIcuData -ValidateOnly
+    $repoSdkSnapshotBefore = Get-SdkModuleArtifactSnapshot -SdkModuleRoot (Join-Path $repoRootPath "android/tinalux-sdk")
     & $stageScript -Abi arm64-v8a -SourceIcuData $sourceIcuData -ValidateOnly
+    $repoSdkSnapshotAfter = Get-SdkModuleArtifactSnapshot -SdkModuleRoot (Join-Path $repoRootPath "android/tinalux-sdk")
+    Assert-SdkModuleArtifactSnapshotUnchanged `
+        -Before $repoSdkSnapshotBefore `
+        -After $repoSdkSnapshotAfter `
+        -Description "default stage script ValidateOnly"
 } finally {
     if (Test-Path $tempRoot) {
         if ($keepTempRoot) {

@@ -82,3 +82,42 @@ function Copy-RepoSdkModuleContractSnapshot {
         Copy-Item -Force $sourcePath $destinationPath
     }
 }
+
+function Get-SdkModuleArtifactSnapshot {
+    param([string]$SdkModuleRoot)
+
+    $snapshot = @()
+    $artifactRoots = @(
+        (Join-Path $SdkModuleRoot "src/main/jniLibs"),
+        (Join-Path $SdkModuleRoot "src/main/assets")
+    )
+
+    foreach ($artifactRoot in $artifactRoots) {
+        if (-not (Test-Path $artifactRoot)) {
+            continue
+        }
+
+        $files = Get-ChildItem -Path $artifactRoot -File -Recurse | Sort-Object FullName
+        foreach ($file in $files) {
+            $relativePath = $file.FullName.Substring($SdkModuleRoot.Length).TrimStart('\', '/')
+            $hash = (Get-FileHash -Path $file.FullName -Algorithm SHA256).Hash
+            $snapshot += "{0}|{1}|{2}" -f $relativePath, $file.Length, $hash
+        }
+    }
+
+    return $snapshot
+}
+
+function Assert-SdkModuleArtifactSnapshotUnchanged {
+    param(
+        [string[]]$Before,
+        [string[]]$After,
+        [string]$Description
+    )
+
+    $beforeValue = @($Before)
+    $afterValue = @($After)
+    if (Compare-Object -ReferenceObject $beforeValue -DifferenceObject $afterValue) {
+        throw "SDK module artifacts changed unexpectedly during $Description."
+    }
+}

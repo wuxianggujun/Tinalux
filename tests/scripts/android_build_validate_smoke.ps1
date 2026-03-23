@@ -55,6 +55,7 @@ try {
         throw "ValidateOnly should not stage a native library, but found $stagedLibrary"
     }
 
+    $repoSdkSnapshotBefore = Get-SdkModuleArtifactSnapshot -SdkModuleRoot (Join-Path $repoRootPath "android/tinalux-sdk")
     & $buildScript `
         -Abi arm64-v8a `
         -ApiLevel 26 `
@@ -66,6 +67,11 @@ try {
         -StageToSdk `
         -ValidateOnly `
         -SourceIcuData $sourceIcuData
+    $repoSdkSnapshotAfter = Get-SdkModuleArtifactSnapshot -SdkModuleRoot (Join-Path $repoRootPath "android/tinalux-sdk")
+    Assert-SdkModuleArtifactSnapshotUnchanged `
+        -Before $repoSdkSnapshotBefore `
+        -After $repoSdkSnapshotAfter `
+        -Description "default build script ValidateOnly"
 } finally {
     if (Test-Path $tempRoot) {
         if ($keepTempRoot) {
