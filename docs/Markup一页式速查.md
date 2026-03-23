@@ -102,6 +102,7 @@ public:
 仓库里可直接对照的可运行示例：
 
 - [`tests/markup/mental_model_smoke.cpp`](../tests/markup/mental_model_smoke.cpp)
+- [`tests/markup/mental_model_scan_smoke.cpp`](../tests/markup/mental_model_scan_smoke.cpp)
 - [`tests/CMakeLists.txt`](../tests/CMakeLists.txt)
 
 ## 4. 哪些东西大多数时候不用管

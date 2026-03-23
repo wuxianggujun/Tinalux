@@ -137,6 +137,14 @@ add_test(NAME TinaluxMarkupMentalModelSmoke COMMAND TinaluxMarkupMentalModelSmok
 set_property(GLOBAL APPEND PROPERTY TINALUX_SMOKE_TEST_TARGETS TinaluxMarkupMentalModelSmoke)
 
 tinalux_add_markup_executable(
+    TARGET TinaluxMarkupMentalModelScanSmoke
+    SOURCE markup/mental_model_scan_smoke.cpp
+    DIRECTORY markup/generated_bindings_scan
+)
+add_test(NAME TinaluxMarkupMentalModelScanSmoke COMMAND TinaluxMarkupMentalModelScanSmoke)
+set_property(GLOBAL APPEND PROPERTY TINALUX_SMOKE_TEST_TARGETS TinaluxMarkupMentalModelScanSmoke)
+
+tinalux_add_markup_executable(
     TARGET TinaluxMarkupGeneratedPageScaffoldSmoke
     SOURCE markup/generated_page_scaffold_smoke.cpp
     INPUT markup/generated_bindings_smoke.tui
