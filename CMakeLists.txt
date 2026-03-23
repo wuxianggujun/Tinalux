@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.31)
 project(Tinalux LANGUAGES C CXX)
 
 option(TINALUX_BUILD_TESTS "Build tests" ON)
+option(TINALUX_BUILD_SAMPLES "Build samples" OFF)
 
 if(APPLE)
     enable_language(OBJCXX)
@@ -137,6 +138,11 @@ function(tinalux_copy_skia_runtime_data target_name)
 endfunction()
 
 add_subdirectory(src)
+if(TINALUX_BUILD_SAMPLES AND NOT ANDROID)
+    add_subdirectory(samples)
+elseif(TINALUX_BUILD_SAMPLES AND ANDROID)
+    message(STATUS "Skipping desktop samples for Android builds")
+endif()
 
 if(ANDROID)
     add_library(TinaluxAndroidNative SHARED

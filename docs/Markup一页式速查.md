@@ -99,7 +99,13 @@ public:
 - `bindUi(ui)`
 - 先起本地控件别名，再直接绑事件
 
-仓库里可直接对照的可运行示例：
+想直接抄代码，先看模板区：
+
+- [`samples/markup/README.md`](../samples/markup/README.md)
+- [`samples/markup/single-file/src/main.cpp`](../samples/markup/single-file/src/main.cpp)
+- [`samples/markup/directory-scan/src/main.cpp`](../samples/markup/directory-scan/src/main.cpp)
+
+如果你想看已经挂到 smoke 里的受测版本，再看：
 
 - [`tests/markup/mental_model_smoke.cpp`](../tests/markup/mental_model_smoke.cpp)
 - [`tests/markup/mental_model_scan_smoke.cpp`](../tests/markup/mental_model_scan_smoke.cpp)

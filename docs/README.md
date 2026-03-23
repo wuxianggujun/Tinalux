@@ -9,7 +9,7 @@
 - 平台层：桌面端使用仓库内固定的 `3rdparty/tina_glfw`；`GLFWWindow` 已覆盖 Windows / macOS / Linux。Linux/X11 的 IME 与窗口链路代码已接通，但缺少真机运行验证。
 - Android：不再只是方案稿，当前已有 `AndroidWindow`、`AndroidRuntime`、JNI/C ABI、`android/host` 宿主层、`android/tinalux-sdk` 和 `android/validation-app` 验证工程。
 - UI：约束布局、VBox/HBox/Flex/Grid/Responsive、三阶段事件、主题系统、富文本、文本输入、资源管理、异步图片加载、图标注册、组件级渲染缓存都已落地。
-- Markup：轻量声明式布局 DSL 已落地，当前使用无 `@` 关键字语法，支持 `style / import / component / if / elseif / else / for / res(...)`、位置参数、可选裸标识符 `id`、`${model.xxx}` 单向/双向属性绑定、`${someId.someProperty}` 普通属性/样式绑定、`Slot`、树状 `ViewModel`、声明式事件绑定；默认高层入口就是 `tinalux_add_markup_executable(...)` / `tinalux_target_enable_markup_autogen(...)`，单文件和目录扫描都可直接生成强类型 `Page / ui / slots` 头文件，默认输出到 `${CMAKE_CURRENT_BINARY_DIR}/tinalux_markup/<target>`；同一个入口现在还能顺手生成页面类骨架，默认走 `Page + ui.xxx.onXxx(...)` 主路线；普通页面开发建议先看 [`Markup一页式速查`](./Markup一页式速查.md)，再看 [`Markup页面推荐写法`](./Markup页面推荐写法.md)；`Handlers / slots::load / slots::actions...` 和独立 scaffold helper 这些低层接口统一放到 [`Markup高级接口`](./Markup高级接口.md)。
+- Markup：轻量声明式布局 DSL 已落地，当前使用无 `@` 关键字语法，支持 `style / import / component / if / elseif / else / for / res(...)`、位置参数、可选裸标识符 `id`、`${model.xxx}` 单向/双向属性绑定、`${someId.someProperty}` 普通属性/样式绑定、`Slot`、树状 `ViewModel`、声明式事件绑定；默认高层入口就是 `tinalux_add_markup_executable(...)` / `tinalux_target_enable_markup_autogen(...)`，单文件和目录扫描都可直接生成强类型 `Page / ui / slots` 头文件，默认输出到 `${CMAKE_CURRENT_BINARY_DIR}/tinalux_markup/<target>`；同一个入口现在还能顺手生成页面类骨架，默认走 `Page + ui.xxx.onXxx(...)` 主路线；普通页面开发建议先看 [`Markup一页式速查`](./Markup一页式速查.md)，再看仓库里的 [`samples/markup`](../samples/markup/README.md) 模板区，最后按需看 [`Markup页面推荐写法`](./Markup页面推荐写法.md)；`Handlers / slots::load / slots::actions...` 和独立 scaffold helper 这些低层接口统一放到 [`Markup高级接口`](./Markup高级接口.md)。
 - 测试：源码中的 [`tests/CMakeLists.txt`](../tests/CMakeLists.txt) 当前包含 `74` 个 smoke 声明和 `2` 个脚本测试；当前工作区里的 `cmake-build-debug` 通过 `ctest -N -C Debug --test-dir cmake-build-debug` 可见 `76` 个测试。
 
 ## 优先阅读
@@ -24,6 +24,8 @@
   按模块罗列已实现能力、部分实现项和明确未完成项。
 - [Markup一页式速查](./Markup一页式速查.md)  
   先看这一份，压缩成“普通页面开发真正需要记的内容”。
+- [samples/markup 模板区](../samples/markup/README.md)  
+  直接可抄的单文件 / 目录扫描模板，目标是少记概念，不是多学接口。
 - [Markup页面推荐写法](./Markup页面推荐写法.md)  
   正常页面开发只看这一份，默认主路线是 `Page + ui + onClick(...)`。
 - [Markup高级接口](./Markup高级接口.md)  
