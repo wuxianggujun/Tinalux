@@ -488,29 +488,6 @@ std::string makePascalCaseIdentifier(std::string_view value)
     return result;
 }
 
-std::string makeScaffoldHandlerMethodName(
-    std::string_view widgetId,
-    std::string_view interactionName)
-{
-    std::string methodName = "on";
-    for (const auto& segment : splitUiPathSegments(widgetId)) {
-        methodName += makePascalCaseIdentifier(segment);
-    }
-
-    if (interactionName.starts_with("on")
-        && interactionName.size() > 2
-        && std::isupper(static_cast<unsigned char>(interactionName[2]))) {
-        methodName += std::string(interactionName.substr(2));
-    } else {
-        methodName += makePascalCaseIdentifier(interactionName);
-    }
-
-    if (methodName == "on") {
-        return "onEvent";
-    }
-    return methodName;
-}
-
 std::string scaffoldParameterName(const ActionSlotInfo& slot)
 {
     if (slot.genericPayload) {
@@ -1354,17 +1331,7 @@ std::string LayoutActionCatalog::emitPageScaffold(
     } else {
         out << "    explicit " << className << "(const ::tinalux::ui::Theme& theme)\n";
         out << "        : page(theme, [&](auto& ui) {\n";
-        for (const auto& event : catalog.widgetEvents) {
-            const auto uiExprIt = uiExprByWidgetId.find(event.widgetId);
-            if (uiExprIt == uiExprByWidgetId.end()) {
-                continue;
-            }
-            out << "            " << uiExprIt->second << "."
-                << makeEventHandlerMethodName(event.interactionName)
-                << "(this, &" << className << "::"
-                << makeScaffoldHandlerMethodName(event.widgetId, event.interactionName)
-                << ");\n";
-        }
+        out << "            setupUi(ui);\n";
         out << "        })\n";
         out << "    {\n";
         out << "    }\n\n";
@@ -1374,23 +1341,35 @@ std::string LayoutActionCatalog::emitPageScaffold(
 
     if (!catalog.widgetEvents.empty()) {
         out << "\nprivate:\n";
+        out << "    template <typename Ui>\n";
+        out << "    void setupUi(Ui& ui)\n";
+        out << "    {\n";
         for (const auto& event : catalog.widgetEvents) {
+            const auto uiExprIt = uiExprByWidgetId.find(event.widgetId);
             const auto slotIt = slotBySymbol.find(event.slotSymbolName);
-            if (slotIt == slotBySymbol.end() || slotIt->second == nullptr) {
+            if (uiExprIt == uiExprByWidgetId.end()
+                || slotIt == slotBySymbol.end()
+                || slotIt->second == nullptr) {
                 continue;
             }
 
             const ActionSlotInfo& slot = *slotIt->second;
             const std::string parameterDecl = scaffoldParameterDeclaration(slot);
             const std::string parameterName = scaffoldParameterName(slot);
-            out << "    void " << makeScaffoldHandlerMethodName(event.widgetId, event.interactionName)
-                << "(" << parameterDecl << ")\n";
-            out << "    {\n";
-            if (!parameterName.empty()) {
-                out << "        (void)" << parameterName << ";\n";
+            out << "        " << uiExprIt->second << "."
+                << makeEventHandlerMethodName(event.interactionName)
+                << "([this]";
+            if (!parameterDecl.empty()) {
+                out << "(" << parameterDecl << ")";
             }
-            out << "    }\n\n";
+            out << " {\n";
+            if (!parameterName.empty()) {
+                out << "            (void)" << parameterName << ";\n";
+            }
+            out << "            // TODO: handle event here.\n";
+            out << "        });\n";
         }
+        out << "    }\n";
     }
 
     out << "};\n";

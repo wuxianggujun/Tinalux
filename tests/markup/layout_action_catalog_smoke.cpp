@@ -305,24 +305,30 @@ VBox {
             scaffold.find("demo::Page page {}") != std::string::npos,
             "page scaffold should hold the generated facade page directly");
         expect(
-            scaffold.find("ui.applyButton.onClick(this, &LoginPage::onApplyButtonClick);")
-                != std::string::npos,
-            "page scaffold should bind button events on the generated ui object");
+            scaffold.find("setupUi(ui);") != std::string::npos,
+            "page scaffold should centralize generated bindings inside a single setupUi helper");
         expect(
-            scaffold.find("ui.profileDialog.onDismiss(this, &LoginPage::onProfileDialogDismiss);")
+            scaffold.find("ui.applyButton.onClick([this] {")
                 != std::string::npos,
-            "page scaffold should bind non-click widget events on the generated ui object");
+            "page scaffold should bind button events inline on the generated ui object");
         expect(
-            scaffold.find(
-                "ui.sharedSlider.onValueChanged(this, &LoginPage::onSharedSliderValueChanged);")
+            scaffold.find("ui.profileDialog.onDismiss([this] {")
                 != std::string::npos,
-            "page scaffold should bind payload events with explicit widget-qualified method names");
+            "page scaffold should bind non-click widget events inline on the generated ui object");
         expect(
             scaffold.find(
-                "void onSharedSliderValueChanged(const ::tinalux::core::Value& value)")
-                != std::string::npos
+                "ui.sharedSlider.onValueChanged([this](const ::tinalux::core::Value& value) {")
+                != std::string::npos,
+            "page scaffold should bind payload events inline with typed parameters");
+        expect(
+            scaffold.find("template <typename Ui>") != std::string::npos
+                && scaffold.find("void setupUi(Ui& ui)") != std::string::npos
+                && scaffold.find("// TODO: handle event here.") != std::string::npos
                 && scaffold.find("(void)value;") != std::string::npos,
-            "page scaffold should emit inline starter methods with payload placeholders");
+            "page scaffold should emit a single setupUi helper with inline TODO lambdas");
+        expect(
+            scaffold.find("onSharedSliderValueChanged") == std::string::npos,
+            "page scaffold should no longer explode into one empty handler method per event");
     }
 
     {
@@ -379,14 +385,14 @@ VBox {
             });
         expect(
             groupedScaffold.find(
-                "ui.form.queryInput.onTextChanged(this, &GroupedPage::onFormQueryInputTextChanged);")
+                "ui.form.queryInput.onTextChanged([this](std::string_view text) {")
                 != std::string::npos,
-            "grouped ids should flatten into explicit ui access paths inside the page scaffold");
+            "grouped ids should flatten into explicit inline ui access paths inside the page scaffold");
         expect(
             groupedScaffold.find(
-                "ui.toolbar.actions.clearButton.onClick(this, &GroupedPage::onToolbarActionsClearButtonClick);")
+                "ui.toolbar.actions.clearButton.onClick([this] {")
                 != std::string::npos,
-            "page scaffold should preserve nested ui groups in generated bindings");
+            "page scaffold should preserve nested ui groups in inline generated bindings");
     }
 
     {

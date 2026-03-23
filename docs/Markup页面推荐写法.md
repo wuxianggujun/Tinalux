@@ -45,6 +45,7 @@ tinalux_add_markup_executable(
 
 - 它会根据当前 target 已挂的单文件 markup 自动生成一个页面类
 - 生成出来的代码默认就是 `Page + ui.xxx.onXxx(...)`
+- 事件默认集中在一个 `setupUi(ui)` 里，用内联 lambda 占位，不会再帮你拆成一堆空方法
 - `PAGE_SCAFFOLD_ONLY_IF_MISSING` 打开后，文件已经存在就不会覆盖你的手改内容
 
 如果你挂的是目录扫描模式，也一样优先写在同一个入口里：
