@@ -38,3 +38,21 @@ cmake --build build
 - `docs/开发计划.md`：当前优先级与里程碑
 - `android/validation-app`：Android 验证工程
 - `android/tinalux-sdk`：Android 宿主运行时封装
+
+## Markup 从哪开始看
+
+如果你现在主要是想用仓库里的 Markup 页面开发能力，不要先钻 CMake 低层 helper。
+
+直接按这个顺序看：
+
+1. `docs/Markup一页式速查.md`
+2. `samples/markup/README.md`
+3. `docs/Markup页面推荐写法.md`
+4. 只有遇到特定问题，再看：
+   `docs/Markup高级接口.md` / `docs/MarkupDSL语法参考.md`
+
+可以把它理解成：
+
+- 先决定抄哪套模板
+- 再抄 CMake 和 C++ 页面起手式
+- 只有真的卡到 DSL 规则或低层接口，再往下看
