@@ -48,6 +48,7 @@
   - `src/**`
   - `tests/**`
   - `scripts/runSmokeTests.ps1`
+  - `scripts/runSmokeTests.sh`
   - `syncSkia.bat`
   - `main.cpp`
 - 当前排除：
@@ -57,15 +58,19 @@
   - 这类 Android PowerShell smoke 变更改由 `android-build-scripts-smoke` 单独兜底
 - 当前执行边界：
   - `scripts/runSmokeTests.ps1` / `scripts/runSmokeTests.sh` 现在都只构建 `TinaluxRunDesktopSmokeTests`
+  - `TinaluxRunDesktopSmokeTests` 在有 `pwsh` 的环境下会先执行 `tests/scripts/desktop_smoke_contract_smoke.ps1`
   - 该 target 会通过 `ctest -LE android-scripts` 排除 Android PowerShell smoke
-  - 因此 Windows 桌面 smoke 已同时完成“触发解耦”和“执行解耦”
+  - workflow 也会前置执行同一契约脚本，尽早暴露入口或 label 漂移
+  - 因此 Windows 桌面 smoke 已同时完成“触发解耦”、“执行解耦”和“边界契约校验”
 - 运行内容：
+  - `./tests/scripts/desktop_smoke_contract_smoke.ps1 -RepoRoot .`
   - `syncSkia.bat`
   - `cmake -S . -B build-ci -G Ninja -DCMAKE_BUILD_TYPE=Debug`
   - `./scripts/runSmokeTests.ps1 -BuildDir build-ci -Config Debug`
 - 当前附加能力：
   - 缓存 `3rdparty/skia`
   - 缓存 `build-ci/skia` Debug 构建产物
+  - 前置校验桌面 smoke 入口和 `android-scripts` 过滤契约
   - 失败时上传 `CTest` 日志，产物保留 `7` 天
   - 同时保留 `CMakeCache.txt`、`CMakeConfigureLog.yaml`、`build.ninja`、`.ninja_log`
   - 仅 `syncSkia.bat` 变更会触发该链路，避免 `syncSkia.sh` 的无效触发
