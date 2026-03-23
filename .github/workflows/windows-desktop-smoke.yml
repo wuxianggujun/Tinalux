@@ -80,7 +80,7 @@ jobs:
           Write-Host "Skia revision: $revision"
 
       - name: Save Skia Source Cache
-        if: ${{ steps.skia-meta.outputs.revision != '' }}
+        if: ${{ steps.skia-meta.outputs.revision != '' && steps.restore-skia-source-cache.outputs.cache-matched-key != format('windows-skia-source-v1-{0}', steps.skia-meta.outputs.revision) }}
         uses: actions/cache/save@v4
         with:
           path: 3rdparty/skia
@@ -97,6 +97,32 @@ jobs:
           key: windows-skia-build-v1-${{ steps.skia-meta.outputs.revision }}-${{ hashFiles('cmake/SkiaConfig.cmake') }}
           restore-keys: |
             windows-skia-build-v1-${{ steps.skia-meta.outputs.revision }}-
+
+      - name: Capture Windows Smoke Metadata
+        shell: pwsh
+        env:
+          TINALUX_CI_METADATA_ROOT: ${{ github.workspace }}/ci-artifacts/windows-desktop-smoke/metadata
+          TINALUX_SKIA_REVISION: ${{ steps.skia-meta.outputs.revision }}
+          TINALUX_SOURCE_CACHE_PRIMARY_KEY: ${{ steps.restore-skia-source-cache.outputs.cache-primary-key }}
+          TINALUX_SOURCE_CACHE_MATCHED_KEY: ${{ steps.restore-skia-source-cache.outputs.cache-matched-key }}
+          TINALUX_SOURCE_CACHE_HIT: ${{ steps.restore-skia-source-cache.outputs.cache-hit }}
+          TINALUX_SOURCE_CACHE_EXPECTED_KEY: windows-skia-source-v1-${{ steps.skia-meta.outputs.revision }}
+          TINALUX_BUILD_CACHE_PRIMARY_KEY: ${{ steps.restore-skia-build-cache.outputs.cache-primary-key }}
+          TINALUX_BUILD_CACHE_MATCHED_KEY: ${{ steps.restore-skia-build-cache.outputs.cache-matched-key }}
+          TINALUX_BUILD_CACHE_HIT: ${{ steps.restore-skia-build-cache.outputs.cache-hit }}
+          TINALUX_BUILD_CACHE_EXPECTED_KEY: windows-skia-build-v1-${{ steps.skia-meta.outputs.revision }}-${{ hashFiles('cmake/SkiaConfig.cmake') }}
+        run: >
+          ./tests/scripts/windows_desktop_smoke_ci_metadata.ps1
+          -OutputRoot $env:TINALUX_CI_METADATA_ROOT
+          -SkiaRevision $env:TINALUX_SKIA_REVISION
+          -SourceCachePrimaryKey $env:TINALUX_SOURCE_CACHE_PRIMARY_KEY
+          -SourceCacheMatchedKey $env:TINALUX_SOURCE_CACHE_MATCHED_KEY
+          -SourceCacheHit $env:TINALUX_SOURCE_CACHE_HIT
+          -SourceCacheExpectedKey $env:TINALUX_SOURCE_CACHE_EXPECTED_KEY
+          -BuildCachePrimaryKey $env:TINALUX_BUILD_CACHE_PRIMARY_KEY
+          -BuildCacheMatchedKey $env:TINALUX_BUILD_CACHE_MATCHED_KEY
+          -BuildCacheHit $env:TINALUX_BUILD_CACHE_HIT
+          -BuildCacheExpectedKey $env:TINALUX_BUILD_CACHE_EXPECTED_KEY
 
       - name: Configure Desktop Smoke Build
         shell: pwsh
@@ -134,3 +160,4 @@ jobs:
             build-ci/CMakeFiles/CMakeOutput.log
             build-ci/CMakeFiles/CMakeError.log
             build-ci/CMakeFiles/CMakeConfigureLog.yaml
+            ci-artifacts/windows-desktop-smoke/**
