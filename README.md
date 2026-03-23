@@ -47,6 +47,7 @@ cmake --build cmake-build-debug --config Debug --target TinaluxRunMarkupMentalMo
 
 - `docs/README.md`：文档索引与当前结论
 - `docs/项目概述.md`：项目定位、模块边界、平台状态
+- `docs/CI验证入口.md`：当前 CI workflow 的职责、触发范围与查看顺序
 - `docs/项目审查与优先级建议-2026-03-23.md`：本轮源码审查、验证结论、提交脉络与优先级建议
 - `docs/开发计划.md`：当前优先级与里程碑
 - `android/validation-app`：Android 验证工程
