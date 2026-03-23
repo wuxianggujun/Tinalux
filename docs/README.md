@@ -1,6 +1,6 @@
 # Tinalux 文档索引
 
-> 更新时间：2026-03-22
+> 更新时间：2026-03-23
 > 说明：本目录已按“当前事实 / 历史归档”重整。带日期的阶段报告默认视为归档，不再作为当前实现依据。
 
 ## 当前结论
@@ -10,13 +10,16 @@
 - Android：不再只是方案稿，当前已有 `AndroidWindow`、`AndroidRuntime`、JNI/C ABI、`android/host` 宿主层、`android/tinalux-sdk` 和 `android/validation-app` 验证工程。
 - UI：约束布局、VBox/HBox/Flex/Grid/Responsive、三阶段事件、主题系统、富文本、文本输入、资源管理、异步图片加载、图标注册、组件级渲染缓存都已落地。
 - Markup：轻量声明式布局 DSL 已落地，当前使用无 `@` 关键字语法，支持 `style / import / component / if / elseif / else / for / res(...)`、位置参数、可选裸标识符 `id`、`${model.xxx}` 单向/双向属性绑定、`${someId.someProperty}` 普通属性/样式绑定、`Slot`、树状 `ViewModel`、声明式事件绑定；默认高层入口就是 `tinalux_add_markup_executable(...)` / `tinalux_target_enable_markup_autogen(...)`，单文件和目录扫描都可直接生成强类型 `Page / ui / slots` 头文件，默认输出到 `${CMAKE_CURRENT_BINARY_DIR}/tinalux_markup/<target>`；同一个入口现在还能顺手生成页面类骨架，默认走 `Page + ui.xxx.onXxx(...)` 主路线；普通页面开发建议先看 [`Markup一页式速查`](./Markup一页式速查.md)，再看仓库里的 [`samples/markup`](../samples/markup/README.md) 模板区，最后按需看 [`Markup页面推荐写法`](./Markup页面推荐写法.md)；`Handlers / slots::load / slots::actions...` 和独立 scaffold helper 这些低层接口统一放到 [`Markup高级接口`](./Markup高级接口.md)。
-- 测试：源码中的 [`tests/CMakeLists.txt`](../tests/CMakeLists.txt) 当前包含 `74` 个 smoke 声明和 `2` 个脚本测试；当前工作区里的 `cmake-build-debug` 通过 `ctest -N -C Debug --test-dir cmake-build-debug` 可见 `76` 个测试。
+- 测试：当前 Windows / `pwsh` / Vulkan 头可用的工作区里，`ctest -N -C Debug --test-dir cmake-build-debug` 可见 `78` 个测试。
+- 验证：`ctest --test-dir cmake-build-debug -C Debug --output-on-failure --timeout 60 -j 4` 已在本工作区跑通 `78/78`，总耗时约 `114.04s`。
 - Markup 最快验证入口：如果你只想确认推荐主路线没偏，可以直接构建运行 `TinaluxRunMarkupMentalModelExamples`，它会串起两份最小基准示例。
 
 ## 优先阅读
 
 - [项目概述](./项目概述.md)  
   项目定位、模块边界、当前能力和主要缺口。
+- [项目审查与优先级建议-2026-03-23](./项目审查与优先级建议-2026-03-23.md)  
+  本轮源码审查、验证基线、提交脉络和下一阶段优先级建议。
 - [源码核对-当前状态-2026-03-16](./源码核对-当前状态-2026-03-16.md)  
   基于源码和当前构建产物的最新核对结论，虽然文件名保留旧日期，但内容已更新到 2026-03-18。
 - [架构设计](./架构设计.md)  
@@ -62,6 +65,8 @@
 
 - [目录结构规划](./目录结构规划.md)  
   反映当前仓库目录、Android 模块和构建入口。
+- [项目审查与优先级建议-2026-03-23](./项目审查与优先级建议-2026-03-23.md)  
+  汇总本轮代码审查、测试验证、提交记录和排期建议。
 - [开发计划](./开发计划.md)  
   当前主线任务，不再沿用早期阶段式完成度叙述。
 - [主题系统设计与实现](./主题系统设计与实现.md)  
