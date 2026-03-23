@@ -56,13 +56,18 @@ BUILD_DIR=/tmp/tina_glfw-x11 BUILD_TYPE=Release \
 触发条件：
 
 - `3rdparty/tina_glfw/**`
-- `src/platform/glfw/**`
-- `src/platform/CMakeLists.txt`
-- 根目录 `CMakeLists.txt`
 - 验证脚本和工作流自身
+- 当前不会因主工程 `src/platform/**` 或根目录 `CMakeLists.txt`
+  变更而触发，因为该链路只直接构建 `tina_glfw`
 
 CI 在 `ubuntu-24.04` 上分别用 `gcc` 和 `clang` 执行同一条
 X11 构建验证命令。
+
+当前运行边界：
+
+- job 超时 `30` 分钟
+- 失败时上传 `build/tina_glfw-linux-x11/**`
+- failure artifacts 保留 `7` 天
 
 ## 备注
 
