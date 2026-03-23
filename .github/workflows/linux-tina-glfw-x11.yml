@@ -11,17 +11,11 @@ on:
       - ".github/workflows/linux-tina-glfw-x11.yml"
       - "scripts/validateTinaGlfwX11Linux.sh"
       - "3rdparty/tina_glfw/**"
-      - "src/platform/CMakeLists.txt"
-      - "src/platform/glfw/**"
-      - "CMakeLists.txt"
   push:
     paths:
       - ".github/workflows/linux-tina-glfw-x11.yml"
       - "scripts/validateTinaGlfwX11Linux.sh"
       - "3rdparty/tina_glfw/**"
-      - "src/platform/CMakeLists.txt"
-      - "src/platform/glfw/**"
-      - "CMakeLists.txt"
 
 jobs:
   build:

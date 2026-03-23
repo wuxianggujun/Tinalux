@@ -22,9 +22,9 @@
   - `.github/workflows/linux-tina-glfw-x11.yml`
   - `scripts/validateTinaGlfwX11Linux.sh`
   - `3rdparty/tina_glfw/**`
-  - `src/platform/CMakeLists.txt`
-  - `src/platform/glfw/**`
-  - `CMakeLists.txt`
+- 当前说明：
+  - 该链路只直接构建 `3rdparty/tina_glfw`
+  - 因此不会因主工程 `src/platform/**` 或根 `CMakeLists.txt` 变更而触发
 - 运行内容：
   - 安装 Ubuntu X11 构建依赖
   - 分别用 `gcc` / `clang` 执行 `scripts/validateTinaGlfwX11Linux.sh`
@@ -33,8 +33,8 @@
 - 失败回溯：
   - 上传 `build/tina_glfw-linux-x11/**` 构建目录，产物保留 `7` 天
 - 适合查看的场景：
-  - GLFW / X11 / Linux 平台桥接改动
-  - Linux 平台编译性回归
+  - `tina_glfw` 上游分支或本地补丁改动
+  - Linux X11 构建链本身的编译性回归
 
 ### 2. Windows 桌面 Smoke
 
@@ -103,4 +103,4 @@
 - Android 真机编译、安装、渲染、输入、生命周期闭环
 - Linux/X11 真机运行时与 IME 差异验证
 - macOS / Metal 桌面验证
-- 更完整的平台矩阵、更细粒度的缓存策略，以及按目录进一步精炼的触发规则
+- 更完整的平台矩阵、更细粒度的缓存策略，以及对主工程桌面链路和平台链路继续精炼的触发规则
