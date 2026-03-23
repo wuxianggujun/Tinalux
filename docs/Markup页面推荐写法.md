@@ -1,27 +1,33 @@
 # Markup 页面推荐写法
 
-如果你现在只想先记最小心智模型，先看 [`Markup一页式速查`](./Markup一页式速查.md)。
+这份文档只做一件事：
 
-这份文档只讲**日常页面开发**最推荐的一条主路线：
+**给普通页面开发提供可直接抄的代码。**
 
-- CMake 自动生成
+如果你现在还在分不清该用哪套模板，先回：
+
+- [`Markup一页式速查`](./Markup一页式速查.md)
+- [`samples/markup/README.md`](../samples/markup/README.md)
+
+如果你已经在看 `Handlers / slots::load / slots::actions / attachUi(...)`，
+说明你已经进入低层场景了，直接改看：
+
+- [`Markup高级接口`](./Markup高级接口.md)
+
+## 1. 普通页面开发，先记这一句话
+
+默认主路线就是：
+
+- CMake 挂自动生成
 - 页面类里持有 `Page`
-- 通过 `ui.xxx.onClick(...)`、`ui.xxx.onTextChanged(...)` 直接绑事件
-- `Handlers / slots::load / slots::actions...` 归类为高级接口，平时可以先忽略
+- 构造时直接写 `ui.xxx.onXxx(...)`
+- 构造完成后继续用 `page.ui.xxx`
 
-如果你确实要碰这些低层接口，单独看 [`Markup高级接口`](./Markup高级接口.md)。
+别先退回 `Handlers`、`slots::actions`、独立 scaffold helper。
 
-如果你只是偶尔打开 CMake 模块看实现，现在也可以只看
-`TinaluxMarkupTools.cmake`。
-低层 / 高级 helper 已经收进 `TinaluxMarkupAdvancedTools.cmake`，
-并继续按 `Common / Bindings / Scaffold / Autogen` 拆分，
-这样主入口文件不会再堆一大段实现细节。
+## 2. 直接抄这四段
 
-## 1. 先抄这三段
-
-如果你现在只想“先跑起来”，直接抄下面其中一段：
-
-单文件，新建 target：
+### 2.1 单文件，最小起手式
 
 ```cmake
 tinalux_add_markup_executable(
@@ -31,62 +37,27 @@ tinalux_add_markup_executable(
 )
 ```
 
-单文件，已有 target：
+适合：
 
-```cmake
-add_executable(LoginDemo src/main.cpp)
-target_link_libraries(LoginDemo PRIVATE Tinalux::Markup)
+- 一个页面先跑通
+- 还不想拆目录
 
-tinalux_target_enable_markup_autogen(
-    TARGET LoginDemo
-    INPUT ui/login.tui
-)
-```
-
-目录扫描，顺手起页面骨架：
+### 2.2 目录扫描，页面开始变多
 
 ```cmake
 tinalux_add_markup_executable(
     TARGET MyApp
     SOURCE src/main.cpp
     DIRECTORY ui
-    PAGE_SCAFFOLD_OUTPUT_DIRECTORY src/pages
-    PAGE_SCAFFOLD_ONLY_IF_MISSING
 )
 ```
 
-日常开发里，先把它理解成这句话就够了：
+适合：
 
-- 单文件用 `INPUT`
-- 批量扫描用 `DIRECTORY`
-- 想少写样板就优先用 `tinalux_add_markup_executable(...)`
+- 已经有 `ui/auth/login.tui`
+- 已经有 `ui/settings/profile.tui`
 
-## 2. 最小 CMake
-
-```cmake
-tinalux_add_markup_executable(
-    TARGET LoginDemo
-    SOURCE src/main.cpp
-    INPUT ui/login.tui
-)
-```
-
-如果你已经自己写了 target，也可以只挂自动生成：
-
-```cmake
-tinalux_target_enable_markup_autogen(
-    TARGET LoginDemo
-    INPUT ui/login.tui
-)
-```
-
-大多数页面这里**不用主动写** `NAMESPACE` / `NAMESPACE_PREFIX`：
-
-- 单文件默认会按文件名自动推导，比如 `ui/login.tui -> login::slots`
-- 目录扫描默认只在你想统一挂一个前缀时，才需要补 `NAMESPACE_PREFIX`
-- 真正需要手写命名空间，通常只有两类场景：防重名，或者你就是想固定生成符号路径
-
-如果你想先自动起一个“推荐写法”的页面类骨架，**优先还是直接写在同一个 `tinalux_add_markup_executable(...)` 里**：
+### 2.3 单文件，但让生成器顺手起页面骨架
 
 ```cmake
 tinalux_add_markup_executable(
@@ -99,54 +70,38 @@ tinalux_add_markup_executable(
 )
 ```
 
-这几个参数的定位是**起手式**：
+适合：
 
-- 它会根据当前 target 已挂的单文件 markup 自动生成一个页面类
-- 生成出来的代码默认就是 `Page + ui.xxx.onXxx(...)`
-- 生成骨架会固定分成 `initUi(ui)` 和 `bindUi(ui)` 两段
-- `initUi(ui)` 里会先生成按控件类型分组的本地别名，并给常见控件补初始化示例
-- `bindUi(ui)` 里也会先生成同样的本地别名，再用别名直接绑事件
-- `PAGE_SCAFFOLD_ONLY_IF_MISSING` 打开后，文件已经存在就不会覆盖你的手改内容
+- 你不想手写页面类外壳
+- 你想直接从 `initUi(ui)` / `bindUi(ui)` 开始改
 
-仓库里可以直接对照的样板：
-
-- [`samples/markup/scaffold-single-file`](../samples/markup/scaffold-single-file)
-- [`samples/markup/scaffold-directory-scan`](../samples/markup/scaffold-directory-scan)
-
-如果你挂的是目录扫描模式，也一样优先写在同一个入口里：
+### 2.4 目录扫描，同时批量起页面骨架
 
 ```cmake
 tinalux_add_markup_executable(
     TARGET MyApp
     SOURCE src/main.cpp
     DIRECTORY ui
-    NAMESPACE_PREFIX app_ui
     PAGE_SCAFFOLD_OUTPUT_DIRECTORY src/pages
-    PAGE_SCAFFOLD_INDEX_HEADER app_ui.pages.h
+    PAGE_SCAFFOLD_INDEX_HEADER app.pages.h
     PAGE_SCAFFOLD_ONLY_IF_MISSING
 )
 ```
 
-这会把 `ui/auth/login.tui` 之类的文件批量生成成：
+适合：
 
-- `src/pages/auth/login.page.h`
-- `src/pages/settings/profile.page.h`
-- 总索引头 `src/pages/app_ui.pages.h`
+- 页面已经按目录拆开
+- 你想统一生成一批页面类起手式
 
-如果你真的要把生成动作拆出去单独调用，`tinalux_generate_markup_page_scaffold(...)` /
-`tinalux_generate_markup_page_scaffolds_for_directory(...)` 这两个 helper 还在，
-但它们现在更适合高级场景，不再是推荐主路线。
-
-## 3. 推荐页面类写法
+## 3. C++ 页面类直接抄这一段
 
 ```cpp
 #include "login.markup.h"
 
 class LoginPage {
 public:
-    int loginClicks = 0;
     std::string keyword;
-    app::login::Page page;
+    login::Page page;
 
     explicit LoginPage(const tinalux::ui::Theme& theme)
         : page(theme, [&](auto& ui) {
@@ -158,7 +113,6 @@ public:
 
     void submitLogin()
     {
-        ++loginClicks;
     }
 
     void onQueryChanged(std::string_view text)
@@ -168,14 +122,14 @@ public:
 };
 ```
 
-这里有两个关键点：
+这里真正需要记的只有两句：
 
-- 事件直接绑在控件对象上，不再绕回 `Handlers`
-- 业务状态成员最好放在 `Page page;` 前面，避免 `page` 构造时回调访问还没构造好的成员
+- 构造阶段：`ui.xxx.onXxx(...)`
+- 构造完成后：`page.ui.xxx`
 
-## 4. 分组控件写法
+## 4. 如果 id 有分组，生成后就直接按对象层级访问
 
-如果你在 markup 里写：
+如果你写：
 
 ```tui
 TextInput(id: form__queryInput, ...)
@@ -183,7 +137,7 @@ Button(id: form__loginButton, ...)
 Button(id: toolbar__actions__clearButton, ...)
 ```
 
-生成后直接就是：
+那你就直接写：
 
 ```cpp
 page.ui.form.queryInput.onTextChanged(this, &LoginPage::onQueryChanged);
@@ -191,52 +145,44 @@ page.ui.form.loginButton.onClick(this, &LoginPage::submitLogin);
 page.ui.toolbar.actions.clearButton.onClick(this, &LoginPage::clearQuery);
 ```
 
-## 5. 常用事件对象方法
+不要再自己回头拼 action path。
 
-除了 `onClick(...)`、`onTextChanged(...)`，常见控件现在也可以直接在对象上绑事件：
-
-```cpp
-class SettingsPage {
-public:
-    generated_controls::Page page;
-    bool subscribed = false;
-    float volume = 0.0f;
-
-    explicit SettingsPage(const tinalux::ui::Theme& theme)
-        : page(theme, [&](auto& ui) {
-            ui.searchInput.onLeadingIconClick(this, &SettingsPage::openSearch);
-            ui.searchInput.onTrailingIconClick(this, &SettingsPage::clearKeyword);
-            ui.subscribeBox.onToggle(this, &SettingsPage::setSubscribed);
-            ui.syncToggle.onToggle(this, &SettingsPage::setSyncEnabled);
-            ui.volumeSlider.onValueChanged(this, &SettingsPage::setVolume);
-            ui.confirmDialog.onDismiss(this, &SettingsPage::closeDialog);
-        })
-    {
-    }
-
-    void openSearch();
-    void clearKeyword();
-    void setSubscribed(bool checked);
-    void setSyncEnabled(bool enabled);
-    void setVolume(float value);
-    void closeDialog();
-};
-```
-
-推荐记忆方式只有两句：
-
-- 构造页面时，用 `ui.xxx.onXxx(...)` 绑定事件
-- 页面构造完成后，用 `page.ui.xxx->...` 操作控件对象
-
-## 6. 默认只记这一套
-
-正常页面开发，优先只记这一套：
+## 5. 常见事件，先只记这些
 
 ```cpp
-page.ui.xxx->setText(...);
-page.ui.xxx.onClick(...);
-page.ui.xxx.onTextChanged(...);
-page.ui.xxx.onSelectionChanged(...);
+ui.button.onClick(this, &Page::submit);
+ui.input.onTextChanged(this, &Page::setKeyword);
+ui.dropdown.onSelectionChanged(this, &Page::setIndex);
+ui.checkbox.onToggle(this, &Page::setEnabled);
+ui.slider.onValueChanged(this, &Page::setVolume);
+ui.dialog.onDismiss(this, &Page::closeDialog);
 ```
 
-如果你后面真的需要低层接口，再回头看 [`Markup高级接口`](./Markup高级接口.md)。
+不需要一上来把所有高级接口都背下来。
+
+## 6. 什么时候不用往下看
+
+只要你满足下面任意一条，就别再往低层钻：
+
+- 你只是写业务页面
+- 你已经有 `Page`
+- 你想按控件对象思维开发
+- 你只是想少写样板
+
+这时就停在这里，或者直接去抄模板区：
+
+- [`samples/markup/single-file`](../samples/markup/single-file)
+- [`samples/markup/directory-scan`](../samples/markup/directory-scan)
+- [`samples/markup/scaffold-single-file`](../samples/markup/scaffold-single-file)
+- [`samples/markup/scaffold-directory-scan`](../samples/markup/scaffold-directory-scan)
+
+## 7. 什么时候才需要继续往下看
+
+只有这些场景，才建议继续看别的文档：
+
+- 你分不清模板怎么选
+  -> 看 [`Markup一页式速查`](./Markup一页式速查.md)
+- 你要查 `Handlers / slots::load / slots::actions / attachUi(...)`
+  -> 看 [`Markup高级接口`](./Markup高级接口.md)
+- 你要查 DSL 语法细节
+  -> 看 [`MarkupDSL语法参考`](./MarkupDSL语法参考.md)

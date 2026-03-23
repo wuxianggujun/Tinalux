@@ -27,7 +27,7 @@
 - [samples/markup 模板区](../samples/markup/README.md)  
   直接可抄的四种模板：单文件、目录扫描、单文件 scaffold、目录扫描 scaffold。
 - [Markup页面推荐写法](./Markup页面推荐写法.md)  
-  正常页面开发只看这一份，默认主路线是 `Page + ui + onClick(...)`。
+  正常页面开发的抄代码版，默认主路线是 `Page + ui + onClick(...)`。
 - [Markup高级接口](./Markup高级接口.md)  
   只在低层场景反查：`Handlers / slots::load / slots::actions / attachUi(...)`。
 - [MarkupDSL语法参考](./MarkupDSL语法参考.md)  
