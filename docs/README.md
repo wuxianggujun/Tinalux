@@ -25,7 +25,7 @@
 - [Markup一页式速查](./Markup一页式速查.md)  
   先看这一份，压缩成“普通页面开发真正需要记的内容”。
 - [samples/markup 模板区](../samples/markup/README.md)  
-  直接可抄的单文件 / 目录扫描模板，目标是少记概念，不是多学接口。
+  直接可抄的四种模板：单文件、目录扫描、单文件 scaffold、目录扫描 scaffold。
 - [Markup页面推荐写法](./Markup页面推荐写法.md)  
   正常页面开发只看这一份，默认主路线是 `Page + ui + onClick(...)`。
 - [Markup高级接口](./Markup高级接口.md)  

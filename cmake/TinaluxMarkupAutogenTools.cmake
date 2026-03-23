@@ -7,6 +7,14 @@ include(TinaluxMarkupScaffoldTools)
 # 正常页面开发真正常用的只有两个入口：
 # - tinalux_target_enable_markup_autogen(...)
 # - tinalux_add_markup_executable(...)
+#
+# 如果你只是想知道“平时怎么写页面”，先去看：
+# - `TinaluxMarkupTools.cmake`
+# - `samples/markup/README.md`
+#
+# 这个文件是那两个高层入口的实现，不是额外的一层用户 API。
+# 看到这里时如果已经被 `NAMESPACE / INDEX_HEADER / PAGE_SCAFFOLD_*` 绕晕，
+# 最好先退回模板区，按单文件 / 目录扫描 / scaffold 四种起手式选一个抄。
 
 function(tinalux_target_enable_markup_autogen)
     set(options PAGE_SCAFFOLD_ONLY_IF_MISSING)

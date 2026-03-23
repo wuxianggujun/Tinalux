@@ -58,7 +58,26 @@ tinalux_add_markup_executable(
 - 批量扫描用 `DIRECTORY`
 - 想省脑子就优先用 `tinalux_add_markup_executable(...)`
 
-## 3. C++ 只记这一种页面写法
+## 3. 真要开工时，只看这个选型图
+
+这四个名字不是四套 API，只是四种起手模板：
+
+```text
+我现在想怎么开工？
+├── 我想自己写页面类
+│   ├── 只有一个 .tui            -> samples/markup/single-file
+│   └── 有一整个 ui/ 目录        -> samples/markup/directory-scan
+└── 我想让生成器先起页面骨架
+    ├── 只有一个 .tui            -> samples/markup/scaffold-single-file
+    └── 有一整个 ui/ 目录        -> samples/markup/scaffold-directory-scan
+```
+
+你平时只需要先回答两个问题：
+
+- 你是想自己写页面类，还是让生成器先起骨架
+- 你面对的是单文件，还是目录扫描
+
+## 4. C++ 只记这一种页面写法
 
 普通页面开发，主路线就是：
 
@@ -113,7 +132,7 @@ public:
 - [`tests/markup/mental_model_scan_smoke.cpp`](../tests/markup/mental_model_scan_smoke.cpp)
 - [`tests/CMakeLists.txt`](../tests/CMakeLists.txt)
 
-## 4. 哪些东西大多数时候不用管
+## 5. 哪些东西大多数时候不用管
 
 下面这些概念，普通页面开发大多数时候可以先忽略：
 
@@ -130,7 +149,21 @@ public:
 - 目录扫描只有你想统一前缀时，才需要主动写 `NAMESPACE_PREFIX`
 - 真正需要手写命名空间，通常是防重名或工具链场景
 
-## 5. 什么时候才需要看高级接口
+把它理解成“生成代码放在哪个名字下面”就够了，例如：
+
+```text
+ui/login.tui                  -> login::Page
+ui/auth/login.tui             -> auth::login::Page
+ui/auth/login.tui + NAMESPACE_PREFIX app_ui
+                              -> app_ui::auth::login::Page
+```
+
+它的作用主要只有两个：
+
+- 防止不同页面重名
+- 给一批生成页面挂一个统一前缀
+
+## 6. 什么时候才需要看高级接口
 
 只有下面这些场景，才建议继续往低层看：
 
@@ -143,7 +176,7 @@ public:
 
 - [`Markup高级接口`](./Markup高级接口.md)
 
-## 6. 推荐阅读顺序
+## 7. 推荐阅读顺序
 
 如果你现在已经觉得信息很多，就按这个顺序看：
 

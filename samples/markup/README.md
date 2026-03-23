@@ -31,7 +31,21 @@
 - [`scaffold-directory-scan`](./scaffold-directory-scan)
   目录扫描 + 批量页面骨架，适合页面一多就想统一起手式的场景。
 
-## 3. 什么场景用哪种模板
+## 3. 四选一就够了
+
+```text
+我现在想怎么开工？
+├── 我想自己写页面类
+│   ├── 一个 .tui              -> single-file
+│   └── 一整个 ui/ 目录        -> directory-scan
+└── 我想让生成器先起页面骨架
+    ├── 一个 .tui              -> scaffold-single-file
+    └── 一整个 ui/ 目录        -> scaffold-directory-scan
+```
+
+这四个目录只是四种起手模板，不是四套独立调用机制。
+
+## 4. 什么场景用哪种模板
 
 - 页面很少，先跑通一个界面：抄 `single-file`
 - 已经开始按目录拆页面：抄 `directory-scan`
@@ -41,7 +55,27 @@
 
 只有你真的要防重名，或者要和现有工具链拼装，才需要再看这些低层参数。
 
-## 4. 如果你想在仓库里编译模板
+## 5. 命名空间到底是干嘛的
+
+大多数时候，它只是“生成代码的名字路径”。
+
+直接看例子就够了：
+
+```text
+ui/login.tui                  -> login::Page
+ui/auth/login.tui             -> auth::login::Page
+ui/auth/login.tui + NAMESPACE_PREFIX app_ui
+                              -> app_ui::auth::login::Page
+```
+
+所以自定义命名空间主要就干两件事：
+
+- 防重名
+- 给一批生成页挂统一前缀
+
+如果你只是普通业务页面，默认推导通常已经够用。
+
+## 6. 如果你想在仓库里编译模板
 
 先开启样板构建：
 
@@ -58,7 +92,7 @@ cmake --build cmake-build-debug --config Debug --target TinaluxMarkupScaffoldSin
 cmake --build cmake-build-debug --config Debug --target TinaluxMarkupScaffoldDirectoryScanSample
 ```
 
-## 5. 如果你还在纠结是不是过度封装
+## 7. 如果你还在纠结是不是过度封装
 
 可以用一个简单标准判断：
 
