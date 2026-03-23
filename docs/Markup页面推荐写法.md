@@ -82,7 +82,44 @@ page.ui.form.loginButton.onClick(this, &LoginPage::submitLogin);
 page.ui.toolbar.actions.clearButton.onClick(this, &LoginPage::clearQuery);
 ```
 
-## 4. 默认只记这一套
+## 4. 常用事件对象方法
+
+除了 `onClick(...)`、`onTextChanged(...)`，常见控件现在也可以直接在对象上绑事件：
+
+```cpp
+class SettingsPage {
+public:
+    generated_controls::Page page;
+    bool subscribed = false;
+    float volume = 0.0f;
+
+    explicit SettingsPage(const tinalux::ui::Theme& theme)
+        : page(theme, [&](auto& ui) {
+            ui.searchInput.onLeadingIconClick(this, &SettingsPage::openSearch);
+            ui.searchInput.onTrailingIconClick(this, &SettingsPage::clearKeyword);
+            ui.subscribeBox.onToggle(this, &SettingsPage::setSubscribed);
+            ui.syncToggle.onToggle(this, &SettingsPage::setSyncEnabled);
+            ui.volumeSlider.onValueChanged(this, &SettingsPage::setVolume);
+            ui.confirmDialog.onDismiss(this, &SettingsPage::closeDialog);
+        })
+    {
+    }
+
+    void openSearch();
+    void clearKeyword();
+    void setSubscribed(bool checked);
+    void setSyncEnabled(bool enabled);
+    void setVolume(float value);
+    void closeDialog();
+};
+```
+
+推荐记忆方式只有两句：
+
+- 构造页面时，用 `ui.xxx.onXxx(...)` 绑定事件
+- 页面构造完成后，用 `page.ui.xxx->...` 操作控件对象
+
+## 5. 默认只记这一套
 
 正常页面开发，优先只记这一套：
 

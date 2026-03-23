@@ -1,0 +1,32 @@
+VBox(id: root, 8) {
+    TextInput(
+        id: searchInput,
+        placeholder: "Search",
+        leadingIcon: Search,
+        trailingIcon: Clear,
+        onLeadingIconClick: ${model.onSearchIconClicked},
+        onTrailingIconClick: ${model.onClearIconClicked})
+    Checkbox(
+        id: subscribeBox,
+        label: "Subscribe",
+        checked: ${model.subscribe},
+        onToggle: ${model.onSubscribeChanged})
+    Toggle(
+        id: syncToggle,
+        label: "Sync",
+        on: ${model.syncEnabled},
+        onToggle: ${model.onSyncChanged})
+    Slider(
+        id: volumeSlider,
+        min: 0,
+        max: 10,
+        step: 0.5,
+        value: ${model.volume},
+        onValueChanged: ${model.onVolumeChanged})
+    Dialog(
+        id: confirmDialog,
+        title: "Confirm",
+        onDismiss: ${model.onConfirmDismissed}) {
+        Label(text: "Confirm body")
+    }
+}

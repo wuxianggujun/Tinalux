@@ -139,6 +139,16 @@ add_test(NAME TinaluxMarkupGeneratedBindingsGroupedSmoke COMMAND TinaluxMarkupGe
 set_property(GLOBAL APPEND PROPERTY TINALUX_SMOKE_TEST_TARGETS TinaluxMarkupGeneratedBindingsGroupedSmoke)
 
 tinalux_add_markup_executable(
+    TARGET TinaluxMarkupGeneratedBindingsControlsSmoke
+    SOURCE markup/generated_bindings_controls_smoke.cpp
+    INPUT markup/generated_bindings_controls_smoke.tui
+    NAMESPACE_PREFIX generated_controls
+    OUTPUT_HEADER generated_controls.markup.h
+)
+add_test(NAME TinaluxMarkupGeneratedBindingsControlsSmoke COMMAND TinaluxMarkupGeneratedBindingsControlsSmoke)
+set_property(GLOBAL APPEND PROPERTY TINALUX_SMOKE_TEST_TARGETS TinaluxMarkupGeneratedBindingsControlsSmoke)
+
+tinalux_add_markup_executable(
     TARGET TinaluxMarkupGeneratedBindingsScanSmoke
     SOURCE markup/generated_bindings_scan_smoke.cpp
     DIRECTORY markup/generated_bindings_scan
