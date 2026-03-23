@@ -76,6 +76,7 @@
   - workflow summary 还会输出本次桌面 smoke 的最慢测试 Top 列表和累计测试耗时
   - 会额外记录 `runner-fingerprint.json` 与 `cache-summary.json`，失败时随 artifact 一并保留
   - 会额外记录 `test-timings.json` 与 `test-timings-summary.md`，即使测试失败也尽量保留
+  - metadata 目录会作为独立 artifact 在成功和失败场景都上传，便于团队下载比对 cache / runner / timing 结果
   - 前置校验桌面 smoke 入口和 `android-scripts` 过滤契约
   - 失败时上传 `CTest` 日志，产物保留 `7` 天
   - 同时保留 `CMakeCache.txt`、`CMakeConfigureLog.yaml`、`build.ninja`、`.ninja_log`

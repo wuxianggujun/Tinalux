@@ -157,6 +157,16 @@ jobs:
             build-ci/CMakeFiles/tinalux_skia_Release_gn_signature.txt
           key: windows-skia-build-v1-${{ steps.skia-meta.outputs.revision }}-${{ hashFiles('cmake/SkiaConfig.cmake') }}
 
+      - name: Upload Windows Smoke Metadata
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-desktop-smoke-metadata
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            ci-artifacts/windows-desktop-smoke/metadata/**
+
       - name: Upload CTest Logs On Failure
         if: failure()
         uses: actions/upload-artifact@v4
