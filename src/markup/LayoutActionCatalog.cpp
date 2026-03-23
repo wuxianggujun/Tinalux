@@ -488,6 +488,36 @@ std::string makePascalCaseIdentifier(std::string_view value)
     return result;
 }
 
+std::string makeScaffoldWidgetAliasBaseName(std::string_view widgetId)
+{
+    const std::vector<std::string> segments = splitUiPathSegments(widgetId);
+    if (segments.empty()) {
+        return "widget";
+    }
+
+    std::string aliasName;
+    for (std::size_t index = 0; index < segments.size(); ++index) {
+        std::string segment = makePascalCaseIdentifier(segments[index]);
+        if (segment.empty()) {
+            continue;
+        }
+
+        if (index == 0) {
+            segment.front() = static_cast<char>(
+                std::tolower(static_cast<unsigned char>(segment.front())));
+        }
+        aliasName += segment;
+    }
+
+    if (aliasName.empty()) {
+        return "widget";
+    }
+    if (std::isdigit(static_cast<unsigned char>(aliasName.front()))) {
+        aliasName.insert(0, "widget");
+    }
+    return aliasName;
+}
+
 std::string scaffoldParameterName(const ActionSlotInfo& slot)
 {
     if (slot.genericPayload) {
@@ -1321,6 +1351,36 @@ std::string LayoutActionCatalog::emitPageScaffold(
         slotBySymbol.emplace(slot.symbolName, &slot);
     }
 
+    struct ScaffoldWidgetSpec {
+        const WidgetAccessInfo* widget = nullptr;
+        std::string uiExpr;
+        std::string aliasName;
+    };
+
+    std::vector<ScaffoldWidgetSpec> scaffoldWidgets;
+    scaffoldWidgets.reserve(catalog.widgets.size());
+    std::unordered_set<std::string> usedWidgetAliasNames;
+    for (const auto& widget : catalog.widgets) {
+        const auto uiExprIt = uiExprByWidgetId.find(widget.id);
+        if (uiExprIt == uiExprByWidgetId.end()) {
+            continue;
+        }
+
+        scaffoldWidgets.push_back(ScaffoldWidgetSpec {
+            .widget = &widget,
+            .uiExpr = uiExprIt->second,
+            .aliasName = makeUniqueSymbolName(
+                makeScaffoldWidgetAliasBaseName(widget.id),
+                usedWidgetAliasNames),
+        });
+    }
+
+    std::unordered_map<std::string, const WidgetAccessInfo*> widgetById;
+    widgetById.reserve(catalog.widgets.size());
+    for (const auto& widget : catalog.widgets) {
+        widgetById.emplace(widget.id, &widget);
+    }
+
     const bool needsSetup = !catalog.widgets.empty();
 
     out << "class " << className << " {\n";
@@ -1353,8 +1413,32 @@ std::string LayoutActionCatalog::emitPageScaffold(
         out << "    template <typename Ui>\n";
         out << "    void initUi(Ui& ui)\n";
         out << "    {\n";
-        out << "        (void)ui;\n";
-        out << "        // TODO: initialize widget state here.\n";
+        if (scaffoldWidgets.empty()) {
+            out << "        (void)ui;\n";
+            out << "        // TODO: initialize widget state here.\n";
+        } else {
+            out << "        // Qt-style local aliases for direct widget access.\n";
+            std::string currentWidgetType;
+            for (const auto& widget : scaffoldWidgets) {
+                const std::string widgetType = widget.widget != nullptr
+                    && !widget.widget->markupTypeName.empty()
+                    ? widget.widget->markupTypeName
+                    : "Widget";
+                if (widgetType != currentWidgetType) {
+                    if (!currentWidgetType.empty()) {
+                        out << "\n";
+                    }
+                    currentWidgetType = widgetType;
+                    out << "        // " << currentWidgetType << "\n";
+                }
+                out << "        [[maybe_unused]] auto& " << widget.aliasName << " = "
+                    << widget.uiExpr << ";\n";
+            }
+            out << "\n";
+            out << "        // TODO: initialize widget state here.\n";
+            out << "        // Example:\n";
+            out << "        // " << scaffoldWidgets.front().aliasName << "->...;\n";
+        }
         out << "    }\n\n";
 
         out << "    template <typename Ui>\n";
@@ -1364,13 +1448,27 @@ std::string LayoutActionCatalog::emitPageScaffold(
             out << "        (void)ui;\n";
             out << "        // TODO: bind widget events here.\n";
         }
+        std::string currentWidgetType;
         for (const auto& event : catalog.widgetEvents) {
             const auto uiExprIt = uiExprByWidgetId.find(event.widgetId);
             const auto slotIt = slotBySymbol.find(event.slotSymbolName);
+            const auto widgetIt = widgetById.find(event.widgetId);
             if (uiExprIt == uiExprByWidgetId.end()
+                || widgetIt == widgetById.end()
                 || slotIt == slotBySymbol.end()
                 || slotIt->second == nullptr) {
                 continue;
+            }
+
+            const std::string widgetType = !widgetIt->second->markupTypeName.empty()
+                ? widgetIt->second->markupTypeName
+                : "Widget";
+            if (widgetType != currentWidgetType) {
+                if (!currentWidgetType.empty()) {
+                    out << "\n";
+                }
+                currentWidgetType = widgetType;
+                out << "        // " << currentWidgetType << "\n";
             }
 
             const ActionSlotInfo& slot = *slotIt->second;

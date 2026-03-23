@@ -313,8 +313,16 @@ VBox {
             "page scaffold should split generated setup into initUi and bindUi sections");
         expect(
             scaffold.find("void initUi(Ui& ui)") != std::string::npos
-                && scaffold.find("// TODO: initialize widget state here.") != std::string::npos,
-            "page scaffold should emit an initialization section for direct widget setup");
+                && scaffold.find("// Qt-style local aliases for direct widget access.")
+                    != std::string::npos
+                && scaffold.find("[[maybe_unused]] auto& applyButton = ui.applyButton;")
+                    != std::string::npos
+                && scaffold.find("[[maybe_unused]] auto& profileDialog = ui.profileDialog;")
+                    != std::string::npos
+                && scaffold.find("// Button") != std::string::npos
+                && scaffold.find("// Dialog") != std::string::npos
+                && scaffold.find("// Example:") != std::string::npos,
+            "page scaffold should emit grouped Qt-style aliases inside the initialization section");
         expect(
             scaffold.find("ui.applyButton.onClick([this] {")
                 != std::string::npos,
@@ -331,6 +339,7 @@ VBox {
         expect(
             scaffold.find("template <typename Ui>") != std::string::npos
                 && scaffold.find("void bindUi(Ui& ui)") != std::string::npos
+                && scaffold.find("// Slider") != std::string::npos
                 && scaffold.find("// TODO: handle event here.") != std::string::npos
                 && scaffold.find("(void)value;") != std::string::npos,
             "page scaffold should emit an inline bindUi section with TODO lambdas");
@@ -403,8 +412,14 @@ VBox {
             "page scaffold should preserve nested ui groups in inline generated bindings");
         expect(
             groupedScaffold.find("void initUi(Ui& ui)") != std::string::npos
-                && groupedScaffold.find("void bindUi(Ui& ui)") != std::string::npos,
-            "grouped page scaffold should keep separate initUi and bindUi sections");
+                && groupedScaffold.find("void bindUi(Ui& ui)") != std::string::npos
+                && groupedScaffold.find(
+                    "[[maybe_unused]] auto& formQueryInput = ui.form.queryInput;")
+                    != std::string::npos
+                && groupedScaffold.find(
+                    "[[maybe_unused]] auto& toolbarActionsClearButton = ui.toolbar.actions.clearButton;")
+                    != std::string::npos,
+            "grouped page scaffold should keep separate initUi and bindUi sections with direct aliases");
     }
 
     {
