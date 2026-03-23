@@ -872,6 +872,12 @@ std::string LayoutActionCatalog::emitHeader(
         out << "#include \"" << widget.cppHeader << "\"\n";
     }
     out << "\n";
+    out << "// Generated markup bindings for the Page + ui.xxx main path.\n";
+    out << "// Normal page development should start from:\n";
+    out << "// 1. docs/Markup一页式速查.md\n";
+    out << "// 2. samples/markup/README.md\n";
+    out << "// 3. docs/Markup页面推荐写法.md\n";
+    out << "// Low-level helpers below are for specific scenarios, not the default starting point.\n\n";
 
     std::unordered_map<std::string, std::string> slotSignatureBySymbol;
     slotSignatureBySymbol.reserve(catalog.slots.size());

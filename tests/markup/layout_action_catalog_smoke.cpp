@@ -121,6 +121,14 @@ VBox {
             header.find("#include \"tinalux/markup/LayoutLoader.h\"") != std::string::npos,
             "generated header should include layout handle support");
         expect(
+            header.find("// Generated markup bindings for the Page + ui.xxx main path.")
+                    != std::string::npos
+                && header.find("// 2. samples/markup/README.md") != std::string::npos
+                && header.find(
+                       "// Low-level helpers below are for specific scenarios, not the default starting point.")
+                    != std::string::npos,
+            "generated header should include top-level guidance that points readers back to the copy-first main path");
+        expect(
             header.find("#include \"tinalux/ui/Button.h\"") != std::string::npos,
             "generated header should include typed widget headers");
         expect(
