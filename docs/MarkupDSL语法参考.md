@@ -311,8 +311,8 @@ tinalux_add_markup_executable(
 这条 helper 会复用当前 target 的单文件 markup autogen 配置，生成的骨架默认就是：
 
 - 持有 `Page`
-- 在一个 `setupUi(ui)` 里通过 `ui.xxx.onXxx(...)` 直接绑事件
-- 事件默认用内联 lambda 占位，避免先拆出一堆空成员方法
+- 固定分成 `initUi(ui)` 和 `bindUi(ui)` 两段
+- 在 `bindUi(ui)` 里通过 `ui.xxx.onXxx(...)` 直接绑事件，默认用内联 lambda 占位
 
 更适合“先起页面，再自己继续写”，而不是把业务逻辑长期放在生成文件里。
 

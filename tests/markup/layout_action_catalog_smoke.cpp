@@ -308,6 +308,14 @@ VBox {
             scaffold.find("setupUi(ui);") != std::string::npos,
             "page scaffold should centralize generated bindings inside a single setupUi helper");
         expect(
+            scaffold.find("initUi(ui);") != std::string::npos
+                && scaffold.find("bindUi(ui);") != std::string::npos,
+            "page scaffold should split generated setup into initUi and bindUi sections");
+        expect(
+            scaffold.find("void initUi(Ui& ui)") != std::string::npos
+                && scaffold.find("// TODO: initialize widget state here.") != std::string::npos,
+            "page scaffold should emit an initialization section for direct widget setup");
+        expect(
             scaffold.find("ui.applyButton.onClick([this] {")
                 != std::string::npos,
             "page scaffold should bind button events inline on the generated ui object");
@@ -322,10 +330,10 @@ VBox {
             "page scaffold should bind payload events inline with typed parameters");
         expect(
             scaffold.find("template <typename Ui>") != std::string::npos
-                && scaffold.find("void setupUi(Ui& ui)") != std::string::npos
+                && scaffold.find("void bindUi(Ui& ui)") != std::string::npos
                 && scaffold.find("// TODO: handle event here.") != std::string::npos
                 && scaffold.find("(void)value;") != std::string::npos,
-            "page scaffold should emit a single setupUi helper with inline TODO lambdas");
+            "page scaffold should emit an inline bindUi section with TODO lambdas");
         expect(
             scaffold.find("onSharedSliderValueChanged") == std::string::npos,
             "page scaffold should no longer explode into one empty handler method per event");
@@ -393,6 +401,10 @@ VBox {
                 "ui.toolbar.actions.clearButton.onClick([this] {")
                 != std::string::npos,
             "page scaffold should preserve nested ui groups in inline generated bindings");
+        expect(
+            groupedScaffold.find("void initUi(Ui& ui)") != std::string::npos
+                && groupedScaffold.find("void bindUi(Ui& ui)") != std::string::npos,
+            "grouped page scaffold should keep separate initUi and bindUi sections");
     }
 
     {

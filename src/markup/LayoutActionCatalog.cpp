@@ -1321,9 +1321,11 @@ std::string LayoutActionCatalog::emitPageScaffold(
         slotBySymbol.emplace(slot.symbolName, &slot);
     }
 
+    const bool needsSetup = !catalog.widgets.empty();
+
     out << "class " << className << " {\n";
     out << "public:\n";
-    if (catalog.widgetEvents.empty()) {
+    if (!needsSetup) {
         out << "    explicit " << className << "(const ::tinalux::ui::Theme& theme)\n";
         out << "        : page(theme)\n";
         out << "    {\n";
@@ -1339,11 +1341,29 @@ std::string LayoutActionCatalog::emitPageScaffold(
 
     out << "    " << pageType << " page {};\n";
 
-    if (!catalog.widgetEvents.empty()) {
+    if (needsSetup) {
         out << "\nprivate:\n";
         out << "    template <typename Ui>\n";
         out << "    void setupUi(Ui& ui)\n";
         out << "    {\n";
+        out << "        initUi(ui);\n";
+        out << "        bindUi(ui);\n";
+        out << "    }\n\n";
+
+        out << "    template <typename Ui>\n";
+        out << "    void initUi(Ui& ui)\n";
+        out << "    {\n";
+        out << "        (void)ui;\n";
+        out << "        // TODO: initialize widget state here.\n";
+        out << "    }\n\n";
+
+        out << "    template <typename Ui>\n";
+        out << "    void bindUi(Ui& ui)\n";
+        out << "    {\n";
+        if (catalog.widgetEvents.empty()) {
+            out << "        (void)ui;\n";
+            out << "        // TODO: bind widget events here.\n";
+        }
         for (const auto& event : catalog.widgetEvents) {
             const auto uiExprIt = uiExprByWidgetId.find(event.widgetId);
             const auto slotIt = slotBySymbol.find(event.slotSymbolName);
