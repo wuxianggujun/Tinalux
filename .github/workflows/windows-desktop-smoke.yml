@@ -116,5 +116,9 @@ jobs:
           retention-days: 7
           path: |
             build-ci/Testing/**
+            build-ci/CMakeCache.txt
+            build-ci/build.ninja
+            build-ci/.ninja_log
             build-ci/CMakeFiles/CMakeOutput.log
             build-ci/CMakeFiles/CMakeError.log
+            build-ci/CMakeFiles/CMakeConfigureLog.yaml

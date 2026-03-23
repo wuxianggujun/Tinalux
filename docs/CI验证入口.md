@@ -62,6 +62,7 @@
   - 缓存 `3rdparty/skia`
   - 缓存 `build-ci/skia` Debug 构建产物
   - 失败时上传 `CTest` 日志，产物保留 `7` 天
+  - 同时保留 `CMakeCache.txt`、`CMakeConfigureLog.yaml`、`build.ninja`、`.ninja_log`
   - 仅 `syncSkia.bat` 变更会触发该链路，避免 `syncSkia.sh` 的无效触发
 - 适合查看的场景：
   - 核心 C++ 源码改动
