@@ -136,6 +136,17 @@ jobs:
         shell: pwsh
         run: ./scripts/runSmokeTests.ps1 -BuildDir build-ci -Config Debug
 
+      - name: Capture Windows Smoke Test Timings
+        if: ${{ always() }}
+        shell: pwsh
+        env:
+          TINALUX_CI_METADATA_ROOT: ${{ github.workspace }}/ci-artifacts/windows-desktop-smoke/metadata
+        run: >
+          ./tests/scripts/windows_desktop_smoke_test_timings.ps1
+          -BuildDir build-ci
+          -OutputRoot $env:TINALUX_CI_METADATA_ROOT
+          -MaxTests 10
+
       - name: Save Skia Build Cache
         if: ${{ success() && steps.skia-meta.outputs.revision != '' && steps.restore-skia-build-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4

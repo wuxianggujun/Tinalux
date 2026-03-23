@@ -73,7 +73,9 @@
   - build cache 允许按同一 `Skia revision` 前缀回退 restore，减小配置哈希变更时的冷启动成本
   - `cmake/SkiaConfig.cmake` 的签名文件现在只在内容变化时改写，避免每次 configure 都重复触发 `gn gen`
   - workflow summary 会输出 source/build cache 命中状态、matched key 和 save 策略摘要
+  - workflow summary 还会输出本次桌面 smoke 的最慢测试 Top 列表和累计测试耗时
   - 会额外记录 `runner-fingerprint.json` 与 `cache-summary.json`，失败时随 artifact 一并保留
+  - 会额外记录 `test-timings.json` 与 `test-timings-summary.md`，即使测试失败也尽量保留
   - 前置校验桌面 smoke 入口和 `android-scripts` 过滤契约
   - 失败时上传 `CTest` 日志，产物保留 `7` 天
   - 同时保留 `CMakeCache.txt`、`CMakeConfigureLog.yaml`、`build.ninja`、`.ninja_log`
