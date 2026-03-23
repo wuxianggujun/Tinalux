@@ -58,6 +58,8 @@ Publishing:
   - `artifactId = tinalux-android-sdk`
   - `version = 0.1.0-SNAPSHOT`
 
-Current limitation:
+Current tradeoffs:
 
-- native library production is still external to Gradle
+- native library auto-build/staging is opt-in via `-Ptinalux.autoBuildNative=true`
+- the default path still assumes staged native artifacts are prepared explicitly
+- this repository still does not commit a Gradle wrapper for Android workflows

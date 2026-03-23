@@ -41,14 +41,14 @@ SDK module:
 
 Suggested integration steps:
 
-1. Copy the Kotlin sources into an Android app module.
-2. Package `libtinalux_native.so` with your APK.
-3. Create a screen that hosts `TinaluxSurfaceView`.
+1. Depend on `:tinalux-sdk` or a published `tinalux-android-sdk` artifact.
+2. Stage `libtinalux_native.so` into the SDK module, or opt into auto-build from Gradle.
+3. Create a screen that hosts `TinaluxSurfaceView`, or subclass `TinaluxActivity`.
 4. Replace the demo-scene installation with your real UI bootstrap.
 
 Current limitations:
 
 - Multi-touch is collapsed to a single primary pointer
 - `EditorInfo` is still a generic text configuration, not widget-specific
-- No pause/resume GPU resource recovery yet
-- No Vulkan Android surface path yet
+- Pause/resume and surface reattach are wired in the host layer, but still need broader device validation
+- Vulkan host selection is wired through `TinaluxVulkanValidationActivity`, but still needs broader device validation
