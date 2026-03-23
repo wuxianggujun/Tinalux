@@ -26,11 +26,17 @@
   最小单文件入口，适合一个 `.tui` 就够的页面。
 - [`directory-scan`](./directory-scan)
   按目录批量扫描，适合 `auth/login.tui`、`settings/profile.tui` 这种分层结构。
+- [`scaffold-single-file`](./scaffold-single-file)
+  让生成器顺手起一个页面类骨架，适合你不想手写 `Page` 外壳时直接开工。
+- [`scaffold-directory-scan`](./scaffold-directory-scan)
+  目录扫描 + 批量页面骨架，适合页面一多就想统一起手式的场景。
 
 ## 3. 什么场景用哪种模板
 
 - 页面很少，先跑通一个界面：抄 `single-file`
 - 已经开始按目录拆页面：抄 `directory-scan`
+- 你想让生成器把页面类起手式也一起写出来：抄 `scaffold-single-file`
+- 你已经在按目录拆页面，还想顺手生成一批页面类：抄 `scaffold-directory-scan`
 - 只是普通业务页面：不用先碰 `NAMESPACE` / `NAMESPACE_PREFIX`
 
 只有你真的要防重名，或者要和现有工具链拼装，才需要再看这些低层参数。
@@ -48,6 +54,8 @@ cmake -S . -B cmake-build-debug -DTINALUX_BUILD_SAMPLES=ON
 ```powershell
 cmake --build cmake-build-debug --config Debug --target TinaluxMarkupSingleFileSample
 cmake --build cmake-build-debug --config Debug --target TinaluxMarkupDirectoryScanSample
+cmake --build cmake-build-debug --config Debug --target TinaluxMarkupScaffoldSingleFileSample
+cmake --build cmake-build-debug --config Debug --target TinaluxMarkupScaffoldDirectoryScanSample
 ```
 
 ## 5. 如果你还在纠结是不是过度封装
@@ -58,3 +66,9 @@ cmake --build cmake-build-debug --config Debug --target TinaluxMarkupDirectorySc
 - 如果你被迫先学 `Handlers / slots::actions / 一堆 helper` 才能开工，那才叫心智负担过重
 
 当前仓库的推荐主路线就是前者。
+
+如果你选的是 scaffold 模板，也还是同一个思路：
+
+- 生成器只是在帮你先写好页面类外壳
+- 生成出来的骨架内部仍然是 `setupUi(ui)` -> `initUi(ui)` + `bindUi(ui)`
+- 你后面继续维护时，核心仍然是直接看 `ui.xxx` 和 `page.ui.xxx`

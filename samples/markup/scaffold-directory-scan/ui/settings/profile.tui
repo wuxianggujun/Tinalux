@@ -1,0 +1,8 @@
+VBox {
+    Button(id: saveButton, text: "Save", onClick: ${model.onSaveClicked})
+    Dropdown(
+        id: choiceDropdown,
+        placeholder: "Pick",
+        selectedIndex: ${model.selectedIndex},
+        onSelectionChanged: ${model.onChoiceChanged})
+}

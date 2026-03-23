@@ -104,6 +104,8 @@ public:
 - [`samples/markup/README.md`](../samples/markup/README.md)
 - [`samples/markup/single-file/src/main.cpp`](../samples/markup/single-file/src/main.cpp)
 - [`samples/markup/directory-scan/src/main.cpp`](../samples/markup/directory-scan/src/main.cpp)
+- [`samples/markup/scaffold-single-file/src/main.cpp`](../samples/markup/scaffold-single-file/src/main.cpp)
+- [`samples/markup/scaffold-directory-scan/src/main.cpp`](../samples/markup/scaffold-directory-scan/src/main.cpp)
 
 如果你想看已经挂到 smoke 里的受测版本，再看：
 

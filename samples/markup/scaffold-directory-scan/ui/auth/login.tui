@@ -1,0 +1,4 @@
+VBox {
+    Button(id: loginButton, text: "Login", onClick: ${model.onLoginClicked})
+    TextInput(id: queryInput, text: ${model.query}, onTextChanged: ${model.onQueryChanged})
+}

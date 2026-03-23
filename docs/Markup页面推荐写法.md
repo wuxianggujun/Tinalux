@@ -108,6 +108,11 @@ tinalux_add_markup_executable(
 - `bindUi(ui)` 里也会先生成同样的本地别名，再用别名直接绑事件
 - `PAGE_SCAFFOLD_ONLY_IF_MISSING` 打开后，文件已经存在就不会覆盖你的手改内容
 
+仓库里可以直接对照的样板：
+
+- [`samples/markup/scaffold-single-file`](../samples/markup/scaffold-single-file)
+- [`samples/markup/scaffold-directory-scan`](../samples/markup/scaffold-directory-scan)
+
 如果你挂的是目录扫描模式，也一样优先写在同一个入口里：
 
 ```cmake
