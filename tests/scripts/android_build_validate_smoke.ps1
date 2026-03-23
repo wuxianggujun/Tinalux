@@ -5,30 +5,15 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function New-TempDirectory {
-    param([string]$Prefix)
-
-    $parentRoot = if (-not [string]::IsNullOrWhiteSpace($env:TINALUX_TEST_TEMP_PARENT)) {
-        New-Item -ItemType Directory -Force -Path $env:TINALUX_TEST_TEMP_PARENT | Out-Null
-        [System.IO.Path]::GetFullPath($env:TINALUX_TEST_TEMP_PARENT)
-    } else {
-        [System.IO.Path]::GetTempPath()
-    }
-
-    $path = Join-Path $parentRoot ($Prefix + [System.Guid]::NewGuid().ToString("N"))
-    New-Item -ItemType Directory -Force -Path $path | Out-Null
-    return $path
-}
-
-function New-FakeSdkModule {
-    param([string]$SdkModuleRoot)
-
-    New-Item -ItemType Directory -Force -Path (Join-Path $SdkModuleRoot "src/main") | Out-Null
-    Set-Content -Path (Join-Path $SdkModuleRoot "build.gradle.kts") -Value "plugins {}"
-    Set-Content -Path (Join-Path $SdkModuleRoot "src/main/AndroidManifest.xml") -Value "<manifest package=`"com.tinalux.runtime.test`" />"
-}
-
 $repoRootPath = [System.IO.Path]::GetFullPath((Resolve-Path $RepoRoot).Path)
+$helperScript = Join-Path $repoRootPath "tests/scripts/android_smoke_test_helpers.ps1"
+if (-not (Test-Path $helperScript)) {
+    throw "Android smoke helper script not found: $helperScript"
+}
+. $helperScript
+
+Assert-RepoSdkModuleContract -RepoRootPath $repoRootPath
+
 $buildScript = Join-Path $repoRootPath "scripts/build_android_native.ps1"
 if (-not (Test-Path $buildScript)) {
     throw "Build script not found: $buildScript"
@@ -43,7 +28,7 @@ try {
     Set-Content -Path (Join-Path $toolchainDir "android.toolchain.cmake") -Value "# fake toolchain"
 
     $sdkModuleRoot = Join-Path $tempRoot "android/tinalux-sdk"
-    New-FakeSdkModule $sdkModuleRoot
+    Copy-RepoSdkModuleContractSnapshot -RepoRootPath $repoRootPath -SdkModuleRoot $sdkModuleRoot
 
     $artifactRoot = Join-Path $tempRoot "artifacts"
     New-Item -ItemType Directory -Force -Path $artifactRoot | Out-Null

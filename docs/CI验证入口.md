@@ -77,9 +77,14 @@
   - `.github/workflows/android-build-scripts-smoke.yml`
   - `scripts/build_android_native.ps1`
   - `scripts/stage_android_validation_artifacts.ps1`
+  - `tests/scripts/android_smoke_test_helpers.ps1`
   - `tests/scripts/android_stage_script_smoke.ps1`
   - `tests/scripts/android_build_validate_smoke.ps1`
-  - `android/tinalux-sdk/**`
+  - `android/tinalux-sdk/build.gradle.kts`
+  - `android/tinalux-sdk/src/main/AndroidManifest.xml`
+- 当前说明：
+  - 该链路校验 PowerShell 脚本和已提交的 SDK 模块 staging 约定
+  - 当前不覆盖 `android/host/**` 和 `android/validation-app/**` 的 Gradle / 运行时行为
 - 运行内容：
   - `./tests/scripts/android_stage_script_smoke.ps1 -RepoRoot .`
   - `./tests/scripts/android_build_validate_smoke.ps1 -RepoRoot .`
@@ -88,7 +93,7 @@
   - 上传 `ci-artifacts/android-build-scripts-smoke/**`，产物保留 `7` 天
 - 适合查看的场景：
   - Android 打包脚本改动
-  - SDK staging 改动
+  - SDK module staging 约定改动
   - validate-only 流程改动
 
 ## 手动触发建议

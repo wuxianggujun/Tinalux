@@ -1,0 +1,75 @@
+function New-TempDirectory {
+    param([string]$Prefix)
+
+    $parentRoot = if (-not [string]::IsNullOrWhiteSpace($env:TINALUX_TEST_TEMP_PARENT)) {
+        New-Item -ItemType Directory -Force -Path $env:TINALUX_TEST_TEMP_PARENT | Out-Null
+        [System.IO.Path]::GetFullPath($env:TINALUX_TEST_TEMP_PARENT)
+    } else {
+        [System.IO.Path]::GetTempPath()
+    }
+
+    $path = Join-Path $parentRoot ($Prefix + [System.Guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Force -Path $path | Out-Null
+    return $path
+}
+
+function Assert-RepoSdkModuleContract {
+    param([string]$RepoRootPath)
+
+    $sdkModuleRoot = Join-Path $RepoRootPath "android/tinalux-sdk"
+    $buildFile = Join-Path $sdkModuleRoot "build.gradle.kts"
+    $manifestFile = Join-Path $sdkModuleRoot "src/main/AndroidManifest.xml"
+
+    foreach ($requiredPath in @($buildFile, $manifestFile)) {
+        if (-not (Test-Path $requiredPath)) {
+            throw "Expected Android SDK module contract file was not found: $requiredPath"
+        }
+    }
+
+    $buildFileContent = Get-Content -Path $buildFile -Raw
+    $expectedPatterns = @(
+        @{
+            Pattern = 'manifest\.srcFile\("src/main/AndroidManifest\.xml"\)'
+            Description = 'main manifest source path'
+        },
+        @{
+            Pattern = 'jniLibs\.srcDirs\("src/main/jniLibs"\)'
+            Description = 'jniLib staging path'
+        },
+        @{
+            Pattern = 'assets\.srcDirs\("src/main/assets"\)'
+            Description = 'runtime asset staging path'
+        }
+    )
+
+    foreach ($expectedPattern in $expectedPatterns) {
+        if ($buildFileContent -notmatch $expectedPattern.Pattern) {
+            throw ("Android SDK module contract drifted. Missing {0} declaration in {1}" -f $expectedPattern.Description, $buildFile)
+        }
+    }
+}
+
+function Copy-RepoSdkModuleContractSnapshot {
+    param(
+        [string]$RepoRootPath,
+        [string]$SdkModuleRoot
+    )
+
+    $sourceSdkModuleRoot = Join-Path $RepoRootPath "android/tinalux-sdk"
+    $filesToCopy = @(
+        "build.gradle.kts",
+        "src/main/AndroidManifest.xml"
+    )
+
+    foreach ($relativePath in $filesToCopy) {
+        $sourcePath = Join-Path $sourceSdkModuleRoot $relativePath
+        if (-not (Test-Path $sourcePath)) {
+            throw "SDK module snapshot source file not found: $sourcePath"
+        }
+
+        $destinationPath = Join-Path $SdkModuleRoot $relativePath
+        $destinationDirectory = Split-Path -Parent $destinationPath
+        New-Item -ItemType Directory -Force -Path $destinationDirectory | Out-Null
+        Copy-Item -Force $sourcePath $destinationPath
+    }
+}
