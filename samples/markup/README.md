@@ -6,6 +6,20 @@
 
 **让你少记东西，直接照着抄。**
 
+## 0. 想最快确认主路线，先跑这个
+
+如果你现在不想先比较模板，想先确认仓库里的推荐主路线没偏，直接跑：
+
+```powershell
+cmake -S . -B cmake-build-debug -DTINALUX_BUILD_SAMPLES=ON
+cmake --build cmake-build-debug --config Debug --target TinaluxRunMarkupMentalModelExamples
+```
+
+这会直接构建并运行两份“官方最小基准示例”：
+
+- [`tests/markup/mental_model_smoke.cpp`](../tests/markup/mental_model_smoke.cpp)
+- [`tests/markup/mental_model_scan_smoke.cpp`](../tests/markup/mental_model_scan_smoke.cpp)
+
 ## 1. 先记住这件事
 
 `namespace` 不是额外调用层，只是生成代码的组织方式。
@@ -92,16 +106,8 @@ cmake --build cmake-build-debug --config Debug --target TinaluxMarkupScaffoldSin
 cmake --build cmake-build-debug --config Debug --target TinaluxMarkupScaffoldDirectoryScanSample
 ```
 
-如果你想看仓库里持续回归的“官方最小基准示例”，直接跑：
-
-```powershell
-cmake --build cmake-build-debug --config Debug --target TinaluxRunMarkupMentalModelExamples
-```
-
-对应源码就是：
-
-- [`tests/markup/mental_model_smoke.cpp`](../tests/markup/mental_model_smoke.cpp)
-- [`tests/markup/mental_model_scan_smoke.cpp`](../tests/markup/mental_model_scan_smoke.cpp)
+上面那条 `TinaluxRunMarkupMentalModelExamples` 命令，
+跑的就是这两份持续回归的最小基准示例。
 
 ## 7. 如果你还在纠结是不是过度封装
 
