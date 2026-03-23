@@ -48,6 +48,10 @@
   - `syncSkia.bat`
   - `syncSkia.sh`
   - `main.cpp`
+- 当前排除：
+  - `tests/scripts/android_stage_script_smoke.ps1`
+  - `tests/scripts/android_build_validate_smoke.ps1`
+  - 这两类变更改由 `android-build-scripts-smoke` 单独兜底
 - 运行内容：
   - `syncSkia.bat`
   - `cmake -S . -B build-ci -G Ninja -DCMAKE_BUILD_TYPE=Debug`
