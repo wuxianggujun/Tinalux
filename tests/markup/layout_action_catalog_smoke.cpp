@@ -305,6 +305,14 @@ VBox {
             scaffold.find("demo::Page page {}") != std::string::npos,
             "page scaffold should hold the generated facade page directly");
         expect(
+            scaffold.find("// Generated page scaffold for the markup Page + ui.xxx main path.")
+                    != std::string::npos
+                && scaffold.find("// 2. samples/markup/README.md") != std::string::npos
+                && scaffold.find(
+                       "// Low-level helpers like Handlers / slots::load / slots::actions are not the default starting point.")
+                    != std::string::npos,
+            "page scaffold should include top-level guidance that points readers back to the copy-first main path");
+        expect(
             scaffold.find("setupUi(ui);") != std::string::npos,
             "page scaffold should centralize generated bindings inside a single setupUi helper");
         expect(

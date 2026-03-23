@@ -1448,6 +1448,13 @@ std::string LayoutActionCatalog::emitPageScaffold(
 
     const bool needsSetup = !catalog.widgets.empty();
 
+    out << "// Generated page scaffold for the markup Page + ui.xxx main path.\n";
+    out << "// Normal page development should start from:\n";
+    out << "// 1. docs/Markup一页式速查.md\n";
+    out << "// 2. samples/markup/README.md\n";
+    out << "// 3. docs/Markup页面推荐写法.md\n";
+    out << "// Low-level helpers like Handlers / slots::load / slots::actions are not the default starting point.\n\n";
+
     out << "class " << className << " {\n";
     out << "public:\n";
     if (!needsSetup) {
