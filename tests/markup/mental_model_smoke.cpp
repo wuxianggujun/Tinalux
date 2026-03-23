@@ -8,6 +8,8 @@
 
 namespace {
 
+// 仓库里持续回归的最小心智模型基准。
+// 普通页面开发先看 samples/markup，想看受测版主路线就看这里。
 void expect(bool condition, const char* message)
 {
     if (!condition) {

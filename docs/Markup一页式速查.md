@@ -132,6 +132,12 @@ public:
 - [`tests/markup/mental_model_scan_smoke.cpp`](../tests/markup/mental_model_scan_smoke.cpp)
 - [`tests/CMakeLists.txt`](../tests/CMakeLists.txt)
 
+如果你想直接跑仓库里持续回归的最小基准，也可以用：
+
+```powershell
+cmake --build cmake-build-debug --config Debug --target TinaluxRunMarkupMentalModelExamples
+```
+
 ## 5. 哪些东西大多数时候不用管
 
 下面这些概念，普通页面开发大多数时候可以先忽略：

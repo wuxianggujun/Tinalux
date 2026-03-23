@@ -143,6 +143,10 @@ tinalux_add_markup_executable(
 )
 add_test(NAME TinaluxMarkupMentalModelScanSmoke COMMAND TinaluxMarkupMentalModelScanSmoke)
 set_property(GLOBAL APPEND PROPERTY TINALUX_SMOKE_TEST_TARGETS TinaluxMarkupMentalModelScanSmoke)
+set_tests_properties(
+    TinaluxMarkupMentalModelSmoke
+    TinaluxMarkupMentalModelScanSmoke
+    PROPERTIES LABELS "markup;markup-mental-model")
 
 tinalux_add_markup_executable(
     TARGET TinaluxMarkupGeneratedPageScaffoldSmoke
@@ -502,6 +506,12 @@ endif()
 get_property(TINALUX_SMOKE_TEST_TARGETS GLOBAL PROPERTY TINALUX_SMOKE_TEST_TARGETS)
 
 if(TINALUX_SMOKE_TEST_TARGETS)
+    add_custom_target(TinaluxBuildMarkupMentalModelExamples
+        DEPENDS
+            TinaluxMarkupMentalModelSmoke
+            TinaluxMarkupMentalModelScanSmoke
+    )
+
     add_custom_target(TinaluxBuildSmokeTests
         DEPENDS
             ${TINALUX_SMOKE_TEST_TARGETS}
@@ -513,6 +523,15 @@ if(TINALUX_SMOKE_TEST_TARGETS)
     elseif(CMAKE_BUILD_TYPE)
         list(APPEND _tinalux_ctest_config_args -C ${CMAKE_BUILD_TYPE})
     endif()
+
+    add_custom_target(TinaluxRunMarkupMentalModelExamples
+        COMMAND "${CMAKE_CTEST_COMMAND}" --output-on-failure --timeout 60 -L markup-mental-model ${_tinalux_ctest_config_args}
+        WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+        DEPENDS
+            TinaluxBuildMarkupMentalModelExamples
+        USES_TERMINAL
+        COMMAND_EXPAND_LISTS
+    )
 
     add_custom_target(TinaluxRunSmokeTests
         COMMAND "${CMAKE_CTEST_COMMAND}" --output-on-failure --timeout 60 ${_tinalux_ctest_config_args}

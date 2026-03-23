@@ -92,6 +92,17 @@ cmake --build cmake-build-debug --config Debug --target TinaluxMarkupScaffoldSin
 cmake --build cmake-build-debug --config Debug --target TinaluxMarkupScaffoldDirectoryScanSample
 ```
 
+如果你想看仓库里持续回归的“官方最小基准示例”，直接跑：
+
+```powershell
+cmake --build cmake-build-debug --config Debug --target TinaluxRunMarkupMentalModelExamples
+```
+
+对应源码就是：
+
+- [`tests/markup/mental_model_smoke.cpp`](../tests/markup/mental_model_smoke.cpp)
+- [`tests/markup/mental_model_scan_smoke.cpp`](../tests/markup/mental_model_scan_smoke.cpp)
+
 ## 7. 如果你还在纠结是不是过度封装
 
 可以用一个简单标准判断：
