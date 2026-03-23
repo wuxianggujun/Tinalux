@@ -18,6 +18,17 @@ cmake --build cmake-build-debug --config Debug --target TinaluxRunMarkupMentalMo
 - [`tests/markup/mental_model_smoke.cpp`](../tests/markup/mental_model_smoke.cpp)
 - [`tests/markup/mental_model_scan_smoke.cpp`](../tests/markup/mental_model_scan_smoke.cpp)
 
+如果你跑完之后，脑子里冒出来的是这些问题：
+
+- `page.ui` 和 `ui.xxx` 到底什么关系
+- 命名空间什么时候才需要自己写
+- 什么时候该选 scaffold
+- 为什么不推荐先看 `Handlers / slots::actions`
+
+直接跳：
+
+- [`Markup常见问题`](./Markup常见问题.md)
+
 ## 1. 只记两个 CMake 入口
 
 日常开发只记这两个就够了：
@@ -198,8 +209,10 @@ ui/auth/login.tui + NAMESPACE_PREFIX app_ui
 如果你现在已经觉得信息很多，就按这个顺序看：
 
 1. 先看这份 [`Markup一页式速查`](./Markup一页式速查.md)
-2. 再看 [`Markup页面推荐写法`](./Markup页面推荐写法.md)
-3. 只有需要低层细节时，才看 [`Markup高级接口`](./Markup高级接口.md)
+2. 再看 [`samples/markup/README.md`](../samples/markup/README.md)
+3. 还带着概念困惑时，看 [`Markup常见问题`](./Markup常见问题.md)
+4. 再看 [`Markup页面推荐写法`](./Markup页面推荐写法.md)
+5. 只有需要低层细节时，才看 [`Markup高级接口`](./Markup高级接口.md)
 
 如果你要看 CMake 模块源码，就按这个顺序：
 

@@ -8,6 +8,12 @@
 - [`samples/markup/README.md`](../samples/markup/README.md)
 - [`Markup页面推荐写法`](./Markup页面推荐写法.md)
 
+如果你现在还没跑过仓库里的最小基准，建议先回：
+
+- [`Markup一页式速查`](./Markup一页式速查.md)
+
+先执行那条 `TinaluxRunMarkupMentalModelExamples` 命令，再回来解这些概念困惑。
+
 ## 1. `page.ui` 是唯一调用机制吗？
 
 不是。
@@ -157,3 +163,8 @@ cmake --build cmake-build-debug --config Debug --target TinaluxRunMarkupMentalMo
 
 - [`tests/markup/mental_model_smoke.cpp`](../tests/markup/mental_model_smoke.cpp)
 - [`tests/markup/mental_model_scan_smoke.cpp`](../tests/markup/mental_model_scan_smoke.cpp)
+
+如果你跑完之后准备正式开工，下一步直接回：
+
+- [`samples/markup/README.md`](../samples/markup/README.md)
+- [`Markup页面推荐写法`](./Markup页面推荐写法.md)
