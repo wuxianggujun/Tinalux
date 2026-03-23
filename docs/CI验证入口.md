@@ -55,6 +55,10 @@
   - `tests/scripts/android_build_validate_smoke.ps1`
   - `tests/scripts/android_smoke_test_helpers.ps1`
   - 这类 Android PowerShell smoke 变更改由 `android-build-scripts-smoke` 单独兜底
+- 当前执行边界：
+  - `scripts/runSmokeTests.ps1` / `scripts/runSmokeTests.sh` 现在都只构建 `TinaluxRunDesktopSmokeTests`
+  - 该 target 会通过 `ctest -LE android-scripts` 排除 Android PowerShell smoke
+  - 因此 Windows 桌面 smoke 已同时完成“触发解耦”和“执行解耦”
 - 运行内容：
   - `syncSkia.bat`
   - `cmake -S . -B build-ci -G Ninja -DCMAKE_BUILD_TYPE=Debug`
@@ -105,7 +109,7 @@
 ## 手动触发建议
 
 - 改 GLFW / X11：优先看 `linux-tina-glfw-x11`
-- 改 C++ 核心、CMake、测试：优先看 `windows-desktop-smoke`
+- 改 C++ 核心、CMake、桌面 smoke 测试：优先看 `windows-desktop-smoke`
 - 改 Android 构建脚本或 SDK staging：优先看 `android-build-scripts-smoke`
 - 改动跨多个域时：允许同时手动触发多条 workflow
 

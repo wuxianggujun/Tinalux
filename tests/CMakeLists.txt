@@ -489,6 +489,9 @@ if(TINALUX_POWERSHELL_EXECUTABLE)
             -RepoRoot
             ${CMAKE_SOURCE_DIR}
     )
+    set_tests_properties(
+        TinaluxAndroidStageScriptSmoke
+        PROPERTIES LABELS "android;android-scripts")
 
     add_test(NAME TinaluxAndroidBuildValidateScriptSmoke
         COMMAND
@@ -499,6 +502,9 @@ if(TINALUX_POWERSHELL_EXECUTABLE)
             -RepoRoot
             ${CMAKE_SOURCE_DIR}
     )
+    set_tests_properties(
+        TinaluxAndroidBuildValidateScriptSmoke
+        PROPERTIES LABELS "android;android-scripts")
 else()
     message(STATUS "Skipping Android PowerShell smoke tests because no PowerShell executable was found")
 endif()
@@ -535,6 +541,17 @@ if(TINALUX_SMOKE_TEST_TARGETS)
 
     add_custom_target(TinaluxRunSmokeTests
         COMMAND "${CMAKE_CTEST_COMMAND}" --output-on-failure --timeout 60 ${_tinalux_ctest_config_args}
+        WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+        DEPENDS
+            TinaluxBuildSmokeTests
+        USES_TERMINAL
+        COMMAND_EXPAND_LISTS
+    )
+
+    # Desktop smoke should not execute Android PowerShell script tests because
+    # that path is guarded by the dedicated Android workflow.
+    add_custom_target(TinaluxRunDesktopSmokeTests
+        COMMAND "${CMAKE_CTEST_COMMAND}" --output-on-failure --timeout 60 -LE android-scripts ${_tinalux_ctest_config_args}
         WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
         DEPENDS
             TinaluxBuildSmokeTests
