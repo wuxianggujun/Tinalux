@@ -4,6 +4,10 @@
 
 如果你是在写普通页面，不要先看这里，先看 [`Markup页面推荐写法`](./Markup页面推荐写法.md)。
 
+对应的 CMake 低层 helper 现在也统一收在
+`TinaluxMarkupAdvancedTools.cmake`。
+`TinaluxMarkupTools.cmake` 保留给普通页面开发看高层入口。
+
 适合来看这份文档的场景：
 
 - 你要脱离 `Page` 单独组装 `ViewModel`

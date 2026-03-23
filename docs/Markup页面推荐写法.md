@@ -9,6 +9,11 @@
 
 如果你确实要碰这些低层接口，单独看 [`Markup高级接口`](./Markup高级接口.md)。
 
+如果你只是偶尔打开 CMake 模块看实现，现在也可以只看
+`TinaluxMarkupTools.cmake`。
+低层 / 高级 helper 已经收进 `TinaluxMarkupAdvancedTools.cmake`，
+这样主入口文件不会再堆一大段实现细节。
+
 ## 1. 最小 CMake
 
 ```cmake
