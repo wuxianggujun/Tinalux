@@ -31,7 +31,7 @@
 - [Markup高级接口](./Markup高级接口.md)  
   只在低层场景反查：`Handlers / slots::load / slots::actions / attachUi(...)`。
 - [MarkupDSL语法参考](./MarkupDSL语法参考.md)  
-  当前生效的布局 DSL 语法、位置参数、`id` 规则、`if / elseif / else / for` 与 `id.property` 绑定限制。
+  只讲 `.tui` 本身怎么写，已按“最常用 / 较少使用”分区。
 
 ## 当前文档
 
