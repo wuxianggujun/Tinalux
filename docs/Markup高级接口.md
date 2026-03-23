@@ -6,6 +6,7 @@
 
 对应的 CMake 低层 helper 现在也统一收在
 `TinaluxMarkupAdvancedTools.cmake`。
+内部已经继续按 `Common / Bindings / Scaffold / Autogen` 拆分。
 `TinaluxMarkupTools.cmake` 保留给普通页面开发看高层入口。
 
 适合来看这份文档的场景：
