@@ -29,7 +29,7 @@
 - [Markup页面推荐写法](./Markup页面推荐写法.md)  
   正常页面开发只看这一份，默认主路线是 `Page + ui + onClick(...)`。
 - [Markup高级接口](./Markup高级接口.md)  
-  只有要碰 `Handlers / slots::load / slots::actions...` 时再看。
+  只在低层场景反查：`Handlers / slots::load / slots::actions / attachUi(...)`。
 - [MarkupDSL语法参考](./MarkupDSL语法参考.md)  
   当前生效的布局 DSL 语法、位置参数、`id` 规则、`if / elseif / else / for` 与 `id.property` 绑定限制。
 
