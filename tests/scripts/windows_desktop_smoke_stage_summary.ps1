@@ -19,6 +19,52 @@ function New-MissingStageRecord {
     }
 }
 
+function Resolve-ExecutionStatus {
+    param(
+        [int]$FailedSteps,
+        [int]$MissingSteps,
+        [int]$CompletedSteps
+    )
+
+    if ($FailedSteps -gt 0) {
+        return "failed"
+    }
+
+    if ($MissingSteps -gt 0 -or $CompletedSteps -eq 0) {
+        return "missing"
+    }
+
+    return "succeeded"
+}
+
+function ConvertTo-ExecutionStep {
+    param([psobject]$Record)
+
+    $step = [ordered]@{
+        name = $Record.stage
+        label = $Record.label
+        status = $Record.status
+    }
+
+    if ($Record.PSObject.Properties.Name -contains "durationSeconds") {
+        $step.durationSeconds = $Record.durationSeconds
+    }
+
+    if ($Record.PSObject.Properties.Name -contains "exitCode") {
+        $step.exitCode = $Record.exitCode
+    }
+
+    if ($Record.PSObject.Properties.Name -contains "message") {
+        $step.message = $Record.message
+    }
+
+    if ($Record.PSObject.Properties.Name -contains "errorMessage") {
+        $step.errorMessage = $Record.errorMessage
+    }
+
+    return [pscustomobject]$step
+}
+
 $outputRootPath = [System.IO.Path]::GetFullPath($OutputRoot)
 New-Item -ItemType Directory -Force -Path $outputRootPath | Out-Null
 
@@ -47,13 +93,22 @@ $totalDurationSeconds = if (@($completedRecords).Count -gt 0) {
 }
 $failedStages = @($records | Where-Object { $_.status -eq "failed" }).Count
 $missingStages = @($records | Where-Object { $_.status -eq "missing" }).Count
+$executionStatus = Resolve-ExecutionStatus -FailedSteps $failedStages -MissingSteps $missingStages -CompletedSteps @($completedRecords).Count
+$steps = @($records | ForEach-Object { ConvertTo-ExecutionStep -Record $_ })
 
 $payload = [ordered]@{
     generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
-    totalDurationSeconds = $totalDurationSeconds
-    failedStages = $failedStages
-    missingStages = $missingStages
-    stages = $records
+    workflow = [ordered]@{
+        name = "windows-desktop-smoke"
+        metadataRoot = $outputRootPath
+    }
+    status = $executionStatus
+    durationSeconds = $totalDurationSeconds
+    totalStepCount = @($steps).Count
+    completedStepCount = @($completedRecords).Count
+    failedStepCount = $failedStages
+    missingStepCount = $missingStages
+    steps = $steps
 }
 
 $summaryLines = @(

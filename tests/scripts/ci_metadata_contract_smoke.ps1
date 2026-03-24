@@ -26,6 +26,36 @@ function Assert-FileContainsPattern {
 
 $checks = @(
     @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_ci_metadata.ps1"
+        Pattern = 'name = "windows-desktop-smoke"'
+        Description = 'Windows runner fingerprint workflow name'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_ci_metadata.ps1"
+        Pattern = 'metadataRoot = \$outputRootPath'
+        Description = 'Windows runner fingerprint metadata root'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/android_build_scripts_smoke_ci_metadata.ps1"
+        Pattern = 'name = "android-build-scripts-smoke"'
+        Description = 'Android runner fingerprint workflow name'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/android_build_scripts_smoke_ci_metadata.ps1"
+        Pattern = 'metadataRoot = \$outputRootPath'
+        Description = 'Android runner fingerprint metadata root'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_ci_metadata.ps1"
+        Pattern = 'name = "linux-tina-glfw-x11"'
+        Description = 'Linux runner fingerprint workflow name'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_ci_metadata.ps1"
+        Pattern = 'metadataRoot = \$outputRootPath'
+        Description = 'Linux runner fingerprint metadata root'
+    },
+    @{
         Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_stage_summary.ps1"
         Pattern = 'Join-Path \$outputRootPath "execution-summary\.json"'
         Description = 'Windows execution summary json filename'
@@ -34,6 +64,16 @@ $checks = @(
         Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_stage_summary.ps1"
         Pattern = 'Join-Path \$outputRootPath "execution-summary\.md"'
         Description = 'Windows execution summary markdown filename'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_stage_summary.ps1"
+        Pattern = 'status = \$executionStatus'
+        Description = 'Windows execution summary status field'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_stage_summary.ps1"
+        Pattern = 'steps = \$steps'
+        Description = 'Windows execution summary steps field'
     },
     @{
         Path = Join-Path $repoRootPath "tests/scripts/android_build_scripts_smoke_stage_summary.ps1"
@@ -46,6 +86,16 @@ $checks = @(
         Description = 'Android execution summary markdown filename'
     },
     @{
+        Path = Join-Path $repoRootPath "tests/scripts/android_build_scripts_smoke_stage_summary.ps1"
+        Pattern = 'status = \$executionStatus'
+        Description = 'Android execution summary status field'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/android_build_scripts_smoke_stage_summary.ps1"
+        Pattern = 'steps = \$steps'
+        Description = 'Android execution summary steps field'
+    },
+    @{
         Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_build_summary.ps1"
         Pattern = 'Join-Path \$outputRootPath "execution-summary\.json"'
         Description = 'Linux execution summary json filename'
@@ -54,6 +104,31 @@ $checks = @(
         Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_build_summary.ps1"
         Pattern = 'Join-Path \$outputRootPath "execution-summary\.md"'
         Description = 'Linux execution summary markdown filename'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_build_summary.ps1"
+        Pattern = 'status = \$executionStatus'
+        Description = 'Linux execution summary status field'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_build_summary.ps1"
+        Pattern = 'steps = \$steps'
+        Description = 'Linux execution summary steps field'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_stage_summary.ps1"
+        Pattern = 'workflow = \[ordered\]@\{\s+name = "windows-desktop-smoke"\s+metadataRoot = \$outputRootPath'
+        Description = 'Windows execution summary workflow block'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/android_build_scripts_smoke_stage_summary.ps1"
+        Pattern = 'workflow = \[ordered\]@\{\s+name = "android-build-scripts-smoke"\s+metadataRoot = \$outputRootPath'
+        Description = 'Android execution summary workflow block'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_build_summary.ps1"
+        Pattern = 'workflow = \[ordered\]@\{\s+name = "linux-tina-glfw-x11"\s+metadataRoot = \$outputRootPath'
+        Description = 'Linux execution summary workflow block'
     },
     @{
         Path = Join-Path $repoRootPath ".github/workflows/windows-desktop-smoke.yml"
@@ -74,6 +149,16 @@ $checks = @(
         Path = Join-Path $repoRootPath "docs/CI验证入口.md"
         Pattern = 'execution-summary\.json` 与 `execution-summary\.md'
         Description = 'CI docs execution summary naming'
+    },
+    @{
+        Path = Join-Path $repoRootPath "docs/CI验证入口.md"
+        Pattern = 'runner-fingerprint\.json` / `execution-summary\.json`'
+        Description = 'CI docs schema alignment mention'
+    },
+    @{
+        Path = Join-Path $repoRootPath "docs/开发计划.md"
+        Pattern = 'runner-fingerprint\.json` / `execution-summary\.json`'
+        Description = 'plan docs schema alignment mention'
     }
 )
 
@@ -82,6 +167,9 @@ foreach ($check in $checks) {
 }
 
 Write-Host "Validated CI metadata contract:"
+Write-Host "  tests/scripts/windows_desktop_smoke_ci_metadata.ps1"
+Write-Host "  tests/scripts/android_build_scripts_smoke_ci_metadata.ps1"
+Write-Host "  tests/scripts/linux_tina_glfw_x11_ci_metadata.ps1"
 Write-Host "  tests/scripts/windows_desktop_smoke_stage_summary.ps1"
 Write-Host "  tests/scripts/android_build_scripts_smoke_stage_summary.ps1"
 Write-Host "  tests/scripts/linux_tina_glfw_x11_build_summary.ps1"
@@ -89,3 +177,4 @@ Write-Host "  .github/workflows/windows-desktop-smoke.yml"
 Write-Host "  .github/workflows/android-build-scripts-smoke.yml"
 Write-Host "  .github/workflows/linux-tina-glfw-x11.yml"
 Write-Host "  docs/CI验证入口.md"
+Write-Host "  docs/开发计划.md"

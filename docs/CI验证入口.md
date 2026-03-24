@@ -10,6 +10,7 @@
 - 三条 workflow 现已统一启用并发取消策略：
   `concurrency: ${{ github.workflow }}-${{ github.ref }}`
 - 三条 workflow 现已具备显式运行超时，失败产物统一保留 `7` 天
+- 三条 workflow 的 `runner-fingerprint.json` / `execution-summary.json` 已对齐顶层 schema，便于横向比对状态、耗时和步骤统计
 - `P1` 真机验证仍未自动化，继续按 backlog / TODO 管理
 
 ## Workflow 选择

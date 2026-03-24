@@ -68,16 +68,17 @@ $cmakeCommand = Get-OptionalCommand -CommandName "cmake"
 
 $runnerFingerprint = [ordered]@{
     generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
+    workflow = [ordered]@{
+        name = "android-build-scripts-smoke"
+        artifactsRoot = $artifactsRootPath
+        metadataRoot = $outputRootPath
+    }
     runner = [ordered]@{
         os = $env:RUNNER_OS
         arch = $env:RUNNER_ARCH
         name = $env:RUNNER_NAME
         imageOs = $env:ImageOS
         imageVersion = $env:ImageVersion
-    }
-    workflow = [ordered]@{
-        artifactsRoot = $artifactsRootPath
-        metadataRoot = $outputRootPath
     }
     tools = [ordered]@{
         powershell = [ordered]@{

@@ -80,18 +80,20 @@ $pythonInfo = Get-PythonToolInfo
 
 $runnerFingerprint = [ordered]@{
     generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
+    workflow = [ordered]@{
+        name = "linux-tina-glfw-x11"
+        metadataRoot = $outputRootPath
+        compiler = $Compiler
+        buildDir = $buildDirPath
+        cc = $env:CC
+        cxx = $env:CXX
+    }
     runner = [ordered]@{
         os = $env:RUNNER_OS
         arch = $env:RUNNER_ARCH
         name = $env:RUNNER_NAME
         imageOs = $env:ImageOS
         imageVersion = $env:ImageVersion
-    }
-    workflow = [ordered]@{
-        compiler = $Compiler
-        buildDir = $buildDirPath
-        cc = $env:CC
-        cxx = $env:CXX
     }
     tools = [ordered]@{
         powershell = [ordered]@{

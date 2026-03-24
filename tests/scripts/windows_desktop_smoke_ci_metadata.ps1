@@ -127,6 +127,10 @@ $clCommand = Get-OptionalCommand -CommandName "cl"
 
 $runnerFingerprint = [ordered]@{
     generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
+    workflow = [ordered]@{
+        name = "windows-desktop-smoke"
+        metadataRoot = $outputRootPath
+    }
     runner = [ordered]@{
         os = $env:RUNNER_OS
         arch = $env:RUNNER_ARCH

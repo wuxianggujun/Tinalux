@@ -42,6 +42,12 @@ $buildRun = if (Test-Path $buildRunPath) {
     }
 }
 
+$executionStatus = if ([string]::IsNullOrWhiteSpace($buildRun.status)) {
+    "missing"
+} else {
+    $buildRun.status
+}
+
 $fileCount = 0
 $totalBytes = 0
 if (Test-Path $buildDirPath) {
@@ -54,12 +60,48 @@ if (Test-Path $buildDirPath) {
     }
 }
 
+$step = [ordered]@{
+    name = "build"
+    label = "Build tina_glfw X11"
+    status = $executionStatus
+}
+
+if ($null -ne $buildRun.durationSeconds) {
+    $step.durationSeconds = $buildRun.durationSeconds
+}
+
+if ($null -ne $buildRun.exitCode) {
+    $step.exitCode = $buildRun.exitCode
+}
+
+if ($buildRun.PSObject.Properties.Name -contains "message") {
+    $step.message = $buildRun.message
+}
+
+if ($buildRun.PSObject.Properties.Name -contains "errorMessage") {
+    $step.errorMessage = $buildRun.errorMessage
+}
+
+$steps = @([pscustomobject]$step)
+$completedSteps = if ($executionStatus -eq "succeeded" -or $executionStatus -eq "failed") { 1 } else { 0 }
+$failedSteps = if ($executionStatus -eq "failed") { 1 } else { 0 }
+$missingSteps = if ($executionStatus -eq "missing") { 1 } else { 0 }
+
 $payload = [ordered]@{
     generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
-    compiler = if ($buildRun.compiler) { $buildRun.compiler } else { $Compiler }
-    buildDir = if ($buildRun.buildDir) { $buildRun.buildDir } else { $buildDirPath }
-    status = $buildRun.status
+    workflow = [ordered]@{
+        name = "linux-tina-glfw-x11"
+        metadataRoot = $outputRootPath
+        compiler = if ($buildRun.compiler) { $buildRun.compiler } else { $Compiler }
+        buildDir = if ($buildRun.buildDir) { $buildRun.buildDir } else { $buildDirPath }
+    }
+    status = $executionStatus
     durationSeconds = if ($null -ne $buildRun.durationSeconds) { $buildRun.durationSeconds } else { $null }
+    totalStepCount = 1
+    completedStepCount = $completedSteps
+    failedStepCount = $failedSteps
+    missingStepCount = $missingSteps
+    steps = $steps
     exitCode = if ($null -ne $buildRun.exitCode) { $buildRun.exitCode } else { $null }
     buildDirectory = [ordered]@{
         exists = (Test-Path $buildDirPath)
@@ -72,11 +114,15 @@ if ($buildRun.PSObject.Properties.Name -contains "errorMessage") {
     $payload.errorMessage = $buildRun.errorMessage
 }
 
+if ($buildRun.PSObject.Properties.Name -contains "message") {
+    $payload.message = $buildRun.message
+}
+
 $summaryLines = @(
     "## Linux X11 构建摘要"
     ""
-    ('- Compiler：`{0}`' -f $payload.compiler)
-    ('- BuildDir：`{0}`' -f $payload.buildDir)
+    ('- Compiler：`{0}`' -f $payload.workflow.compiler)
+    ('- BuildDir：`{0}`' -f $payload.workflow.buildDir)
     ('- 状态：`{0}`' -f $payload.status)
 )
 
