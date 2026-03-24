@@ -61,20 +61,24 @@
   - `TinaluxRunDesktopSmokeTests` 在有 `pwsh` 的环境下会先执行 `tests/scripts/desktop_smoke_contract_smoke.ps1`
   - 该 target 会通过 `ctest -LE android-scripts` 排除 Android PowerShell smoke
   - workflow 也会前置执行同一契约脚本，尽早暴露入口或 label 漂移
-  - 因此 Windows 桌面 smoke 已同时完成“触发解耦”、“执行解耦”和“边界契约校验”
+  - Windows CI 为了保留 configure / build / test 三阶段耗时，已拆为 CI 专用分阶段脚本执行；本地 smoke 入口仍保持不变
+  - 因此 Windows 桌面 smoke 已同时完成“触发解耦”、“执行解耦”、“边界契约校验”和“阶段耗时观测”
 - 运行内容：
   - `./tests/scripts/desktop_smoke_contract_smoke.ps1 -RepoRoot .`
   - `syncSkia.bat`
-  - `cmake -S . -B build-ci -G Ninja -DCMAKE_BUILD_TYPE=Debug`
-  - `./scripts/runSmokeTests.ps1 -BuildDir build-ci -Config Debug`
+  - `./tests/scripts/windows_desktop_smoke_stage_run.ps1 -Stage configure -BuildDir build-ci -Config Debug`
+  - `./tests/scripts/windows_desktop_smoke_stage_run.ps1 -Stage build -BuildDir build-ci -Config Debug`
+  - `./tests/scripts/windows_desktop_smoke_stage_run.ps1 -Stage test -BuildDir build-ci -Config Debug`
 - 当前附加能力：
   - 缓存 `3rdparty/skia`
   - 缓存 `build-ci/skia` 以及 Debug / Release 的 Skia 签名文件
   - build cache 允许按同一 `Skia revision` 前缀回退 restore，减小配置哈希变更时的冷启动成本
   - `cmake/SkiaConfig.cmake` 的签名文件现在只在内容变化时改写，避免每次 configure 都重复触发 `gn gen`
   - workflow summary 会输出 source/build cache 命中状态、matched key 和 save 策略摘要
+  - workflow summary 还会输出 configure / build / test 三阶段耗时摘要
   - workflow summary 还会输出本次桌面 smoke 的最慢测试 Top 列表和累计测试耗时
   - 会额外记录 `runner-fingerprint.json` 与 `cache-summary.json`，失败时随 artifact 一并保留
+  - 会额外记录 `stage-configure.json`、`stage-build.json`、`stage-test.json`、`stage-timings.json` 与 `stage-timings-summary.md`
   - 会额外记录 `test-timings.json` 与 `test-timings-summary.md`，即使测试失败也尽量保留
   - metadata 目录会作为独立 artifact 在成功和失败场景都上传，便于团队下载比对 cache / runner / timing 结果
   - 前置校验桌面 smoke 入口和 `android-scripts` 过滤契约

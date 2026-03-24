@@ -126,15 +126,45 @@ jobs:
 
       - name: Configure Desktop Smoke Build
         shell: pwsh
+        env:
+          TINALUX_CI_METADATA_ROOT: ${{ github.workspace }}/ci-artifacts/windows-desktop-smoke/metadata
         run: >
-          cmake -S . -B build-ci -G Ninja
-          -DCMAKE_BUILD_TYPE=Debug
-          -DTINALUX_BUILD_TESTS=ON
-          -DTINALUX_BUILD_SAMPLES=OFF
+          ./tests/scripts/windows_desktop_smoke_stage_run.ps1
+          -Stage configure
+          -BuildDir build-ci
+          -Config Debug
+          -OutputRoot $env:TINALUX_CI_METADATA_ROOT
+
+      - name: Build Desktop Smoke Tests
+        shell: pwsh
+        env:
+          TINALUX_CI_METADATA_ROOT: ${{ github.workspace }}/ci-artifacts/windows-desktop-smoke/metadata
+        run: >
+          ./tests/scripts/windows_desktop_smoke_stage_run.ps1
+          -Stage build
+          -BuildDir build-ci
+          -Config Debug
+          -OutputRoot $env:TINALUX_CI_METADATA_ROOT
 
       - name: Run Desktop Smoke Tests
         shell: pwsh
-        run: ./scripts/runSmokeTests.ps1 -BuildDir build-ci -Config Debug
+        env:
+          TINALUX_CI_METADATA_ROOT: ${{ github.workspace }}/ci-artifacts/windows-desktop-smoke/metadata
+        run: >
+          ./tests/scripts/windows_desktop_smoke_stage_run.ps1
+          -Stage test
+          -BuildDir build-ci
+          -Config Debug
+          -OutputRoot $env:TINALUX_CI_METADATA_ROOT
+
+      - name: Capture Windows Smoke Stage Timings
+        if: ${{ always() }}
+        shell: pwsh
+        env:
+          TINALUX_CI_METADATA_ROOT: ${{ github.workspace }}/ci-artifacts/windows-desktop-smoke/metadata
+        run: >
+          ./tests/scripts/windows_desktop_smoke_stage_summary.ps1
+          -OutputRoot $env:TINALUX_CI_METADATA_ROOT
 
       - name: Capture Windows Smoke Test Timings
         if: ${{ always() }}
