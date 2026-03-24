@@ -8,6 +8,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "ci_metadata_manifest_helpers.ps1")
+
 function Get-OptionalCommand {
     param([string]$CommandName)
 
@@ -151,10 +153,25 @@ $markdown = @(
     ('- Ninja：{0}' -f (Format-OptionalValue -Value $runnerFingerprint.tools.ninja.version))
     ""
     "元数据文件："
+    '- `metadata-manifest.json`'
     '- `runner-fingerprint.json`'
 ) -join [Environment]::NewLine
 
 Set-Content -Path $workflowSummaryPath -Value $markdown
+
+$metadataManifestPath = Update-MetadataManifest `
+    -OutputRoot $outputRootPath `
+    -WorkflowName "linux-tina-glfw-x11" `
+    -WorkflowData @{
+        buildDir = $buildDirPath
+        cc = $env:CC
+        compiler = $Compiler
+        cxx = $env:CXX
+    } `
+    -Entries @(
+        (New-MetadataManifestEntry -OutputRoot $outputRootPath -Id "runnerFingerprint" -Path "runner-fingerprint.json" -Format "json" -Role "runner-fingerprint"),
+        (New-MetadataManifestEntry -OutputRoot $outputRootPath -Id "workflowSummary" -Path "workflow-summary.md" -Format "markdown" -Role "workflow-summary")
+    )
 
 if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
     Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $markdown
@@ -163,3 +180,4 @@ if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
 Write-Host "Captured Linux X11 build metadata:"
 Write-Host "  $runnerFingerprintPath"
 Write-Host "  $workflowSummaryPath"
+Write-Host "  $metadataManifestPath"

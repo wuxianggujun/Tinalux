@@ -8,6 +8,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "ci_metadata_manifest_helpers.ps1")
+
 function New-TimingSummaryMarkdown {
     param(
         [string]$BuildDirLabel,
@@ -58,9 +60,16 @@ $timingsSummaryPath = Join-Path $outputRootPath "test-timings-summary.md"
 
 if (-not (Test-Path $lastTestLogPath)) {
     $missingPayload = [ordered]@{
+        schemaVersion = 1
+        workflow = [ordered]@{
+            name = "windows-desktop-smoke"
+            metadataRoot = $outputRootPath
+            buildDir = $buildDirPath
+        }
         buildDir = $buildDirPath
         lastTestLog = $lastTestLogPath
         status = "missing"
+        durationSeconds = 0
         message = "CTest LastTest.log was not found. Desktop smoke likely failed before entering the ctest phase."
         entries = @()
     }
@@ -75,12 +84,25 @@ if (-not (Test-Path $lastTestLogPath)) {
     ) -join [Environment]::NewLine
 
     Set-Content -Path $timingsSummaryPath -Value $missingMarkdown
+
+    $metadataManifestPath = Update-MetadataManifest `
+        -OutputRoot $outputRootPath `
+        -WorkflowName "windows-desktop-smoke" `
+        -WorkflowData @{
+            buildDir = $buildDirPath
+        } `
+        -Entries @(
+            (New-MetadataManifestEntry -OutputRoot $outputRootPath -Id "testTimings" -Path "test-timings.json" -Format "json" -Role "test-timings"),
+            (New-MetadataManifestEntry -OutputRoot $outputRootPath -Id "testTimingsSummary" -Path "test-timings-summary.md" -Format "markdown" -Role "test-timings")
+        )
+
     if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
         Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $missingMarkdown
     }
 
     Write-Host "No LastTest.log found for desktop smoke timings:"
     Write-Host "  $lastTestLogPath"
+    Write-Host "  $metadataManifestPath"
     exit 0
 }
 
@@ -142,9 +164,20 @@ $topEntries = @(
 )
 
 $payload = [ordered]@{
+    schemaVersion = 1
+    workflow = [ordered]@{
+        name = "windows-desktop-smoke"
+        metadataRoot = $outputRootPath
+        buildDir = $buildDirPath
+    }
     buildDir = $buildDirPath
     lastTestLog = $lastTestLogPath
     status = "parsed"
+    durationSeconds = if ($parsedEntries.Count -gt 0) {
+        [Math]::Round(($parsedEntries | Measure-Object -Property seconds -Sum).Sum, 4)
+    } else {
+        0
+    }
     maxTests = $MaxTests
     totalTests = $parsedEntries.Count
     totalDurationSeconds = if ($parsedEntries.Count -gt 0) {
@@ -167,6 +200,18 @@ $summaryMarkdown = New-TimingSummaryMarkdown `
     -MaxTestsToShow $MaxTests
 
 Set-Content -Path $timingsSummaryPath -Value $summaryMarkdown
+
+$metadataManifestPath = Update-MetadataManifest `
+    -OutputRoot $outputRootPath `
+    -WorkflowName "windows-desktop-smoke" `
+    -WorkflowData @{
+        buildDir = $buildDirPath
+    } `
+    -Entries @(
+        (New-MetadataManifestEntry -OutputRoot $outputRootPath -Id "testTimings" -Path "test-timings.json" -Format "json" -Role "test-timings"),
+        (New-MetadataManifestEntry -OutputRoot $outputRootPath -Id "testTimingsSummary" -Path "test-timings-summary.md" -Format "markdown" -Role "test-timings")
+    )
+
 if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
     Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $summaryMarkdown
 }
@@ -174,3 +219,4 @@ if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
 Write-Host "Captured Windows desktop smoke timing summary:"
 Write-Host "  $timingsJsonPath"
 Write-Host "  $timingsSummaryPath"
+Write-Host "  $metadataManifestPath"

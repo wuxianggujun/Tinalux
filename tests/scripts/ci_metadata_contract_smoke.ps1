@@ -27,6 +27,11 @@ function Assert-FileContainsPattern {
 $checks = @(
     @{
         Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_ci_metadata.ps1"
+        Pattern = 'ci_metadata_manifest_helpers\.ps1'
+        Description = 'Windows metadata helper wiring'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_ci_metadata.ps1"
         Pattern = 'schemaVersion = 1'
         Description = 'Windows runner fingerprint schema version'
     },
@@ -39,6 +44,36 @@ $checks = @(
         Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_ci_metadata.ps1"
         Pattern = 'metadataRoot = \$outputRootPath'
         Description = 'Windows runner fingerprint metadata root'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_ci_metadata.ps1"
+        Pattern = 'Update-MetadataManifest'
+        Description = 'Windows metadata manifest update'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_test_timings.ps1"
+        Pattern = 'ci_metadata_manifest_helpers\.ps1'
+        Description = 'Windows test timings helper wiring'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_test_timings.ps1"
+        Pattern = 'schemaVersion = 1'
+        Description = 'Windows test timings schema version'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_test_timings.ps1"
+        Pattern = 'Update-MetadataManifest'
+        Description = 'Windows test timings manifest update'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_test_timings.ps1"
+        Pattern = 'workflow = \[ordered\]@\{\s+name = "windows-desktop-smoke"\s+metadataRoot = \$outputRootPath'
+        Description = 'Windows test timings workflow block'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/android_build_scripts_smoke_ci_metadata.ps1"
+        Pattern = 'ci_metadata_manifest_helpers\.ps1'
+        Description = 'Android metadata helper wiring'
     },
     @{
         Path = Join-Path $repoRootPath "tests/scripts/android_build_scripts_smoke_ci_metadata.ps1"
@@ -56,9 +91,24 @@ $checks = @(
         Description = 'Android runner fingerprint metadata root'
     },
     @{
+        Path = Join-Path $repoRootPath "tests/scripts/android_build_scripts_smoke_ci_metadata.ps1"
+        Pattern = 'Update-MetadataManifest'
+        Description = 'Android metadata manifest update'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/android_build_scripts_smoke_stage_summary.ps1"
+        Pattern = 'ci_metadata_manifest_helpers\.ps1'
+        Description = 'Android execution summary helper wiring'
+    },
+    @{
         Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_ci_metadata.ps1"
         Pattern = 'schemaVersion = 1'
         Description = 'Linux runner fingerprint schema version'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_ci_metadata.ps1"
+        Pattern = 'ci_metadata_manifest_helpers\.ps1'
+        Description = 'Linux metadata helper wiring'
     },
     @{
         Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_ci_metadata.ps1"
@@ -69,6 +119,11 @@ $checks = @(
         Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_ci_metadata.ps1"
         Pattern = 'metadataRoot = \$outputRootPath'
         Description = 'Linux runner fingerprint metadata root'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_ci_metadata.ps1"
+        Pattern = 'Update-MetadataManifest'
+        Description = 'Linux metadata manifest update'
     },
     @{
         Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_stage_summary.ps1"
@@ -96,6 +151,11 @@ $checks = @(
         Description = 'Windows execution summary steps field'
     },
     @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_stage_summary.ps1"
+        Pattern = 'Update-MetadataManifest'
+        Description = 'Windows execution summary manifest update'
+    },
+    @{
         Path = Join-Path $repoRootPath "tests/scripts/android_build_scripts_smoke_stage_summary.ps1"
         Pattern = 'schemaVersion = 1'
         Description = 'Android execution summary schema version'
@@ -121,9 +181,19 @@ $checks = @(
         Description = 'Android execution summary steps field'
     },
     @{
+        Path = Join-Path $repoRootPath "tests/scripts/android_build_scripts_smoke_stage_summary.ps1"
+        Pattern = 'Update-MetadataManifest'
+        Description = 'Android execution summary manifest update'
+    },
+    @{
         Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_build_summary.ps1"
         Pattern = 'schemaVersion = 1'
         Description = 'Linux execution summary schema version'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_build_summary.ps1"
+        Pattern = 'ci_metadata_manifest_helpers\.ps1'
+        Description = 'Linux execution summary helper wiring'
     },
     @{
         Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_build_summary.ps1"
@@ -144,6 +214,11 @@ $checks = @(
         Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_build_summary.ps1"
         Pattern = 'steps = \$steps'
         Description = 'Linux execution summary steps field'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_build_summary.ps1"
+        Pattern = 'Update-MetadataManifest'
+        Description = 'Linux execution summary manifest update'
     },
     @{
         Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_stage_summary.ps1"
@@ -171,9 +246,19 @@ $checks = @(
         Description = 'Android workflow metadata contract step'
     },
     @{
+        Path = Join-Path $repoRootPath ".github/workflows/android-build-scripts-smoke.yml"
+        Pattern = '"tests/scripts/ci_metadata_manifest_helpers\.ps1"'
+        Description = 'Android workflow metadata helper trigger'
+    },
+    @{
         Path = Join-Path $repoRootPath ".github/workflows/linux-tina-glfw-x11.yml"
         Pattern = 'run:\s+\./tests/scripts/ci_metadata_contract_smoke\.ps1\s+-RepoRoot\s+\.'
         Description = 'Linux workflow metadata contract step'
+    },
+    @{
+        Path = Join-Path $repoRootPath ".github/workflows/linux-tina-glfw-x11.yml"
+        Pattern = '"tests/scripts/ci_metadata_manifest_helpers\.ps1"'
+        Description = 'Linux workflow metadata helper trigger'
     },
     @{
         Path = Join-Path $repoRootPath "docs/CI验证入口.md"
@@ -184,6 +269,11 @@ $checks = @(
         Path = Join-Path $repoRootPath "docs/CI验证入口.md"
         Pattern = 'runner-fingerprint\.json` / `execution-summary\.json`'
         Description = 'CI docs schema alignment mention'
+    },
+    @{
+        Path = Join-Path $repoRootPath "docs/CI验证入口.md"
+        Pattern = 'metadata-manifest\.json'
+        Description = 'CI docs manifest mention'
     },
     @{
         Path = Join-Path $repoRootPath "docs/开发计划.md"
@@ -211,6 +301,7 @@ Write-Host "  tests/scripts/windows_desktop_smoke_ci_metadata.ps1"
 Write-Host "  tests/scripts/android_build_scripts_smoke_ci_metadata.ps1"
 Write-Host "  tests/scripts/linux_tina_glfw_x11_ci_metadata.ps1"
 Write-Host "  tests/scripts/windows_desktop_smoke_stage_summary.ps1"
+Write-Host "  tests/scripts/windows_desktop_smoke_test_timings.ps1"
 Write-Host "  tests/scripts/android_build_scripts_smoke_stage_summary.ps1"
 Write-Host "  tests/scripts/linux_tina_glfw_x11_build_summary.ps1"
 Write-Host "  .github/workflows/windows-desktop-smoke.yml"

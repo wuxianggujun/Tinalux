@@ -7,6 +7,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "ci_metadata_manifest_helpers.ps1")
+
 function Get-OptionalCommand {
     param([string]$CommandName)
 
@@ -121,10 +123,22 @@ $markdown = @(
     ('- Python：{0}' -f $runnerFingerprint.tools.python.version)
     ""
     "元数据文件："
+    '- `metadata-manifest.json`'
     '- `runner-fingerprint.json`'
 ) -join [Environment]::NewLine
 
 Set-Content -Path $workflowSummaryPath -Value $markdown
+
+$metadataManifestPath = Update-MetadataManifest `
+    -OutputRoot $outputRootPath `
+    -WorkflowName "android-build-scripts-smoke" `
+    -WorkflowData @{
+        artifactsRoot = $artifactsRootPath
+    } `
+    -Entries @(
+        (New-MetadataManifestEntry -OutputRoot $outputRootPath -Id "runnerFingerprint" -Path "runner-fingerprint.json" -Format "json" -Role "runner-fingerprint"),
+        (New-MetadataManifestEntry -OutputRoot $outputRootPath -Id "workflowSummary" -Path "workflow-summary.md" -Format "markdown" -Role "workflow-summary")
+    )
 
 if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
     Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $markdown
@@ -133,3 +147,4 @@ if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
 Write-Host "Captured Android build scripts smoke metadata:"
 Write-Host "  $runnerFingerprintPath"
 Write-Host "  $workflowSummaryPath"
+Write-Host "  $metadataManifestPath"

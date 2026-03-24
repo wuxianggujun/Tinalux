@@ -10,6 +10,7 @@ on:
     paths:
       - ".github/workflows/linux-tina-glfw-x11.yml"
       - "tests/scripts/ci_metadata_contract_smoke.ps1"
+      - "tests/scripts/ci_metadata_manifest_helpers.ps1"
       - "scripts/validateTinaGlfwX11Linux.sh"
       - "tests/scripts/linux_tina_glfw_x11_ci_metadata.ps1"
       - "tests/scripts/linux_tina_glfw_x11_build_run.ps1"
@@ -19,6 +20,7 @@ on:
     paths:
       - ".github/workflows/linux-tina-glfw-x11.yml"
       - "tests/scripts/ci_metadata_contract_smoke.ps1"
+      - "tests/scripts/ci_metadata_manifest_helpers.ps1"
       - "scripts/validateTinaGlfwX11Linux.sh"
       - "tests/scripts/linux_tina_glfw_x11_ci_metadata.ps1"
       - "tests/scripts/linux_tina_glfw_x11_build_run.ps1"

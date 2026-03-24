@@ -14,6 +14,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "ci_metadata_manifest_helpers.ps1")
+
 function Get-OptionalCommand {
     param([string]$CommandName)
 
@@ -162,7 +164,13 @@ $runnerFingerprint = [ordered]@{
 }
 
 $cacheSummary = [ordered]@{
+    schemaVersion = 1
     generatedAtUtc = $runnerFingerprint.generatedAtUtc
+    workflow = [ordered]@{
+        name = "windows-desktop-smoke"
+        metadataRoot = $outputRootPath
+    }
+    status = "captured"
     skiaRevision = $SkiaRevision
     source = [ordered]@{
         state = Resolve-CacheState -CacheHit $SourceCacheHit -MatchedKey $SourceCacheMatchedKey
@@ -215,11 +223,21 @@ $markdown = @(
     "- MSVC：$($runnerFingerprint.tools.msvc.version)"
     ""
     "元数据文件："
+    '- `metadata-manifest.json`'
     '- `runner-fingerprint.json`'
     '- `cache-summary.json`'
 ) -join [Environment]::NewLine
 
 Set-Content -Path $workflowSummaryPath -Value $markdown
+
+$metadataManifestPath = Update-MetadataManifest `
+    -OutputRoot $outputRootPath `
+    -WorkflowName "windows-desktop-smoke" `
+    -Entries @(
+        (New-MetadataManifestEntry -OutputRoot $outputRootPath -Id "cacheSummary" -Path "cache-summary.json" -Format "json" -Role "cache-summary"),
+        (New-MetadataManifestEntry -OutputRoot $outputRootPath -Id "runnerFingerprint" -Path "runner-fingerprint.json" -Format "json" -Role "runner-fingerprint"),
+        (New-MetadataManifestEntry -OutputRoot $outputRootPath -Id "workflowSummary" -Path "workflow-summary.md" -Format "markdown" -Role "workflow-summary")
+    )
 
 if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
     Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $markdown
@@ -229,3 +247,4 @@ Write-Host "Captured Windows desktop smoke metadata:"
 Write-Host "  $runnerFingerprintPath"
 Write-Host "  $cacheSummaryPath"
 Write-Host "  $workflowSummaryPath"
+Write-Host "  $metadataManifestPath"

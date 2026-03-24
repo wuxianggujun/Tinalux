@@ -5,6 +5,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "ci_metadata_manifest_helpers.ps1")
+
 function New-MissingStageRecord {
     param(
         [string]$StageName,
@@ -139,6 +141,14 @@ $summaryMarkdown = $summaryLines -join [Environment]::NewLine
 $payload | ConvertTo-Json -Depth 6 | Set-Content -Path $executionSummaryJsonPath
 Set-Content -Path $executionSummaryMarkdownPath -Value $summaryMarkdown
 
+$metadataManifestPath = Update-MetadataManifest `
+    -OutputRoot $outputRootPath `
+    -WorkflowName "windows-desktop-smoke" `
+    -Entries @(
+        (New-MetadataManifestEntry -OutputRoot $outputRootPath -Id "executionSummary" -Path "execution-summary.json" -Format "json" -Role "execution-summary"),
+        (New-MetadataManifestEntry -OutputRoot $outputRootPath -Id "executionSummaryMarkdown" -Path "execution-summary.md" -Format "markdown" -Role "execution-summary")
+    )
+
 if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
     Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $summaryMarkdown
 }
@@ -146,3 +156,4 @@ if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
 Write-Host "Captured Windows desktop smoke execution summary:"
 Write-Host "  $executionSummaryJsonPath"
 Write-Host "  $executionSummaryMarkdownPath"
+Write-Host "  $metadataManifestPath"

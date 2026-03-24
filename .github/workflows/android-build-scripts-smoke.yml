@@ -10,6 +10,7 @@ on:
     paths:
       - ".github/workflows/android-build-scripts-smoke.yml"
       - "tests/scripts/ci_metadata_contract_smoke.ps1"
+      - "tests/scripts/ci_metadata_manifest_helpers.ps1"
       - "scripts/build_android_native.ps1"
       - "scripts/stage_android_validation_artifacts.ps1"
       - "tests/scripts/android_build_scripts_smoke_ci_metadata.ps1"
@@ -25,6 +26,7 @@ on:
     paths:
       - ".github/workflows/android-build-scripts-smoke.yml"
       - "tests/scripts/ci_metadata_contract_smoke.ps1"
+      - "tests/scripts/ci_metadata_manifest_helpers.ps1"
       - "scripts/build_android_native.ps1"
       - "scripts/stage_android_validation_artifacts.ps1"
       - "tests/scripts/android_build_scripts_smoke_ci_metadata.ps1"
