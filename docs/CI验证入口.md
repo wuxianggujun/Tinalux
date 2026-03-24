@@ -112,8 +112,13 @@
   - 默认 `ValidateOnly` 路径也会校验对仓库内已 staged SDK 产物无副作用
   - 当前不覆盖 `android/host/**` 和 `android/validation-app/**` 的 Gradle / 运行时行为
 - 运行内容：
-  - `./tests/scripts/android_stage_script_smoke.ps1 -RepoRoot .`
-  - `./tests/scripts/android_build_validate_smoke.ps1 -RepoRoot .`
+  - `./tests/scripts/android_build_scripts_smoke_ci_metadata.ps1 -OutputRoot ... -ArtifactsRoot ...`
+  - `./tests/scripts/android_build_scripts_smoke_stage_run.ps1 -Stage stage -RepoRoot . -OutputRoot ...`
+  - `./tests/scripts/android_build_scripts_smoke_stage_run.ps1 -Stage validate -RepoRoot . -OutputRoot ...`
+- 当前附加能力：
+  - workflow summary 会输出 runner 指纹，以及 stage / validate 两阶段耗时摘要
+  - 会额外记录 `runner-fingerprint.json`、`script-stage.json`、`script-validate.json`、`script-timings.json` 与 `script-timings-summary.md`
+  - metadata 目录会作为独立 artifact 在成功和失败场景都上传，便于下载比对 runner、耗时和保留的 smoke 临时目录
 - 失败回溯：
   - 保留 smoke 临时目录
   - 上传 `ci-artifacts/android-build-scripts-smoke/**`，产物保留 `7` 天
