@@ -41,6 +41,16 @@ $checks = @(
         Description = 'metadata validation schema version'
     },
     @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_metadata_validate.ps1"
+        Pattern = '"thresholdCheck"'
+        Description = 'metadata validation threshold check requirement'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_metadata_validate.ps1"
+        Pattern = '"thresholdCheckMarkdown"'
+        Description = 'metadata validation threshold markdown requirement'
+    },
+    @{
         Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_ci_metadata.ps1"
         Pattern = 'ci_metadata_manifest_helpers\.ps1'
         Description = 'Windows metadata helper wiring'
@@ -84,6 +94,41 @@ $checks = @(
         Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_test_timings.ps1"
         Pattern = 'workflow = \[ordered\]@\{\s+name = "windows-desktop-smoke"\s+metadataRoot = \$outputRootPath'
         Description = 'Windows test timings workflow block'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_threshold_guard.ps1"
+        Pattern = 'ci_metadata_manifest_helpers\.ps1'
+        Description = 'Windows threshold guard helper wiring'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_threshold_guard.ps1"
+        Pattern = 'schemaVersion = 1'
+        Description = 'Windows threshold guard schema version'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_threshold_guard.ps1"
+        Pattern = 'Join-Path \$outputRootPath "threshold-check\.json"'
+        Description = 'Windows threshold guard json filename'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_threshold_guard.ps1"
+        Pattern = 'Join-Path \$outputRootPath "threshold-check\.md"'
+        Description = 'Windows threshold guard markdown filename'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_threshold_guard.ps1"
+        Pattern = 'Update-MetadataManifest'
+        Description = 'Windows threshold guard manifest update'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_threshold_guard.ps1"
+        Pattern = 'mode = "warning-only"'
+        Description = 'Windows threshold guard warning-only mode'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_threshold_guard.ps1"
+        Pattern = 'workflow = \[ordered\]@\{\s+name = "windows-desktop-smoke"\s+metadataRoot = \$outputRootPath'
+        Description = 'Windows threshold guard workflow block'
     },
     @{
         Path = Join-Path $repoRootPath "tests/scripts/android_build_scripts_smoke_ci_metadata.ps1"
@@ -261,6 +306,11 @@ $checks = @(
         Description = 'Windows workflow metadata validation step'
     },
     @{
+        Path = Join-Path $repoRootPath ".github/workflows/windows-desktop-smoke.yml"
+        Pattern = 'name:\s+Capture Windows Smoke Threshold Warnings'
+        Description = 'Windows workflow threshold guard step'
+    },
+    @{
         Path = Join-Path $repoRootPath ".github/workflows/android-build-scripts-smoke.yml"
         Pattern = 'run:\s+\./tests/scripts/ci_metadata_contract_smoke\.ps1\s+-RepoRoot\s+\.'
         Description = 'Android workflow metadata contract step'
@@ -321,6 +371,11 @@ $checks = @(
         Description = 'CI docs validation mention'
     },
     @{
+        Path = Join-Path $repoRootPath "docs/CI验证入口.md"
+        Pattern = 'threshold-check\.json'
+        Description = 'CI docs threshold guard mention'
+    },
+    @{
         Path = Join-Path $repoRootPath "docs/开发计划.md"
         Pattern = 'runner-fingerprint\.json` / `execution-summary\.json`'
         Description = 'plan docs schema alignment mention'
@@ -339,6 +394,11 @@ $checks = @(
         Path = Join-Path $repoRootPath "docs/开发计划.md"
         Pattern = 'schemaVersion = 1'
         Description = 'plan docs schema version mention'
+    },
+    @{
+        Path = Join-Path $repoRootPath "docs/开发计划.md"
+        Pattern = 'threshold-check\.json'
+        Description = 'plan docs threshold guard mention'
     }
 )
 
@@ -352,6 +412,7 @@ Write-Host "  tests/scripts/android_build_scripts_smoke_ci_metadata.ps1"
 Write-Host "  tests/scripts/linux_tina_glfw_x11_ci_metadata.ps1"
 Write-Host "  tests/scripts/windows_desktop_smoke_stage_summary.ps1"
 Write-Host "  tests/scripts/windows_desktop_smoke_test_timings.ps1"
+Write-Host "  tests/scripts/windows_desktop_smoke_threshold_guard.ps1"
 Write-Host "  tests/scripts/android_build_scripts_smoke_stage_summary.ps1"
 Write-Host "  tests/scripts/linux_tina_glfw_x11_build_summary.ps1"
 Write-Host "  .github/workflows/windows-desktop-smoke.yml"

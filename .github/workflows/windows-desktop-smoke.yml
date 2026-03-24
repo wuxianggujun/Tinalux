@@ -181,6 +181,15 @@ jobs:
           -OutputRoot $env:TINALUX_CI_METADATA_ROOT
           -MaxTests 10
 
+      - name: Capture Windows Smoke Threshold Warnings
+        if: ${{ always() }}
+        shell: pwsh
+        env:
+          TINALUX_CI_METADATA_ROOT: ${{ github.workspace }}/ci-artifacts/windows-desktop-smoke/metadata
+        run: >
+          ./tests/scripts/windows_desktop_smoke_threshold_guard.ps1
+          -OutputRoot $env:TINALUX_CI_METADATA_ROOT
+
       - name: Validate Windows Smoke Metadata
         if: ${{ always() }}
         shell: pwsh

@@ -50,6 +50,8 @@ function Get-RequiredManifestFileIds {
                 "runnerFingerprint",
                 "testTimings",
                 "testTimingsSummary",
+                "thresholdCheck",
+                "thresholdCheckMarkdown",
                 "workflowSummary"
             )
         }

@@ -1,6 +1,6 @@
 # Tinalux CI 验证入口
 
-> 更新时间：2026-03-23
+> 更新时间：2026-03-24
 > 目标：明确当前每条 GitHub Actions workflow 的职责、触发范围和查看顺序
 
 ## 当前结论
@@ -13,6 +13,7 @@
 - 三条 workflow 的 `runner-fingerprint.json` / `execution-summary.json` 已对齐顶层 schema，并固定 `schemaVersion = 1`，便于横向比对状态、耗时和步骤统计
 - 三条 workflow 的 metadata 目录现已统一提供 `metadata-manifest.json` 作为索引入口，便于脚本或团队成员快速定位各类 JSON / Markdown 输出
 - 三条 workflow 现已在上传 artifact 前执行 metadata 自动验收，并产出 `metadata-validation.json` / `metadata-validation.md`
+- Windows 桌面 smoke 现已额外产出 `threshold-check.json` / `threshold-check.md`，先用于 `warning-only` 的回归告警摘要，不直接拦截 CI
 - `P1` 真机验证仍未自动化，继续按 backlog / TODO 管理
 
 ## Workflow 选择
@@ -89,6 +90,7 @@
   - 会额外记录 `runner-fingerprint.json`、`cache-summary.json` 与 `metadata-manifest.json`，失败时随 artifact 一并保留
   - 会额外记录 `stage-configure.json`、`stage-build.json`、`stage-test.json`、`execution-summary.json` 与 `execution-summary.md`
   - 会额外记录 `test-timings.json` 与 `test-timings-summary.md`，即使测试失败也尽量保留，且它们已纳入同一份 metadata manifest
+  - 会额外记录 `threshold-check.json` 与 `threshold-check.md`，基于阶段耗时、慢测试和 cache 状态生成 `warning-only` 告警摘要
   - 会额外记录 `metadata-validation.json` 与 `metadata-validation.md`，用于自动检查 manifest、schemaVersion 和关键 JSON/Markdown 是否齐全
   - metadata 目录会作为独立 artifact 在成功和失败场景都上传，便于团队下载比对 cache / runner / timing 结果
   - 前置校验桌面 smoke 入口和 `android-scripts` 过滤契约
