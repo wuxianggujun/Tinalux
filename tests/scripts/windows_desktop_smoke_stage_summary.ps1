@@ -76,17 +76,17 @@ foreach ($record in $records) {
     $summaryLines += ('- {0}：`{1:N2}s` [{2}]' -f $record.label, [double]$record.durationSeconds, $record.status)
 }
 
-$stageTimingsJsonPath = Join-Path $outputRootPath "stage-timings.json"
-$stageTimingsSummaryPath = Join-Path $outputRootPath "stage-timings-summary.md"
+$executionSummaryJsonPath = Join-Path $outputRootPath "execution-summary.json"
+$executionSummaryMarkdownPath = Join-Path $outputRootPath "execution-summary.md"
 $summaryMarkdown = $summaryLines -join [Environment]::NewLine
 
-$payload | ConvertTo-Json -Depth 6 | Set-Content -Path $stageTimingsJsonPath
-Set-Content -Path $stageTimingsSummaryPath -Value $summaryMarkdown
+$payload | ConvertTo-Json -Depth 6 | Set-Content -Path $executionSummaryJsonPath
+Set-Content -Path $executionSummaryMarkdownPath -Value $summaryMarkdown
 
 if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
     Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $summaryMarkdown
 }
 
-Write-Host "Captured Windows desktop smoke stage summary:"
-Write-Host "  $stageTimingsJsonPath"
-Write-Host "  $stageTimingsSummaryPath"
+Write-Host "Captured Windows desktop smoke execution summary:"
+Write-Host "  $executionSummaryJsonPath"
+Write-Host "  $executionSummaryMarkdownPath"

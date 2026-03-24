@@ -34,7 +34,7 @@
   - job 超时 `30` 分钟
 - 当前附加能力：
   - workflow summary 会输出 runner 指纹、编译器版本、单阶段构建耗时和构建目录体积
-  - 会额外记录 `runner-fingerprint.json`、`build-run.json`、`build-summary.json` 与 `build-summary.md`
+  - 会额外记录 `runner-fingerprint.json`、`build-run.json`、`execution-summary.json` 与 `execution-summary.md`
   - metadata 目录会作为独立 artifact 在成功和失败场景都上传，便于下载比对 runner、compiler 和构建结果
 - 失败回溯：
   - 上传 `build/tina_glfw-linux-x11/<compiler>/**` 构建目录，产物保留 `7` 天
@@ -84,7 +84,7 @@
   - workflow summary 还会输出 configure / build / test 三阶段耗时摘要
   - workflow summary 还会输出本次桌面 smoke 的最慢测试 Top 列表和累计测试耗时
   - 会额外记录 `runner-fingerprint.json` 与 `cache-summary.json`，失败时随 artifact 一并保留
-  - 会额外记录 `stage-configure.json`、`stage-build.json`、`stage-test.json`、`stage-timings.json` 与 `stage-timings-summary.md`
+  - 会额外记录 `stage-configure.json`、`stage-build.json`、`stage-test.json`、`execution-summary.json` 与 `execution-summary.md`
   - 会额外记录 `test-timings.json` 与 `test-timings-summary.md`，即使测试失败也尽量保留
   - metadata 目录会作为独立 artifact 在成功和失败场景都上传，便于团队下载比对 cache / runner / timing 结果
   - 前置校验桌面 smoke 入口和 `android-scripts` 过滤契约
@@ -123,7 +123,7 @@
   - `./tests/scripts/android_build_scripts_smoke_stage_run.ps1 -Stage validate -RepoRoot . -OutputRoot ...`
 - 当前附加能力：
   - workflow summary 会输出 runner 指纹，以及 stage / validate 两阶段耗时摘要
-  - 会额外记录 `runner-fingerprint.json`、`script-stage.json`、`script-validate.json`、`script-timings.json` 与 `script-timings-summary.md`
+  - 会额外记录 `runner-fingerprint.json`、`script-stage.json`、`script-validate.json`、`execution-summary.json` 与 `execution-summary.md`
   - metadata 目录会作为独立 artifact 在成功和失败场景都上传，便于下载比对 runner、耗时和保留的 smoke 临时目录
 - 失败回溯：
   - 保留 smoke 临时目录

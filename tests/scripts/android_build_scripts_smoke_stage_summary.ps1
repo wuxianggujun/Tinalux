@@ -98,17 +98,17 @@ if (@($preservedTempRoots).Count -eq 0) {
     }
 }
 
-$scriptTimingsJsonPath = Join-Path $outputRootPath "script-timings.json"
-$scriptTimingsSummaryPath = Join-Path $outputRootPath "script-timings-summary.md"
+$executionSummaryJsonPath = Join-Path $outputRootPath "execution-summary.json"
+$executionSummaryMarkdownPath = Join-Path $outputRootPath "execution-summary.md"
 $summaryMarkdown = $summaryLines -join [Environment]::NewLine
 
-$payload | ConvertTo-Json -Depth 6 | Set-Content -Path $scriptTimingsJsonPath
-Set-Content -Path $scriptTimingsSummaryPath -Value $summaryMarkdown
+$payload | ConvertTo-Json -Depth 6 | Set-Content -Path $executionSummaryJsonPath
+Set-Content -Path $executionSummaryMarkdownPath -Value $summaryMarkdown
 
 if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
     Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $summaryMarkdown
 }
 
-Write-Host "Captured Android build scripts smoke stage summary:"
-Write-Host "  $scriptTimingsJsonPath"
-Write-Host "  $scriptTimingsSummaryPath"
+Write-Host "Captured Android build scripts smoke execution summary:"
+Write-Host "  $executionSummaryJsonPath"
+Write-Host "  $executionSummaryMarkdownPath"

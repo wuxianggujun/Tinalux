@@ -96,16 +96,16 @@ if ($payload.PSObject.Properties.Name -contains "errorMessage") {
 }
 
 $summaryMarkdown = $summaryLines -join [Environment]::NewLine
-$summaryJsonPath = Join-Path $outputRootPath "build-summary.json"
-$summaryMarkdownPath = Join-Path $outputRootPath "build-summary.md"
+$executionSummaryJsonPath = Join-Path $outputRootPath "execution-summary.json"
+$executionSummaryMarkdownPath = Join-Path $outputRootPath "execution-summary.md"
 
-$payload | ConvertTo-Json -Depth 6 | Set-Content -Path $summaryJsonPath
-Set-Content -Path $summaryMarkdownPath -Value $summaryMarkdown
+$payload | ConvertTo-Json -Depth 6 | Set-Content -Path $executionSummaryJsonPath
+Set-Content -Path $executionSummaryMarkdownPath -Value $summaryMarkdown
 
 if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
     Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $summaryMarkdown
 }
 
-Write-Host "Captured Linux X11 build summary:"
-Write-Host "  $summaryJsonPath"
-Write-Host "  $summaryMarkdownPath"
+Write-Host "Captured Linux X11 execution summary:"
+Write-Host "  $executionSummaryJsonPath"
+Write-Host "  $executionSummaryMarkdownPath"
