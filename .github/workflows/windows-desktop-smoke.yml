@@ -181,6 +181,15 @@ jobs:
           -OutputRoot $env:TINALUX_CI_METADATA_ROOT
           -MaxTests 10
 
+      - name: Validate Windows Smoke Metadata
+        if: ${{ always() }}
+        shell: pwsh
+        env:
+          TINALUX_CI_METADATA_ROOT: ${{ github.workspace }}/ci-artifacts/windows-desktop-smoke/metadata
+        run: >
+          ./tests/scripts/ci_metadata_validate.ps1
+          -OutputRoot $env:TINALUX_CI_METADATA_ROOT
+
       - name: Save Skia Build Cache
         if: ${{ success() && steps.skia-meta.outputs.revision != '' && steps.restore-skia-build-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4

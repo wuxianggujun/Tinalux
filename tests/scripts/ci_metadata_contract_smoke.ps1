@@ -26,6 +26,21 @@ function Assert-FileContainsPattern {
 
 $checks = @(
     @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_metadata_validate.ps1"
+        Pattern = 'metadata-validation\.json'
+        Description = 'metadata validation json output'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_metadata_validate.ps1"
+        Pattern = 'Update-MetadataManifest'
+        Description = 'metadata validation manifest update'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_metadata_validate.ps1"
+        Pattern = 'schemaVersion = 1'
+        Description = 'metadata validation schema version'
+    },
+    @{
         Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_ci_metadata.ps1"
         Pattern = 'ci_metadata_manifest_helpers\.ps1'
         Description = 'Windows metadata helper wiring'
@@ -241,14 +256,29 @@ $checks = @(
         Description = 'Windows workflow metadata contract step'
     },
     @{
+        Path = Join-Path $repoRootPath ".github/workflows/windows-desktop-smoke.yml"
+        Pattern = 'name:\s+Validate Windows Smoke Metadata'
+        Description = 'Windows workflow metadata validation step'
+    },
+    @{
         Path = Join-Path $repoRootPath ".github/workflows/android-build-scripts-smoke.yml"
         Pattern = 'run:\s+\./tests/scripts/ci_metadata_contract_smoke\.ps1\s+-RepoRoot\s+\.'
         Description = 'Android workflow metadata contract step'
     },
     @{
         Path = Join-Path $repoRootPath ".github/workflows/android-build-scripts-smoke.yml"
+        Pattern = 'name:\s+Validate Android Smoke Metadata'
+        Description = 'Android workflow metadata validation step'
+    },
+    @{
+        Path = Join-Path $repoRootPath ".github/workflows/android-build-scripts-smoke.yml"
         Pattern = '"tests/scripts/ci_metadata_manifest_helpers\.ps1"'
         Description = 'Android workflow metadata helper trigger'
+    },
+    @{
+        Path = Join-Path $repoRootPath ".github/workflows/android-build-scripts-smoke.yml"
+        Pattern = '"tests/scripts/ci_metadata_validate\.ps1"'
+        Description = 'Android workflow metadata validation trigger'
     },
     @{
         Path = Join-Path $repoRootPath ".github/workflows/linux-tina-glfw-x11.yml"
@@ -257,8 +287,18 @@ $checks = @(
     },
     @{
         Path = Join-Path $repoRootPath ".github/workflows/linux-tina-glfw-x11.yml"
+        Pattern = 'name:\s+Validate Linux X11 Metadata'
+        Description = 'Linux workflow metadata validation step'
+    },
+    @{
+        Path = Join-Path $repoRootPath ".github/workflows/linux-tina-glfw-x11.yml"
         Pattern = '"tests/scripts/ci_metadata_manifest_helpers\.ps1"'
         Description = 'Linux workflow metadata helper trigger'
+    },
+    @{
+        Path = Join-Path $repoRootPath ".github/workflows/linux-tina-glfw-x11.yml"
+        Pattern = '"tests/scripts/ci_metadata_validate\.ps1"'
+        Description = 'Linux workflow metadata validation trigger'
     },
     @{
         Path = Join-Path $repoRootPath "docs/CI验证入口.md"
@@ -276,9 +316,19 @@ $checks = @(
         Description = 'CI docs manifest mention'
     },
     @{
+        Path = Join-Path $repoRootPath "docs/CI验证入口.md"
+        Pattern = 'metadata-validation\.json'
+        Description = 'CI docs validation mention'
+    },
+    @{
         Path = Join-Path $repoRootPath "docs/开发计划.md"
         Pattern = 'runner-fingerprint\.json` / `execution-summary\.json`'
         Description = 'plan docs schema alignment mention'
+    },
+    @{
+        Path = Join-Path $repoRootPath "docs/开发计划.md"
+        Pattern = 'metadata-validation\.json'
+        Description = 'plan docs validation mention'
     },
     @{
         Path = Join-Path $repoRootPath "docs/CI验证入口.md"

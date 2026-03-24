@@ -10,6 +10,7 @@ on:
     paths:
       - ".github/workflows/android-build-scripts-smoke.yml"
       - "tests/scripts/ci_metadata_contract_smoke.ps1"
+      - "tests/scripts/ci_metadata_validate.ps1"
       - "tests/scripts/ci_metadata_manifest_helpers.ps1"
       - "scripts/build_android_native.ps1"
       - "scripts/stage_android_validation_artifacts.ps1"
@@ -26,6 +27,7 @@ on:
     paths:
       - ".github/workflows/android-build-scripts-smoke.yml"
       - "tests/scripts/ci_metadata_contract_smoke.ps1"
+      - "tests/scripts/ci_metadata_validate.ps1"
       - "tests/scripts/ci_metadata_manifest_helpers.ps1"
       - "scripts/build_android_native.ps1"
       - "scripts/stage_android_validation_artifacts.ps1"
@@ -96,6 +98,15 @@ jobs:
           ./tests/scripts/android_build_scripts_smoke_stage_summary.ps1
           -OutputRoot $env:TINALUX_ANDROID_SMOKE_METADATA_ROOT
           -ArtifactsRoot $env:TINALUX_ANDROID_SMOKE_ARTIFACT_ROOT
+
+      - name: Validate Android Smoke Metadata
+        if: ${{ always() }}
+        shell: pwsh
+        env:
+          TINALUX_ANDROID_SMOKE_METADATA_ROOT: ${{ github.workspace }}/ci-artifacts/android-build-scripts-smoke/metadata
+        run: >
+          ./tests/scripts/ci_metadata_validate.ps1
+          -OutputRoot $env:TINALUX_ANDROID_SMOKE_METADATA_ROOT
 
       - name: Upload Android Smoke Metadata
         if: ${{ always() }}
