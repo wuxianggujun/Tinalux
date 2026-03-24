@@ -151,7 +151,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-build-scripts-smoke-metadata
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: warn
           path: |
             ci-artifacts/android-build-scripts-smoke/metadata/**
@@ -161,6 +161,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-build-scripts-smoke-artifacts
-          retention-days: 7
+          retention-days: 1
           path: |
             ci-artifacts/android-build-scripts-smoke/**

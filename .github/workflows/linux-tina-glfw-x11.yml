@@ -157,7 +157,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-tina-glfw-x11-metadata-${{ matrix.compiler }}
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: warn
           path: |
             ci-artifacts/linux-tina-glfw-x11/${{ matrix.compiler }}/metadata/**
@@ -167,7 +167,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-tina-glfw-x11-${{ matrix.compiler }}
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: warn
           path: |
             build/tina_glfw-linux-x11/${{ matrix.compiler }}/**

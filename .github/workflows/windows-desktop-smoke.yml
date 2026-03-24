@@ -235,7 +235,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-desktop-smoke-metadata
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: warn
           path: |
             ci-artifacts/windows-desktop-smoke/metadata/**
@@ -245,7 +245,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-desktop-smoke-logs
-          retention-days: 7
+          retention-days: 1
           path: |
             build-ci/Testing/**
             build-ci/CMakeCache.txt

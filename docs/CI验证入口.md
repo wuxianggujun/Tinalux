@@ -9,7 +9,7 @@
 - 它们分别覆盖 Linux X11 构建、Windows 桌面 smoke、Android 脚本级 smoke
 - 三条 workflow 现已统一启用并发取消策略：
   `concurrency: ${{ github.workflow }}-${{ github.ref }}`
-- 三条 workflow 现已具备显式运行超时，失败产物统一保留 `7` 天
+- 三条 workflow 现已具备显式运行超时，失败产物统一保留 `1` 天
 - 三条 workflow 的 `runner-fingerprint.json` / `execution-summary.json` 已对齐顶层 schema，并固定 `schemaVersion = 1`，便于横向比对状态、耗时和步骤统计
 - 三条 workflow 的 metadata 目录现已统一提供 `metadata-manifest.json` 作为索引入口，便于脚本或团队成员快速定位各类 JSON / Markdown 输出
 - 三条 workflow 现已在上传 artifact 前执行 metadata 自动验收，并产出 `metadata-validation.json` / `metadata-validation.md`
@@ -43,7 +43,7 @@
   - `threshold-check.json` / `threshold-check.md` 当前会基于 execution summary 状态、构建耗时、runner / tool 版本漂移和可用 baseline 输出 `warning-only` 告警摘要
   - metadata 目录会作为独立 artifact 在成功和失败场景都上传，便于下载比对 runner、compiler 和构建结果
 - 失败回溯：
-  - 上传 `build/tina_glfw-linux-x11/<compiler>/**` 构建目录，产物保留 `7` 天
+  - 上传 `build/tina_glfw-linux-x11/<compiler>/**` 构建目录，产物保留 `1` 天
 - 适合查看的场景：
   - `tina_glfw` 上游分支或本地补丁改动
   - Linux X11 构建链本身的编译性回归
@@ -97,7 +97,7 @@
   - 会额外记录 `metadata-validation.json` 与 `metadata-validation.md`，用于自动检查 manifest、schemaVersion 和关键 JSON/Markdown 是否齐全
   - metadata 目录会作为独立 artifact 在成功和失败场景都上传，便于团队下载比对 cache / runner / timing 结果
   - 前置校验桌面 smoke 入口和 `android-scripts` 过滤契约
-  - 失败时上传 `CTest` 日志，产物保留 `7` 天
+  - 失败时上传 `CTest` 日志，产物保留 `1` 天
   - 同时保留 `CMakeCache.txt`、`CMakeConfigureLog.yaml`、`build.ninja`、`.ninja_log`
   - 仅 `syncSkia.bat` 变更会触发该链路，避免 `syncSkia.sh` 的无效触发
 - 适合查看的场景：
@@ -138,7 +138,7 @@
   - metadata 目录会作为独立 artifact 在成功和失败场景都上传，便于下载比对 runner、耗时和保留的 smoke 临时目录
 - 失败回溯：
   - 保留 smoke 临时目录
-  - 上传 `ci-artifacts/android-build-scripts-smoke/**`，产物保留 `7` 天
+  - 上传 `ci-artifacts/android-build-scripts-smoke/**`，产物保留 `1` 天
 - 适合查看的场景：
   - Android 打包脚本改动
   - SDK module staging 约定改动
