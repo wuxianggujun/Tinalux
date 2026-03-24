@@ -406,6 +406,11 @@ $checks = @(
         Description = 'Windows workflow baseline read permissions'
     },
     @{
+        Path = Join-Path $repoRootPath ".github/workflows/windows-desktop-smoke.yml"
+        Pattern = 'push:\s+branches:\s+- main'
+        Description = 'Windows workflow push main only'
+    },
+    @{
         Path = Join-Path $repoRootPath ".github/workflows/android-build-scripts-smoke.yml"
         Pattern = 'run:\s+\./tests/scripts/ci_metadata_contract_smoke\.ps1\s+-RepoRoot\s+\.'
         Description = 'Android workflow metadata contract step'
@@ -449,6 +454,11 @@ $checks = @(
         Path = Join-Path $repoRootPath ".github/workflows/android-build-scripts-smoke.yml"
         Pattern = 'permissions:\s+actions:\s+read\s+contents:\s+read'
         Description = 'Android workflow baseline read permissions'
+    },
+    @{
+        Path = Join-Path $repoRootPath ".github/workflows/android-build-scripts-smoke.yml"
+        Pattern = 'push:\s+branches:\s+- main'
+        Description = 'Android workflow push main only'
     },
     @{
         Path = Join-Path $repoRootPath ".github/workflows/linux-tina-glfw-x11.yml"
@@ -496,6 +506,11 @@ $checks = @(
         Description = 'Linux workflow baseline read permissions'
     },
     @{
+        Path = Join-Path $repoRootPath ".github/workflows/linux-tina-glfw-x11.yml"
+        Pattern = 'push:\s+branches:\s+- main'
+        Description = 'Linux workflow push main only'
+    },
+    @{
         Path = Join-Path $repoRootPath "docs/CI验证入口.md"
         Pattern = 'execution-summary\.json` 与 `execution-summary\.md'
         Description = 'CI docs execution summary naming'
@@ -524,6 +539,11 @@ $checks = @(
         Path = Join-Path $repoRootPath "docs/CI验证入口.md"
         Pattern = 'baseline-fetch\.json'
         Description = 'CI docs baseline fetch mention'
+    },
+    @{
+        Path = Join-Path $repoRootPath "docs/CI验证入口.md"
+        Pattern = '`push` 仅保留 `main`'
+        Description = 'CI docs push main only mention'
     },
     @{
         Path = Join-Path $repoRootPath "docs/开发计划.md"

@@ -9,6 +9,8 @@
 - 它们分别覆盖 Linux X11 构建、Windows 桌面 smoke、Android 脚本级 smoke
 - 三条 workflow 现已统一启用并发取消策略：
   `concurrency: ${{ github.workflow }}-${{ github.ref }}`
+- 三条 workflow 当前仍保留 `pull_request` 自动触发，但 `push` 已收紧为仅 `main`，避免 PR 分支重复消耗 Actions minutes
+- 三条 workflow 当前 `push` 仅保留 `main`
 - 三条 workflow 现已具备显式运行超时，失败产物统一保留 `1` 天
 - 三条 workflow 的 `runner-fingerprint.json` / `execution-summary.json` 已对齐顶层 schema，并固定 `schemaVersion = 1`，便于横向比对状态、耗时和步骤统计
 - 三条 workflow 的 metadata 目录现已统一提供 `metadata-manifest.json` 作为索引入口，便于脚本或团队成员快速定位各类 JSON / Markdown 输出
@@ -26,6 +28,9 @@
   - `.github/workflows/linux-tina-glfw-x11.yml`
   - `scripts/validateTinaGlfwX11Linux.sh`
   - `3rdparty/tina_glfw/**`
+- 分支边界：
+  - `pull_request`：按路径过滤自动运行
+  - `push`：仅 `main`
 - 当前说明：
   - 该链路只直接构建 `3rdparty/tina_glfw`
   - 因此不会因主工程 `src/platform/**` 或根 `CMakeLists.txt` 变更而触发
@@ -63,6 +68,9 @@
   - `scripts/runSmokeTests.sh`
   - `syncSkia.bat`
   - `main.cpp`
+- 分支边界：
+  - `pull_request`：按路径过滤自动运行
+  - `push`：仅 `main`
 - 当前排除：
   - `tests/scripts/android_stage_script_smoke.ps1`
   - `tests/scripts/android_build_validate_smoke.ps1`
@@ -119,6 +127,9 @@
   - `android/tinalux-sdk/build.gradle.kts`
   - `android/tinalux-sdk/consumer-rules.pro`
   - `android/tinalux-sdk/src/main/AndroidManifest.xml`
+- 分支边界：
+  - `pull_request`：按路径过滤自动运行
+  - `push`：仅 `main`
 - 当前说明：
   - 该链路校验 PowerShell 脚本和已提交的 SDK 模块 staging 约定
   - 也会校验 SDK 模块仍引用 `android/host` Kotlin 源码，并保持 `android:hasCode="true"`

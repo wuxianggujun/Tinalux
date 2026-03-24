@@ -26,6 +26,8 @@ on:
       - "android/tinalux-sdk/consumer-rules.pro"
       - "android/tinalux-sdk/src/main/AndroidManifest.xml"
   push:
+    branches:
+      - main
     paths:
       - ".github/workflows/android-build-scripts-smoke.yml"
       - "tests/scripts/ci_metadata_contract_smoke.ps1"
