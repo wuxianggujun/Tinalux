@@ -27,11 +27,17 @@
   - 因此不会因主工程 `src/platform/**` 或根 `CMakeLists.txt` 变更而触发
 - 运行内容：
   - 安装 Ubuntu X11 构建依赖
+  - 采集 runner / compiler / buildDir 元数据
   - 分别用 `gcc` / `clang` 执行 `scripts/validateTinaGlfwX11Linux.sh`
+  - 汇总单阶段构建耗时和构建目录体积
 - 运行边界：
   - job 超时 `30` 分钟
+- 当前附加能力：
+  - workflow summary 会输出 runner 指纹、编译器版本、单阶段构建耗时和构建目录体积
+  - 会额外记录 `runner-fingerprint.json`、`build-run.json`、`build-summary.json` 与 `build-summary.md`
+  - metadata 目录会作为独立 artifact 在成功和失败场景都上传，便于下载比对 runner、compiler 和构建结果
 - 失败回溯：
-  - 上传 `build/tina_glfw-linux-x11/**` 构建目录，产物保留 `7` 天
+  - 上传 `build/tina_glfw-linux-x11/<compiler>/**` 构建目录，产物保留 `7` 天
 - 适合查看的场景：
   - `tina_glfw` 上游分支或本地补丁改动
   - Linux X11 构建链本身的编译性回归
