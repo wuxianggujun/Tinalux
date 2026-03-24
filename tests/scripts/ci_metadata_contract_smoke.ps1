@@ -27,6 +27,11 @@ function Assert-FileContainsPattern {
 $checks = @(
     @{
         Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_ci_metadata.ps1"
+        Pattern = 'schemaVersion = 1'
+        Description = 'Windows runner fingerprint schema version'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_ci_metadata.ps1"
         Pattern = 'name = "windows-desktop-smoke"'
         Description = 'Windows runner fingerprint workflow name'
     },
@@ -34,6 +39,11 @@ $checks = @(
         Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_ci_metadata.ps1"
         Pattern = 'metadataRoot = \$outputRootPath'
         Description = 'Windows runner fingerprint metadata root'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/android_build_scripts_smoke_ci_metadata.ps1"
+        Pattern = 'schemaVersion = 1'
+        Description = 'Android runner fingerprint schema version'
     },
     @{
         Path = Join-Path $repoRootPath "tests/scripts/android_build_scripts_smoke_ci_metadata.ps1"
@@ -47,6 +57,11 @@ $checks = @(
     },
     @{
         Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_ci_metadata.ps1"
+        Pattern = 'schemaVersion = 1'
+        Description = 'Linux runner fingerprint schema version'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_ci_metadata.ps1"
         Pattern = 'name = "linux-tina-glfw-x11"'
         Description = 'Linux runner fingerprint workflow name'
     },
@@ -54,6 +69,11 @@ $checks = @(
         Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_ci_metadata.ps1"
         Pattern = 'metadataRoot = \$outputRootPath'
         Description = 'Linux runner fingerprint metadata root'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_stage_summary.ps1"
+        Pattern = 'schemaVersion = 1'
+        Description = 'Windows execution summary schema version'
     },
     @{
         Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_stage_summary.ps1"
@@ -77,6 +97,11 @@ $checks = @(
     },
     @{
         Path = Join-Path $repoRootPath "tests/scripts/android_build_scripts_smoke_stage_summary.ps1"
+        Pattern = 'schemaVersion = 1'
+        Description = 'Android execution summary schema version'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/android_build_scripts_smoke_stage_summary.ps1"
         Pattern = 'Join-Path \$outputRootPath "execution-summary\.json"'
         Description = 'Android execution summary json filename'
     },
@@ -94,6 +119,11 @@ $checks = @(
         Path = Join-Path $repoRootPath "tests/scripts/android_build_scripts_smoke_stage_summary.ps1"
         Pattern = 'steps = \$steps'
         Description = 'Android execution summary steps field'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_build_summary.ps1"
+        Pattern = 'schemaVersion = 1'
+        Description = 'Linux execution summary schema version'
     },
     @{
         Path = Join-Path $repoRootPath "tests/scripts/linux_tina_glfw_x11_build_summary.ps1"
@@ -159,6 +189,16 @@ $checks = @(
         Path = Join-Path $repoRootPath "docs/开发计划.md"
         Pattern = 'runner-fingerprint\.json` / `execution-summary\.json`'
         Description = 'plan docs schema alignment mention'
+    },
+    @{
+        Path = Join-Path $repoRootPath "docs/CI验证入口.md"
+        Pattern = 'schemaVersion = 1'
+        Description = 'CI docs schema version mention'
+    },
+    @{
+        Path = Join-Path $repoRootPath "docs/开发计划.md"
+        Pattern = 'schemaVersion = 1'
+        Description = 'plan docs schema version mention'
     }
 )
 

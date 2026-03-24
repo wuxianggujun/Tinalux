@@ -88,6 +88,7 @@ $failedSteps = if ($executionStatus -eq "failed") { 1 } else { 0 }
 $missingSteps = if ($executionStatus -eq "missing") { 1 } else { 0 }
 
 $payload = [ordered]@{
+    schemaVersion = 1
     generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
     workflow = [ordered]@{
         name = "linux-tina-glfw-x11"

@@ -107,6 +107,7 @@ $preservedTempRoots = @(
 )
 
 $payload = [ordered]@{
+    schemaVersion = 1
     generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
     workflow = [ordered]@{
         name = "android-build-scripts-smoke"

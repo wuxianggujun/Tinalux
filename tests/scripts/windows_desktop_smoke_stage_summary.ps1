@@ -97,6 +97,7 @@ $executionStatus = Resolve-ExecutionStatus -FailedSteps $failedStages -MissingSt
 $steps = @($records | ForEach-Object { ConvertTo-ExecutionStep -Record $_ })
 
 $payload = [ordered]@{
+    schemaVersion = 1
     generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
     workflow = [ordered]@{
         name = "windows-desktop-smoke"

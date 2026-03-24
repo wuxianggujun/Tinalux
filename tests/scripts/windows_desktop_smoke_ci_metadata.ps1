@@ -126,6 +126,7 @@ $ninjaCommand = Get-OptionalCommand -CommandName "ninja"
 $clCommand = Get-OptionalCommand -CommandName "cl"
 
 $runnerFingerprint = [ordered]@{
+    schemaVersion = 1
     generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
     workflow = [ordered]@{
         name = "windows-desktop-smoke"

@@ -79,6 +79,7 @@ $ninjaCommand = Get-OptionalCommand -CommandName "ninja"
 $pythonInfo = Get-PythonToolInfo
 
 $runnerFingerprint = [ordered]@{
+    schemaVersion = 1
     generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
     workflow = [ordered]@{
         name = "linux-tina-glfw-x11"
