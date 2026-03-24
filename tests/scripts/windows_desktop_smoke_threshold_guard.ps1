@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string]$OutputRoot
+    [string]$OutputRoot,
+    [string]$BaselineRoot = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -51,6 +52,20 @@ function Get-JsonInput {
     return [pscustomobject]@{
         input = [pscustomobject]$result
         payload = $payload
+    }
+}
+
+function Get-OptionalJsonPayload {
+    param([string]$Path)
+
+    if (-not (Test-Path $Path)) {
+        return $null
+    }
+
+    try {
+        return Get-Content -Path $Path -Raw | ConvertFrom-Json
+    } catch {
+        return $null
     }
 }
 
@@ -126,6 +141,69 @@ function New-MaxValueCheck {
         -Message ("Observed {0:N2}{1}, within threshold {2:N2}{1}." -f $actual, $Unit, $ThresholdValue) `
         -Actual $actual `
         -Threshold $ThresholdValue `
+        -Unit $Unit
+}
+
+function New-BaselineRegressionCheck {
+    param(
+        [string]$Id,
+        [string]$Label,
+        [object]$CurrentValue,
+        [object]$BaselineValue,
+        [double]$MinDeltaValue,
+        [double]$MaxGrowthRatio,
+        [string]$Unit
+    )
+
+    if ($null -eq $CurrentValue -or $null -eq $BaselineValue) {
+        return $null
+    }
+
+    $current = [double]$CurrentValue
+    $baseline = [double]$BaselineValue
+    $delta = [Math]::Round(($current - $baseline), 2)
+
+    if ($baseline -le 0) {
+        if ($current -ge $MinDeltaValue) {
+            return New-CheckResult `
+                -Id $Id `
+                -Label $Label `
+                -Status "warning" `
+                -Message ("Observed {0:N2}{1}; baseline was {2:N2}{1}." -f $current, $Unit, $baseline) `
+                -Actual $current `
+                -Threshold ("baseline*{0:N2} + {1:N2}{2}" -f $MaxGrowthRatio, $MinDeltaValue, $Unit) `
+                -Unit $Unit
+        }
+
+        return New-CheckResult `
+            -Id $Id `
+            -Label $Label `
+            -Status "passed" `
+            -Message ("Observed {0:N2}{1}; baseline was {2:N2}{1}." -f $current, $Unit, $baseline) `
+            -Actual $current `
+            -Threshold ("baseline*{0:N2} + {1:N2}{2}" -f $MaxGrowthRatio, $MinDeltaValue, $Unit) `
+            -Unit $Unit
+    }
+
+    $ratio = $current / $baseline
+    if ($delta -ge $MinDeltaValue -and $ratio -ge $MaxGrowthRatio) {
+        return New-CheckResult `
+            -Id $Id `
+            -Label $Label `
+            -Status "warning" `
+            -Message ("Observed {0:N2}{1}; baseline {2:N2}{1}; delta {3:N2}{1}; ratio {4:N2}x." -f $current, $Unit, $baseline, $delta, $ratio) `
+            -Actual $current `
+            -Threshold ("baseline*{0:N2} + {1:N2}{2}" -f $MaxGrowthRatio, $MinDeltaValue, $Unit) `
+            -Unit $Unit
+    }
+
+    return New-CheckResult `
+        -Id $Id `
+        -Label $Label `
+        -Status "passed" `
+        -Message ("Observed {0:N2}{1}; baseline {2:N2}{1}; delta {3:N2}{1}; ratio {4:N2}x." -f $current, $Unit, $baseline, $delta, $ratio) `
+        -Actual $current `
+        -Threshold ("baseline*{0:N2} + {1:N2}{2}" -f $MaxGrowthRatio, $MinDeltaValue, $Unit) `
         -Unit $Unit
 }
 
@@ -311,6 +389,16 @@ $testTimingsPath = Join-Path $outputRootPath "test-timings.json"
 $cacheSummaryPath = Join-Path $outputRootPath "cache-summary.json"
 $thresholdCheckJsonPath = Join-Path $outputRootPath "threshold-check.json"
 $thresholdCheckMarkdownPath = Join-Path $outputRootPath "threshold-check.md"
+$baselineRootPath = if ([string]::IsNullOrWhiteSpace($BaselineRoot)) {
+    Join-Path $outputRootPath "baseline"
+} elseif ([System.IO.Path]::IsPathRooted($BaselineRoot)) {
+    [System.IO.Path]::GetFullPath($BaselineRoot)
+} else {
+    [System.IO.Path]::GetFullPath((Join-Path $outputRootPath $BaselineRoot))
+}
+$baselineExecutionSummaryPath = Join-Path $baselineRootPath "execution-summary.json"
+$baselineTestTimingsPath = Join-Path $baselineRootPath "test-timings.json"
+$baselineFetchPath = Join-Path $outputRootPath "baseline-fetch.json"
 
 $thresholds = [ordered]@{
     executionTotalSeconds = 2700
@@ -320,6 +408,16 @@ $thresholds = [ordered]@{
     totalTestSeconds = 600
     slowestTestSeconds = 20
     slowTestsOverOneSecond = 25
+}
+$baselineThresholds = [ordered]@{
+    durationRatio = 1.25
+    executionTotalMinDeltaSeconds = 120
+    configureMinDeltaSeconds = 60
+    buildMinDeltaSeconds = 120
+    testMinDeltaSeconds = 60
+    totalTestMinDeltaSeconds = 30
+    slowestTestMinDeltaSeconds = 5
+    slowTestsOverOneSecondMinDelta = 5
 }
 
 $executionSummaryInput = Get-JsonInput -Id "executionSummary" -Path $executionSummaryPath
@@ -369,6 +467,56 @@ $checks.Add((New-MaxValueCheck -Id "configure-duration" -Label "Configure stage 
 $checks.Add((New-MaxValueCheck -Id "build-duration" -Label "Build stage duration" -ActualValue $buildDurationSeconds -ThresholdValue $thresholds.buildSeconds -Unit "s" -MissingMessage "Build stage duration was not available in execution-summary.json."))
 $checks.Add((New-MaxValueCheck -Id "test-duration" -Label "Test stage duration" -ActualValue $testDurationSeconds -ThresholdValue $thresholds.testSeconds -Unit "s" -MissingMessage "Test stage duration was not available in execution-summary.json."))
 
+$baselineExecutionSummary = Get-OptionalJsonPayload -Path $baselineExecutionSummaryPath
+$baselineTestTimings = Get-OptionalJsonPayload -Path $baselineTestTimingsPath
+$baselineFetch = Get-OptionalJsonPayload -Path $baselineFetchPath
+if ($null -ne $baselineExecutionSummary) {
+    $metrics.baseline = [ordered]@{
+        available = $true
+        metadataRoot = $baselineRootPath
+        executionSummary = [ordered]@{
+            status = if (Test-ObjectProperty -InputObject $baselineExecutionSummary -Name "status") { $baselineExecutionSummary.status } else { $null }
+            durationSeconds = if (Test-ObjectProperty -InputObject $baselineExecutionSummary -Name "durationSeconds") { [double]$baselineExecutionSummary.durationSeconds } else { $null }
+            stageDurations = [ordered]@{
+                configure = Get-StepDurationSeconds -ExecutionSummary $baselineExecutionSummary -StepName "configure"
+                build = Get-StepDurationSeconds -ExecutionSummary $baselineExecutionSummary -StepName "build"
+                test = Get-StepDurationSeconds -ExecutionSummary $baselineExecutionSummary -StepName "test"
+            }
+        }
+    }
+
+    if ($null -ne $baselineFetch -and (Test-ObjectProperty -InputObject $baselineFetch -Name "baseline")) {
+        $metrics.baseline.source = $baselineFetch.baseline
+    }
+} else {
+    $metrics.baseline = [ordered]@{
+        available = $false
+        metadataRoot = $baselineRootPath
+    }
+
+    if ($null -ne $baselineFetch -and (Test-ObjectProperty -InputObject $baselineFetch -Name "status")) {
+        $metrics.baseline.fetchStatus = $baselineFetch.status
+    }
+}
+
+if ($null -ne $baselineExecutionSummary) {
+    $baselineExecutionDuration = if (Test-ObjectProperty -InputObject $baselineExecutionSummary -Name "durationSeconds") {
+        [double]$baselineExecutionSummary.durationSeconds
+    } else {
+        $null
+    }
+    foreach ($check in @(
+            (New-BaselineRegressionCheck -Id "baseline-execution-total-duration" -Label "Overall smoke duration vs baseline" -CurrentValue $executionDurationSeconds -BaselineValue $baselineExecutionDuration -MinDeltaValue $baselineThresholds.executionTotalMinDeltaSeconds -MaxGrowthRatio $baselineThresholds.durationRatio -Unit "s"),
+            (New-BaselineRegressionCheck -Id "baseline-configure-duration" -Label "Configure stage duration vs baseline" -CurrentValue $configureDurationSeconds -BaselineValue (Get-StepDurationSeconds -ExecutionSummary $baselineExecutionSummary -StepName "configure") -MinDeltaValue $baselineThresholds.configureMinDeltaSeconds -MaxGrowthRatio $baselineThresholds.durationRatio -Unit "s"),
+            (New-BaselineRegressionCheck -Id "baseline-build-duration" -Label "Build stage duration vs baseline" -CurrentValue $buildDurationSeconds -BaselineValue (Get-StepDurationSeconds -ExecutionSummary $baselineExecutionSummary -StepName "build") -MinDeltaValue $baselineThresholds.buildMinDeltaSeconds -MaxGrowthRatio $baselineThresholds.durationRatio -Unit "s"),
+            (New-BaselineRegressionCheck -Id "baseline-test-duration" -Label "Test stage duration vs baseline" -CurrentValue $testDurationSeconds -BaselineValue (Get-StepDurationSeconds -ExecutionSummary $baselineExecutionSummary -StepName "test") -MinDeltaValue $baselineThresholds.testMinDeltaSeconds -MaxGrowthRatio $baselineThresholds.durationRatio -Unit "s")
+        )) {
+        if ($null -ne $check) {
+            $checks.Add($check)
+        }
+    }
+}
+
 $totalTestDurationSeconds = $null
 $slowTestsOverOneSecond = $null
 $slowestTestDurationSeconds = $null
@@ -402,6 +550,48 @@ if ($null -ne $testTimings) {
         slowestTest = [ordered]@{
             name = $slowestTestName
             durationSeconds = $slowestTestDurationSeconds
+        }
+    }
+}
+
+if ($null -ne $baselineTestTimings -and (Test-ObjectProperty -InputObject $baselineTestTimings -Name "status") -and $baselineTestTimings.status -eq "parsed") {
+    $baselineTotalTestDurationSeconds = if (Test-ObjectProperty -InputObject $baselineTestTimings -Name "totalDurationSeconds") {
+        [double]$baselineTestTimings.totalDurationSeconds
+    } else {
+        $null
+    }
+    $baselineSlowTestsOverOneSecond = if (Test-ObjectProperty -InputObject $baselineTestTimings -Name "slowTestsOverOneSecond") {
+        [double]$baselineTestTimings.slowTestsOverOneSecond
+    } else {
+        $null
+    }
+    $baselineTopEntry = @()
+    if (Test-ObjectProperty -InputObject $baselineTestTimings -Name "topEntries") {
+        $baselineTopEntry = @($baselineTestTimings.topEntries | Select-Object -First 1)
+    }
+    $baselineSlowestTestDurationSeconds = if (@($baselineTopEntry).Count -gt 0 -and (Test-ObjectProperty -InputObject $baselineTopEntry[0] -Name "seconds")) {
+        [double]$baselineTopEntry[0].seconds
+    } else {
+        $null
+    }
+
+    $metrics.baseline.testTimings = [ordered]@{
+        status = $baselineTestTimings.status
+        totalDurationSeconds = $baselineTotalTestDurationSeconds
+        slowTestsOverOneSecond = $baselineSlowTestsOverOneSecond
+        slowestTest = [ordered]@{
+            name = if (@($baselineTopEntry).Count -gt 0 -and (Test-ObjectProperty -InputObject $baselineTopEntry[0] -Name "name")) { $baselineTopEntry[0].name } else { $null }
+            durationSeconds = $baselineSlowestTestDurationSeconds
+        }
+    }
+
+    foreach ($check in @(
+            (New-BaselineRegressionCheck -Id "baseline-test-total-duration" -Label "Total parsed test duration vs baseline" -CurrentValue $totalTestDurationSeconds -BaselineValue $baselineTotalTestDurationSeconds -MinDeltaValue $baselineThresholds.totalTestMinDeltaSeconds -MaxGrowthRatio $baselineThresholds.durationRatio -Unit "s"),
+            (New-BaselineRegressionCheck -Id "baseline-slowest-test-duration" -Label "Slowest parsed test duration vs baseline" -CurrentValue $slowestTestDurationSeconds -BaselineValue $baselineSlowestTestDurationSeconds -MinDeltaValue $baselineThresholds.slowestTestMinDeltaSeconds -MaxGrowthRatio $baselineThresholds.durationRatio -Unit "s"),
+            (New-BaselineRegressionCheck -Id "baseline-slow-tests-over-one-second" -Label "Count of tests >= 1 second vs baseline" -CurrentValue $slowTestsOverOneSecond -BaselineValue $baselineSlowTestsOverOneSecond -MinDeltaValue $baselineThresholds.slowTestsOverOneSecondMinDelta -MaxGrowthRatio $baselineThresholds.durationRatio -Unit "")
+        )) {
+        if ($null -ne $check) {
+            $checks.Add($check)
         }
     }
 }

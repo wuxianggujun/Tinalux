@@ -43,6 +43,8 @@ function Get-RequiredManifestFileIds {
     switch ($WorkflowName) {
         "windows-desktop-smoke" {
             return @(
+                "baselineFetch",
+                "baselineFetchMarkdown",
                 "cacheSummary",
                 "executionSummary",
                 "executionSummaryMarkdown",
@@ -57,6 +59,8 @@ function Get-RequiredManifestFileIds {
         }
         "android-build-scripts-smoke" {
             return @(
+                "baselineFetch",
+                "baselineFetchMarkdown",
                 "executionSummary",
                 "executionSummaryMarkdown",
                 "metadataManifest",
@@ -68,6 +72,8 @@ function Get-RequiredManifestFileIds {
         }
         "linux-tina-glfw-x11" {
             return @(
+                "baselineFetch",
+                "baselineFetchMarkdown",
                 "executionSummary",
                 "executionSummaryMarkdown",
                 "metadataManifest",

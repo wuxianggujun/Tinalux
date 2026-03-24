@@ -11,6 +11,7 @@ on:
       - ".github/workflows/android-build-scripts-smoke.yml"
       - "tests/scripts/ci_metadata_contract_smoke.ps1"
       - "tests/scripts/ci_execution_summary_threshold_guard.ps1"
+      - "tests/scripts/ci_metadata_fetch_baseline.ps1"
       - "tests/scripts/ci_metadata_validate.ps1"
       - "tests/scripts/ci_metadata_manifest_helpers.ps1"
       - "scripts/build_android_native.ps1"
@@ -29,6 +30,7 @@ on:
       - ".github/workflows/android-build-scripts-smoke.yml"
       - "tests/scripts/ci_metadata_contract_smoke.ps1"
       - "tests/scripts/ci_execution_summary_threshold_guard.ps1"
+      - "tests/scripts/ci_metadata_fetch_baseline.ps1"
       - "tests/scripts/ci_metadata_validate.ps1"
       - "tests/scripts/ci_metadata_manifest_helpers.ps1"
       - "scripts/build_android_native.ps1"
@@ -42,6 +44,10 @@ on:
       - "android/tinalux-sdk/build.gradle.kts"
       - "android/tinalux-sdk/consumer-rules.pro"
       - "android/tinalux-sdk/src/main/AndroidManifest.xml"
+
+permissions:
+  actions: read
+  contents: read
 
 jobs:
   smoke:
@@ -100,6 +106,23 @@ jobs:
           ./tests/scripts/android_build_scripts_smoke_stage_summary.ps1
           -OutputRoot $env:TINALUX_ANDROID_SMOKE_METADATA_ROOT
           -ArtifactsRoot $env:TINALUX_ANDROID_SMOKE_ARTIFACT_ROOT
+
+      - name: Fetch Android Smoke Baseline Metadata
+        if: ${{ always() }}
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TINALUX_ANDROID_SMOKE_METADATA_ROOT: ${{ github.workspace }}/ci-artifacts/android-build-scripts-smoke/metadata
+          TINALUX_CI_BASELINE_BRANCH: ${{ github.base_ref || github.ref_name }}
+          TINALUX_CI_BASELINE_FALLBACK_BRANCH: ${{ github.event.repository.default_branch }}
+        run: >
+          ./tests/scripts/ci_metadata_fetch_baseline.ps1
+          -OutputRoot $env:TINALUX_ANDROID_SMOKE_METADATA_ROOT
+          -WorkflowName android-build-scripts-smoke
+          -WorkflowFile android-build-scripts-smoke.yml
+          -ArtifactName android-build-scripts-smoke-metadata
+          -Branch $env:TINALUX_CI_BASELINE_BRANCH
+          -FallbackBranch $env:TINALUX_CI_BASELINE_FALLBACK_BRANCH
 
       - name: Capture Android Smoke Threshold Warnings
         if: ${{ always() }}

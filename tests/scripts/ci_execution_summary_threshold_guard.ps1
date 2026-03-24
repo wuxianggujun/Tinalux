@@ -5,7 +5,8 @@ param(
     [string]$WorkflowName,
     [string]$SummaryTitle = "CI Threshold Guard",
     [double]$OverallDurationThresholdSeconds = 0,
-    [string[]]$StageThresholds = @()
+    [string[]]$StageThresholds = @(),
+    [string]$BaselineRoot = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -59,6 +60,20 @@ function Get-JsonInput {
     }
 }
 
+function Get-OptionalJsonPayload {
+    param([string]$Path)
+
+    if (-not (Test-Path $Path)) {
+        return $null
+    }
+
+    try {
+        return Get-Content -Path $Path -Raw | ConvertFrom-Json
+    } catch {
+        return $null
+    }
+}
+
 function New-CheckResult {
     param(
         [string]$Id,
@@ -90,6 +105,70 @@ function New-CheckResult {
     }
 
     return [pscustomobject]$result
+}
+
+function New-BaselineRegressionCheck {
+    param(
+        [string]$Id,
+        [string]$Label,
+        [object]$CurrentValue,
+        [object]$BaselineValue,
+        [double]$MinDeltaValue,
+        [double]$MaxGrowthRatio,
+        [string]$Unit,
+        [string]$MissingMessage
+    )
+
+    if ($null -eq $CurrentValue -or $null -eq $BaselineValue) {
+        return $null
+    }
+
+    $current = [double]$CurrentValue
+    $baseline = [double]$BaselineValue
+    $delta = [Math]::Round(($current - $baseline), 2)
+
+    if ($baseline -le 0) {
+        if ($current -ge $MinDeltaValue) {
+            return New-CheckResult `
+                -Id $Id `
+                -Label $Label `
+                -Status "warning" `
+                -Message ("Observed {0:N2}{1}; baseline was {2:N2}{1}." -f $current, $Unit, $baseline) `
+                -Actual $current `
+                -Threshold ("baseline*{0:N2} + {1:N2}{2}" -f $MaxGrowthRatio, $MinDeltaValue, $Unit) `
+                -Unit $Unit
+        }
+
+        return New-CheckResult `
+            -Id $Id `
+            -Label $Label `
+            -Status "passed" `
+            -Message ("Observed {0:N2}{1}; baseline was {2:N2}{1}." -f $current, $Unit, $baseline) `
+            -Actual $current `
+            -Threshold ("baseline*{0:N2} + {1:N2}{2}" -f $MaxGrowthRatio, $MinDeltaValue, $Unit) `
+            -Unit $Unit
+    }
+
+    $ratio = $current / $baseline
+    if ($delta -ge $MinDeltaValue -and $ratio -ge $MaxGrowthRatio) {
+        return New-CheckResult `
+            -Id $Id `
+            -Label $Label `
+            -Status "warning" `
+            -Message ("Observed {0:N2}{1}; baseline {2:N2}{1}; delta {3:N2}{1}; ratio {4:N2}x." -f $current, $Unit, $baseline, $delta, $ratio) `
+            -Actual $current `
+            -Threshold ("baseline*{0:N2} + {1:N2}{2}" -f $MaxGrowthRatio, $MinDeltaValue, $Unit) `
+            -Unit $Unit
+    }
+
+    return New-CheckResult `
+        -Id $Id `
+        -Label $Label `
+        -Status "passed" `
+        -Message ("Observed {0:N2}{1}; baseline {2:N2}{1}; delta {3:N2}{1}; ratio {4:N2}x." -f $current, $Unit, $baseline, $delta, $ratio) `
+        -Actual $current `
+        -Threshold ("baseline*{0:N2} + {1:N2}{2}" -f $MaxGrowthRatio, $MinDeltaValue, $Unit) `
+        -Unit $Unit
 }
 
 function New-MaxValueCheck {
@@ -366,6 +445,15 @@ New-Item -ItemType Directory -Force -Path $outputRootPath | Out-Null
 $executionSummaryPath = Join-Path $outputRootPath "execution-summary.json"
 $thresholdCheckJsonPath = Join-Path $outputRootPath "threshold-check.json"
 $thresholdCheckMarkdownPath = Join-Path $outputRootPath "threshold-check.md"
+$baselineRootPath = if ([string]::IsNullOrWhiteSpace($BaselineRoot)) {
+    Join-Path $outputRootPath "baseline"
+} elseif ([System.IO.Path]::IsPathRooted($BaselineRoot)) {
+    [System.IO.Path]::GetFullPath($BaselineRoot)
+} else {
+    [System.IO.Path]::GetFullPath((Join-Path $outputRootPath $BaselineRoot))
+}
+$baselineExecutionSummaryPath = Join-Path $baselineRootPath "execution-summary.json"
+$baselineFetchPath = Join-Path $outputRootPath "baseline-fetch.json"
 
 $stageThresholdDefinitions = @(
     $StageThresholds |
@@ -384,6 +472,11 @@ $workflowData = if ($null -ne $executionSummary) {
 
 $checks = New-Object System.Collections.Generic.List[object]
 $metrics = [ordered]@{}
+$baselineThresholds = [ordered]@{
+    durationRatio = 1.25
+    overallMinDeltaSeconds = 60
+    stageMinDeltaSeconds = 30
+}
 
 $executionStatus = $null
 $executionDurationSeconds = $null
@@ -420,6 +513,58 @@ if ($OverallDurationThresholdSeconds -gt 0) {
             -MissingMessage "execution-summary.json did not provide durationSeconds."))
 }
 
+$baselineExecutionSummary = Get-OptionalJsonPayload -Path $baselineExecutionSummaryPath
+$baselineFetch = Get-OptionalJsonPayload -Path $baselineFetchPath
+if ($null -ne $baselineExecutionSummary) {
+    $baselineStageDurations = [ordered]@{}
+    foreach ($stageThreshold in $stageThresholdDefinitions) {
+        $baselineStageDurations[$stageThreshold.name] = Get-ExecutionStepDurationSeconds -ExecutionSummary $baselineExecutionSummary -StepName $stageThreshold.name
+    }
+
+    $metrics.baseline = [ordered]@{
+        available = $true
+        metadataRoot = $baselineRootPath
+        executionSummary = [ordered]@{
+            status = if (Test-ObjectProperty -InputObject $baselineExecutionSummary -Name "status") { $baselineExecutionSummary.status } else { $null }
+            durationSeconds = if (Test-ObjectProperty -InputObject $baselineExecutionSummary -Name "durationSeconds") { [double]$baselineExecutionSummary.durationSeconds } else { $null }
+            stageDurations = $baselineStageDurations
+        }
+    }
+
+    if ($null -ne $baselineFetch -and (Test-ObjectProperty -InputObject $baselineFetch -Name "baseline")) {
+        $metrics.baseline.source = $baselineFetch.baseline
+    }
+} else {
+    $metrics.baseline = [ordered]@{
+        available = $false
+        metadataRoot = $baselineRootPath
+    }
+
+    if ($null -ne $baselineFetch -and (Test-ObjectProperty -InputObject $baselineFetch -Name "status")) {
+        $metrics.baseline.fetchStatus = $baselineFetch.status
+    }
+}
+
+if ($null -ne $baselineExecutionSummary) {
+    $baselineOverallDurationSeconds = if (Test-ObjectProperty -InputObject $baselineExecutionSummary -Name "durationSeconds") {
+        [double]$baselineExecutionSummary.durationSeconds
+    } else {
+        $null
+    }
+    $baselineCheck = New-BaselineRegressionCheck `
+        -Id "baseline-execution-total-duration" `
+        -Label "Overall workflow duration vs baseline" `
+        -CurrentValue $executionDurationSeconds `
+        -BaselineValue $baselineOverallDurationSeconds `
+        -MinDeltaValue $baselineThresholds.overallMinDeltaSeconds `
+        -MaxGrowthRatio $baselineThresholds.durationRatio `
+        -Unit "s" `
+        -MissingMessage "Baseline execution summary did not provide durationSeconds."
+    if ($null -ne $baselineCheck) {
+        $checks.Add($baselineCheck)
+    }
+}
+
 foreach ($stageThreshold in $stageThresholdDefinitions) {
     $step = if ($null -ne $executionSummary) {
         Get-ExecutionStep -ExecutionSummary $executionSummary -StepName $stageThreshold.name
@@ -444,6 +589,22 @@ foreach ($stageThreshold in $stageThresholdDefinitions) {
             -ThresholdValue $stageThreshold.thresholdSeconds `
             -Unit "s" `
             -MissingMessage ("Stage duration was not available for step `{0}`." -f $stageThreshold.name)))
+
+    if ($null -ne $baselineExecutionSummary) {
+        $baselineDuration = Get-ExecutionStepDurationSeconds -ExecutionSummary $baselineExecutionSummary -StepName $stageThreshold.name
+        $baselineCheck = New-BaselineRegressionCheck `
+            -Id ("baseline-{0}-duration" -f $stageThreshold.name) `
+            -Label ("{0} duration vs baseline" -f $stepLabel) `
+            -CurrentValue $duration `
+            -BaselineValue $baselineDuration `
+            -MinDeltaValue $baselineThresholds.stageMinDeltaSeconds `
+            -MaxGrowthRatio $baselineThresholds.durationRatio `
+            -Unit "s" `
+            -MissingMessage ("Baseline stage duration was not available for step `{0}`." -f $stageThreshold.name)
+        if ($null -ne $baselineCheck) {
+            $checks.Add($baselineCheck)
+        }
+    }
 }
 
 $checkArray = @($checks.ToArray())

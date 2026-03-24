@@ -13,7 +13,7 @@
 - 三条 workflow 的 `runner-fingerprint.json` / `execution-summary.json` 已对齐顶层 schema，并固定 `schemaVersion = 1`，便于横向比对状态、耗时和步骤统计
 - 三条 workflow 的 metadata 目录现已统一提供 `metadata-manifest.json` 作为索引入口，便于脚本或团队成员快速定位各类 JSON / Markdown 输出
 - 三条 workflow 现已在上传 artifact 前执行 metadata 自动验收，并产出 `metadata-validation.json` / `metadata-validation.md`
-- 三条 workflow 现已额外产出 `threshold-check.json` / `threshold-check.md`，先用于 `warning-only` 的回归告警摘要，不直接拦截 CI；命中阈值时会在 GitHub Actions 日志里发出 `warning` 注解
+- 三条 workflow 现已额外产出 `baseline-fetch.json` / `baseline-fetch.md` 与 `threshold-check.json` / `threshold-check.md`；当前会优先尝试拉取上一条成功 run 的 metadata 作为基线，继续保持 `warning-only`，不直接拦截 CI；命中阈值时会在 GitHub Actions 日志里发出 `warning` 注解
 - `P1` 真机验证仍未自动化，继续按 backlog / TODO 管理
 
 ## Workflow 选择
@@ -38,8 +38,9 @@
   - job 超时 `30` 分钟
 - 当前附加能力：
   - workflow summary 会输出 runner 指纹、编译器版本、单阶段构建耗时和构建目录体积
-  - 会额外记录 `runner-fingerprint.json`、`build-run.json`、`execution-summary.json`、`execution-summary.md`、`threshold-check.json`、`threshold-check.md`、`metadata-manifest.json` 与 `metadata-validation.json`
-  - `threshold-check.json` / `threshold-check.md` 当前会基于 execution summary 状态与构建耗时输出 `warning-only` 告警摘要
+  - 会额外记录 `runner-fingerprint.json`、`build-run.json`、`execution-summary.json`、`execution-summary.md`、`baseline-fetch.json`、`baseline-fetch.md`、`threshold-check.json`、`threshold-check.md`、`metadata-manifest.json` 与 `metadata-validation.json`
+  - `baseline-fetch.json` / `baseline-fetch.md` 当前会尽量拉取上一条成功 Linux X11 metadata artifact，供本次 run 做趋势对比
+  - `threshold-check.json` / `threshold-check.md` 当前会基于 execution summary 状态、构建耗时和可用 baseline 输出 `warning-only` 告警摘要
   - metadata 目录会作为独立 artifact 在成功和失败场景都上传，便于下载比对 runner、compiler 和构建结果
 - 失败回溯：
   - 上传 `build/tina_glfw-linux-x11/<compiler>/**` 构建目录，产物保留 `7` 天
@@ -91,7 +92,8 @@
   - 会额外记录 `runner-fingerprint.json`、`cache-summary.json` 与 `metadata-manifest.json`，失败时随 artifact 一并保留
   - 会额外记录 `stage-configure.json`、`stage-build.json`、`stage-test.json`、`execution-summary.json` 与 `execution-summary.md`
   - 会额外记录 `test-timings.json` 与 `test-timings-summary.md`，即使测试失败也尽量保留，且它们已纳入同一份 metadata manifest
-  - 会额外记录 `threshold-check.json` 与 `threshold-check.md`，基于阶段耗时、慢测试和 cache 状态生成 `warning-only` 告警摘要
+  - 会额外记录 `baseline-fetch.json` 与 `baseline-fetch.md`，尽量拉取上一条成功 Windows smoke metadata artifact，供本次 run 做趋势对比
+  - 会额外记录 `threshold-check.json` 与 `threshold-check.md`，基于阶段耗时、慢测试、cache 状态和可用 baseline 生成 `warning-only` 告警摘要
   - 会额外记录 `metadata-validation.json` 与 `metadata-validation.md`，用于自动检查 manifest、schemaVersion 和关键 JSON/Markdown 是否齐全
   - metadata 目录会作为独立 artifact 在成功和失败场景都上传，便于团队下载比对 cache / runner / timing 结果
   - 前置校验桌面 smoke 入口和 `android-scripts` 过滤契约
@@ -130,8 +132,9 @@
   - `./tests/scripts/android_build_scripts_smoke_stage_run.ps1 -Stage validate -RepoRoot . -OutputRoot ...`
 - 当前附加能力：
   - workflow summary 会输出 runner 指纹，以及 stage / validate 两阶段耗时摘要
-  - 会额外记录 `runner-fingerprint.json`、`script-stage.json`、`script-validate.json`、`execution-summary.json`、`execution-summary.md`、`threshold-check.json`、`threshold-check.md`、`metadata-manifest.json` 与 `metadata-validation.json`
-  - `threshold-check.json` / `threshold-check.md` 当前会基于 stage / validate 两阶段耗时与 execution summary 状态输出 `warning-only` 告警摘要
+  - 会额外记录 `runner-fingerprint.json`、`script-stage.json`、`script-validate.json`、`execution-summary.json`、`execution-summary.md`、`baseline-fetch.json`、`baseline-fetch.md`、`threshold-check.json`、`threshold-check.md`、`metadata-manifest.json` 与 `metadata-validation.json`
+  - `baseline-fetch.json` / `baseline-fetch.md` 当前会尽量拉取上一条成功 Android smoke metadata artifact，供本次 run 做趋势对比
+  - `threshold-check.json` / `threshold-check.md` 当前会基于 stage / validate 两阶段耗时、execution summary 状态和可用 baseline 输出 `warning-only` 告警摘要
   - metadata 目录会作为独立 artifact 在成功和失败场景都上传，便于下载比对 runner、耗时和保留的 smoke 临时目录
 - 失败回溯：
   - 保留 smoke 临时目录

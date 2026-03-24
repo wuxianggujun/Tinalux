@@ -51,6 +51,16 @@ $checks = @(
         Description = 'metadata validation threshold markdown requirement'
     },
     @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_metadata_validate.ps1"
+        Pattern = '"baselineFetch"'
+        Description = 'metadata validation baseline fetch requirement'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_metadata_validate.ps1"
+        Pattern = '"baselineFetchMarkdown"'
+        Description = 'metadata validation baseline markdown requirement'
+    },
+    @{
         Path = Join-Path $repoRootPath "tests/scripts/ci_execution_summary_threshold_guard.ps1"
         Pattern = 'ci_metadata_manifest_helpers\.ps1'
         Description = 'execution summary threshold guard helper wiring'
@@ -79,6 +89,31 @@ $checks = @(
         Path = Join-Path $repoRootPath "tests/scripts/ci_execution_summary_threshold_guard.ps1"
         Pattern = 'mode = "warning-only"'
         Description = 'execution summary threshold guard warning-only mode'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_metadata_fetch_baseline.ps1"
+        Pattern = 'ci_metadata_manifest_helpers\.ps1'
+        Description = 'baseline fetch helper wiring'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_metadata_fetch_baseline.ps1"
+        Pattern = 'baseline-fetch\.json'
+        Description = 'baseline fetch json output'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_metadata_fetch_baseline.ps1"
+        Pattern = 'baseline-fetch\.md'
+        Description = 'baseline fetch markdown output'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_metadata_fetch_baseline.ps1"
+        Pattern = 'Update-MetadataManifest'
+        Description = 'baseline fetch manifest update'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_metadata_fetch_baseline.ps1"
+        Pattern = 'https://api\.github\.com/repos/'
+        Description = 'baseline fetch GitHub API usage'
     },
     @{
         Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_ci_metadata.ps1"
@@ -341,6 +376,16 @@ $checks = @(
         Description = 'Windows workflow threshold guard step'
     },
     @{
+        Path = Join-Path $repoRootPath ".github/workflows/windows-desktop-smoke.yml"
+        Pattern = 'name:\s+Fetch Windows Smoke Baseline Metadata'
+        Description = 'Windows workflow baseline fetch step'
+    },
+    @{
+        Path = Join-Path $repoRootPath ".github/workflows/windows-desktop-smoke.yml"
+        Pattern = 'permissions:\s+actions:\s+read\s+contents:\s+read'
+        Description = 'Windows workflow baseline read permissions'
+    },
+    @{
         Path = Join-Path $repoRootPath ".github/workflows/android-build-scripts-smoke.yml"
         Pattern = 'run:\s+\./tests/scripts/ci_metadata_contract_smoke\.ps1\s+-RepoRoot\s+\.'
         Description = 'Android workflow metadata contract step'
@@ -357,6 +402,11 @@ $checks = @(
     },
     @{
         Path = Join-Path $repoRootPath ".github/workflows/android-build-scripts-smoke.yml"
+        Pattern = 'name:\s+Fetch Android Smoke Baseline Metadata'
+        Description = 'Android workflow baseline fetch step'
+    },
+    @{
+        Path = Join-Path $repoRootPath ".github/workflows/android-build-scripts-smoke.yml"
         Pattern = '"tests/scripts/ci_metadata_manifest_helpers\.ps1"'
         Description = 'Android workflow metadata helper trigger'
     },
@@ -369,6 +419,16 @@ $checks = @(
         Path = Join-Path $repoRootPath ".github/workflows/android-build-scripts-smoke.yml"
         Pattern = '"tests/scripts/ci_execution_summary_threshold_guard\.ps1"'
         Description = 'Android workflow threshold trigger'
+    },
+    @{
+        Path = Join-Path $repoRootPath ".github/workflows/android-build-scripts-smoke.yml"
+        Pattern = '"tests/scripts/ci_metadata_fetch_baseline\.ps1"'
+        Description = 'Android workflow baseline trigger'
+    },
+    @{
+        Path = Join-Path $repoRootPath ".github/workflows/android-build-scripts-smoke.yml"
+        Pattern = 'permissions:\s+actions:\s+read\s+contents:\s+read'
+        Description = 'Android workflow baseline read permissions'
     },
     @{
         Path = Join-Path $repoRootPath ".github/workflows/linux-tina-glfw-x11.yml"
@@ -387,6 +447,11 @@ $checks = @(
     },
     @{
         Path = Join-Path $repoRootPath ".github/workflows/linux-tina-glfw-x11.yml"
+        Pattern = 'name:\s+Fetch Linux X11 Baseline Metadata'
+        Description = 'Linux workflow baseline fetch step'
+    },
+    @{
+        Path = Join-Path $repoRootPath ".github/workflows/linux-tina-glfw-x11.yml"
         Pattern = '"tests/scripts/ci_metadata_manifest_helpers\.ps1"'
         Description = 'Linux workflow metadata helper trigger'
     },
@@ -399,6 +464,16 @@ $checks = @(
         Path = Join-Path $repoRootPath ".github/workflows/linux-tina-glfw-x11.yml"
         Pattern = '"tests/scripts/ci_execution_summary_threshold_guard\.ps1"'
         Description = 'Linux workflow threshold trigger'
+    },
+    @{
+        Path = Join-Path $repoRootPath ".github/workflows/linux-tina-glfw-x11.yml"
+        Pattern = '"tests/scripts/ci_metadata_fetch_baseline\.ps1"'
+        Description = 'Linux workflow baseline trigger'
+    },
+    @{
+        Path = Join-Path $repoRootPath ".github/workflows/linux-tina-glfw-x11.yml"
+        Pattern = 'permissions:\s+actions:\s+read\s+contents:\s+read'
+        Description = 'Linux workflow baseline read permissions'
     },
     @{
         Path = Join-Path $repoRootPath "docs/CI验证入口.md"
@@ -426,6 +501,11 @@ $checks = @(
         Description = 'CI docs threshold guard mention'
     },
     @{
+        Path = Join-Path $repoRootPath "docs/CI验证入口.md"
+        Pattern = 'baseline-fetch\.json'
+        Description = 'CI docs baseline fetch mention'
+    },
+    @{
         Path = Join-Path $repoRootPath "docs/开发计划.md"
         Pattern = 'runner-fingerprint\.json` / `execution-summary\.json`'
         Description = 'plan docs schema alignment mention'
@@ -449,6 +529,11 @@ $checks = @(
         Path = Join-Path $repoRootPath "docs/开发计划.md"
         Pattern = 'threshold-check\.json'
         Description = 'plan docs threshold guard mention'
+    },
+    @{
+        Path = Join-Path $repoRootPath "docs/开发计划.md"
+        Pattern = 'baseline'
+        Description = 'plan docs baseline mention'
     }
 )
 
@@ -457,6 +542,7 @@ foreach ($check in $checks) {
 }
 
 Write-Host "Validated CI metadata contract:"
+Write-Host "  tests/scripts/ci_metadata_fetch_baseline.ps1"
 Write-Host "  tests/scripts/ci_execution_summary_threshold_guard.ps1"
 Write-Host "  tests/scripts/windows_desktop_smoke_ci_metadata.ps1"
 Write-Host "  tests/scripts/android_build_scripts_smoke_ci_metadata.ps1"
