@@ -74,6 +74,82 @@ function Get-OptionalJsonPayload {
     }
 }
 
+function Get-ObjectPropertyValue {
+    param(
+        [object]$InputObject,
+        [string[]]$PropertyPath
+    )
+
+    $current = $InputObject
+    foreach ($propertyName in $PropertyPath) {
+        if (-not (Test-ObjectProperty -InputObject $current -Name $propertyName)) {
+            return $null
+        }
+
+        $current = $current.$propertyName
+        if ($null -eq $current) {
+            return $null
+        }
+    }
+
+    return $current
+}
+
+function Get-NormalizedTextValue {
+    param([object]$Value)
+
+    if ($null -eq $Value) {
+        return $null
+    }
+
+    $text = $Value.ToString().Trim()
+    if ([string]::IsNullOrWhiteSpace($text)) {
+        return $null
+    }
+
+    return $text
+}
+
+function Get-RunnerFingerprintSummary {
+    param([object]$RunnerFingerprint)
+
+    if ($null -eq $RunnerFingerprint) {
+        return $null
+    }
+
+    return [ordered]@{
+        runner = [ordered]@{
+            os = Get-NormalizedTextValue -Value (Get-ObjectPropertyValue -InputObject $RunnerFingerprint -PropertyPath @("runner", "os"))
+            arch = Get-NormalizedTextValue -Value (Get-ObjectPropertyValue -InputObject $RunnerFingerprint -PropertyPath @("runner", "arch"))
+            imageOs = Get-NormalizedTextValue -Value (Get-ObjectPropertyValue -InputObject $RunnerFingerprint -PropertyPath @("runner", "imageOs"))
+            imageVersion = Get-NormalizedTextValue -Value (Get-ObjectPropertyValue -InputObject $RunnerFingerprint -PropertyPath @("runner", "imageVersion"))
+        }
+        tools = [ordered]@{
+            powershell = [ordered]@{
+                version = Get-NormalizedTextValue -Value (Get-ObjectPropertyValue -InputObject $RunnerFingerprint -PropertyPath @("tools", "powershell", "version"))
+            }
+            cmake = [ordered]@{
+                version = Get-NormalizedTextValue -Value (Get-ObjectPropertyValue -InputObject $RunnerFingerprint -PropertyPath @("tools", "cmake", "version"))
+            }
+            ninja = [ordered]@{
+                version = Get-NormalizedTextValue -Value (Get-ObjectPropertyValue -InputObject $RunnerFingerprint -PropertyPath @("tools", "ninja", "version"))
+            }
+            python = [ordered]@{
+                version = Get-NormalizedTextValue -Value (Get-ObjectPropertyValue -InputObject $RunnerFingerprint -PropertyPath @("tools", "python", "version"))
+            }
+            cc = [ordered]@{
+                version = Get-NormalizedTextValue -Value (Get-ObjectPropertyValue -InputObject $RunnerFingerprint -PropertyPath @("tools", "cc", "version"))
+            }
+            cxx = [ordered]@{
+                version = Get-NormalizedTextValue -Value (Get-ObjectPropertyValue -InputObject $RunnerFingerprint -PropertyPath @("tools", "cxx", "version"))
+            }
+            msvc = [ordered]@{
+                version = Get-NormalizedTextValue -Value (Get-ObjectPropertyValue -InputObject $RunnerFingerprint -PropertyPath @("tools", "msvc", "version"))
+            }
+        }
+    }
+}
+
 function New-CheckResult {
     param(
         [string]$Id,
@@ -211,6 +287,43 @@ function New-MaxValueCheck {
         -Actual $actual `
         -Threshold $ThresholdValue `
         -Unit $Unit
+}
+
+function New-StringBaselineCheck {
+    param(
+        [string]$Id,
+        [string]$Label,
+        [object]$CurrentValue,
+        [object]$BaselineValue
+    )
+
+    $currentText = Get-NormalizedTextValue -Value $CurrentValue
+    $baselineText = Get-NormalizedTextValue -Value $BaselineValue
+
+    if ($null -eq $currentText -and $null -eq $baselineText) {
+        return $null
+    }
+
+    $displayCurrent = if ($null -ne $currentText) { $currentText } else { "unavailable" }
+    $displayBaseline = if ($null -ne $baselineText) { $baselineText } else { "unavailable" }
+
+    if ($displayCurrent -eq $displayBaseline) {
+        return New-CheckResult `
+            -Id $Id `
+            -Label $Label `
+            -Status "passed" `
+            -Message ("Observed `{0}`; baseline `{1}`." -f $displayCurrent, $displayBaseline) `
+            -Actual $displayCurrent `
+            -Threshold $displayBaseline
+    }
+
+    return New-CheckResult `
+        -Id $Id `
+        -Label $Label `
+        -Status "warning" `
+        -Message ("Observed `{0}`; baseline `{1}`." -f $displayCurrent, $displayBaseline) `
+        -Actual $displayCurrent `
+        -Threshold $displayBaseline
 }
 
 function New-ExecutionStatusCheck {
@@ -443,6 +556,7 @@ $outputRootPath = [System.IO.Path]::GetFullPath($OutputRoot)
 New-Item -ItemType Directory -Force -Path $outputRootPath | Out-Null
 
 $executionSummaryPath = Join-Path $outputRootPath "execution-summary.json"
+$runnerFingerprintPath = Join-Path $outputRootPath "runner-fingerprint.json"
 $thresholdCheckJsonPath = Join-Path $outputRootPath "threshold-check.json"
 $thresholdCheckMarkdownPath = Join-Path $outputRootPath "threshold-check.md"
 $baselineRootPath = if ([string]::IsNullOrWhiteSpace($BaselineRoot)) {
@@ -453,6 +567,7 @@ $baselineRootPath = if ([string]::IsNullOrWhiteSpace($BaselineRoot)) {
     [System.IO.Path]::GetFullPath((Join-Path $outputRootPath $BaselineRoot))
 }
 $baselineExecutionSummaryPath = Join-Path $baselineRootPath "execution-summary.json"
+$baselineRunnerFingerprintPath = Join-Path $baselineRootPath "runner-fingerprint.json"
 $baselineFetchPath = Join-Path $outputRootPath "baseline-fetch.json"
 
 $stageThresholdDefinitions = @(
@@ -462,8 +577,13 @@ $stageThresholdDefinitions = @(
 )
 
 $executionSummaryInput = Get-JsonInput -Id "executionSummary" -Path $executionSummaryPath
-$inputs = @($executionSummaryInput.input)
+$runnerFingerprintInput = Get-JsonInput -Id "runnerFingerprint" -Path $runnerFingerprintPath
+$inputs = @(
+    $executionSummaryInput.input
+    $runnerFingerprintInput.input
+)
 $executionSummary = $executionSummaryInput.payload
+$runnerFingerprint = $runnerFingerprintInput.payload
 $workflowData = if ($null -ne $executionSummary) {
     Get-WorkflowDataHashtable -Workflow $executionSummary.workflow
 } else {
@@ -501,6 +621,11 @@ if ($null -ne $executionSummary) {
     }
 }
 
+$runnerFingerprintSummary = Get-RunnerFingerprintSummary -RunnerFingerprint $runnerFingerprint
+if ($null -ne $runnerFingerprintSummary) {
+    $metrics.runnerFingerprint = $runnerFingerprintSummary
+}
+
 $checks.Add((New-ExecutionStatusCheck -Label "Execution summary status" -ActualStatus $executionStatus))
 
 if ($OverallDurationThresholdSeconds -gt 0) {
@@ -514,35 +639,39 @@ if ($OverallDurationThresholdSeconds -gt 0) {
 }
 
 $baselineExecutionSummary = Get-OptionalJsonPayload -Path $baselineExecutionSummaryPath
+$baselineRunnerFingerprint = Get-OptionalJsonPayload -Path $baselineRunnerFingerprintPath
 $baselineFetch = Get-OptionalJsonPayload -Path $baselineFetchPath
+$baselineRunnerFingerprintSummary = Get-RunnerFingerprintSummary -RunnerFingerprint $baselineRunnerFingerprint
+$baselineAvailable = ($null -ne $baselineExecutionSummary -or $null -ne $baselineRunnerFingerprintSummary)
+
+$metrics.baseline = [ordered]@{
+    available = $baselineAvailable
+    metadataRoot = $baselineRootPath
+}
+
 if ($null -ne $baselineExecutionSummary) {
     $baselineStageDurations = [ordered]@{}
     foreach ($stageThreshold in $stageThresholdDefinitions) {
         $baselineStageDurations[$stageThreshold.name] = Get-ExecutionStepDurationSeconds -ExecutionSummary $baselineExecutionSummary -StepName $stageThreshold.name
     }
 
-    $metrics.baseline = [ordered]@{
-        available = $true
-        metadataRoot = $baselineRootPath
-        executionSummary = [ordered]@{
-            status = if (Test-ObjectProperty -InputObject $baselineExecutionSummary -Name "status") { $baselineExecutionSummary.status } else { $null }
-            durationSeconds = if (Test-ObjectProperty -InputObject $baselineExecutionSummary -Name "durationSeconds") { [double]$baselineExecutionSummary.durationSeconds } else { $null }
-            stageDurations = $baselineStageDurations
-        }
+    $metrics.baseline.executionSummary = [ordered]@{
+        status = if (Test-ObjectProperty -InputObject $baselineExecutionSummary -Name "status") { $baselineExecutionSummary.status } else { $null }
+        durationSeconds = if (Test-ObjectProperty -InputObject $baselineExecutionSummary -Name "durationSeconds") { [double]$baselineExecutionSummary.durationSeconds } else { $null }
+        stageDurations = $baselineStageDurations
     }
+}
 
-    if ($null -ne $baselineFetch -and (Test-ObjectProperty -InputObject $baselineFetch -Name "baseline")) {
-        $metrics.baseline.source = $baselineFetch.baseline
-    }
-} else {
-    $metrics.baseline = [ordered]@{
-        available = $false
-        metadataRoot = $baselineRootPath
-    }
+if ($null -ne $baselineRunnerFingerprintSummary) {
+    $metrics.baseline.runnerFingerprint = $baselineRunnerFingerprintSummary
+}
 
-    if ($null -ne $baselineFetch -and (Test-ObjectProperty -InputObject $baselineFetch -Name "status")) {
-        $metrics.baseline.fetchStatus = $baselineFetch.status
-    }
+if ($null -ne $baselineFetch -and (Test-ObjectProperty -InputObject $baselineFetch -Name "baseline")) {
+    $metrics.baseline.source = $baselineFetch.baseline
+}
+
+if ($null -ne $baselineFetch -and (Test-ObjectProperty -InputObject $baselineFetch -Name "status")) {
+    $metrics.baseline.fetchStatus = $baselineFetch.status
 }
 
 if ($null -ne $baselineExecutionSummary) {
@@ -601,6 +730,86 @@ foreach ($stageThreshold in $stageThresholdDefinitions) {
             -MaxGrowthRatio $baselineThresholds.durationRatio `
             -Unit "s" `
             -MissingMessage ("Baseline stage duration was not available for step `{0}`." -f $stageThreshold.name)
+        if ($null -ne $baselineCheck) {
+            $checks.Add($baselineCheck)
+        }
+    }
+}
+
+if ($null -ne $runnerFingerprintSummary -and $null -ne $baselineRunnerFingerprintSummary) {
+    foreach ($comparison in @(
+            @{
+                id = "baseline-runner-os"
+                label = "Runner OS vs baseline"
+                current = $runnerFingerprintSummary.runner.os
+                baseline = $baselineRunnerFingerprintSummary.runner.os
+            },
+            @{
+                id = "baseline-runner-arch"
+                label = "Runner architecture vs baseline"
+                current = $runnerFingerprintSummary.runner.arch
+                baseline = $baselineRunnerFingerprintSummary.runner.arch
+            },
+            @{
+                id = "baseline-runner-image-os"
+                label = "Runner image OS vs baseline"
+                current = $runnerFingerprintSummary.runner.imageOs
+                baseline = $baselineRunnerFingerprintSummary.runner.imageOs
+            },
+            @{
+                id = "baseline-runner-image-version"
+                label = "Runner image version vs baseline"
+                current = $runnerFingerprintSummary.runner.imageVersion
+                baseline = $baselineRunnerFingerprintSummary.runner.imageVersion
+            },
+            @{
+                id = "baseline-powershell-version"
+                label = "PowerShell version vs baseline"
+                current = $runnerFingerprintSummary.tools.powershell.version
+                baseline = $baselineRunnerFingerprintSummary.tools.powershell.version
+            },
+            @{
+                id = "baseline-cmake-version"
+                label = "CMake version vs baseline"
+                current = $runnerFingerprintSummary.tools.cmake.version
+                baseline = $baselineRunnerFingerprintSummary.tools.cmake.version
+            },
+            @{
+                id = "baseline-ninja-version"
+                label = "Ninja version vs baseline"
+                current = $runnerFingerprintSummary.tools.ninja.version
+                baseline = $baselineRunnerFingerprintSummary.tools.ninja.version
+            },
+            @{
+                id = "baseline-python-version"
+                label = "Python version vs baseline"
+                current = $runnerFingerprintSummary.tools.python.version
+                baseline = $baselineRunnerFingerprintSummary.tools.python.version
+            },
+            @{
+                id = "baseline-cc-version"
+                label = "CC version vs baseline"
+                current = $runnerFingerprintSummary.tools.cc.version
+                baseline = $baselineRunnerFingerprintSummary.tools.cc.version
+            },
+            @{
+                id = "baseline-cxx-version"
+                label = "CXX version vs baseline"
+                current = $runnerFingerprintSummary.tools.cxx.version
+                baseline = $baselineRunnerFingerprintSummary.tools.cxx.version
+            },
+            @{
+                id = "baseline-msvc-version"
+                label = "MSVC version vs baseline"
+                current = $runnerFingerprintSummary.tools.msvc.version
+                baseline = $baselineRunnerFingerprintSummary.tools.msvc.version
+            }
+        )) {
+        $baselineCheck = New-StringBaselineCheck `
+            -Id $comparison.id `
+            -Label $comparison.label `
+            -CurrentValue $comparison.current `
+            -BaselineValue $comparison.baseline
         if ($null -ne $baselineCheck) {
             $checks.Add($baselineCheck)
         }

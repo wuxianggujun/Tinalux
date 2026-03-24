@@ -82,6 +82,16 @@ $checks = @(
     },
     @{
         Path = Join-Path $repoRootPath "tests/scripts/ci_execution_summary_threshold_guard.ps1"
+        Pattern = 'Join-Path \$outputRootPath "runner-fingerprint\.json"'
+        Description = 'execution summary threshold guard current runner fingerprint input'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_execution_summary_threshold_guard.ps1"
+        Pattern = 'Join-Path \$baselineRootPath "runner-fingerprint\.json"'
+        Description = 'execution summary threshold guard baseline runner fingerprint input'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_execution_summary_threshold_guard.ps1"
         Pattern = 'Update-MetadataManifest'
         Description = 'execution summary threshold guard manifest update'
     },
@@ -179,6 +189,16 @@ $checks = @(
         Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_threshold_guard.ps1"
         Pattern = 'Join-Path \$outputRootPath "threshold-check\.md"'
         Description = 'Windows threshold guard markdown filename'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_threshold_guard.ps1"
+        Pattern = 'Join-Path \$outputRootPath "runner-fingerprint\.json"'
+        Description = 'Windows threshold guard current runner fingerprint input'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_threshold_guard.ps1"
+        Pattern = 'Join-Path \$baselineRootPath "runner-fingerprint\.json"'
+        Description = 'Windows threshold guard baseline runner fingerprint input'
     },
     @{
         Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_threshold_guard.ps1"
