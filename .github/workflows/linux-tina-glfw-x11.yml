@@ -10,6 +10,7 @@ on:
     paths:
       - ".github/workflows/linux-tina-glfw-x11.yml"
       - "tests/scripts/ci_metadata_contract_smoke.ps1"
+      - "tests/scripts/ci_execution_summary_threshold_guard.ps1"
       - "tests/scripts/ci_metadata_validate.ps1"
       - "tests/scripts/ci_metadata_manifest_helpers.ps1"
       - "scripts/validateTinaGlfwX11Linux.sh"
@@ -21,6 +22,7 @@ on:
     paths:
       - ".github/workflows/linux-tina-glfw-x11.yml"
       - "tests/scripts/ci_metadata_contract_smoke.ps1"
+      - "tests/scripts/ci_execution_summary_threshold_guard.ps1"
       - "tests/scripts/ci_metadata_validate.ps1"
       - "tests/scripts/ci_metadata_manifest_helpers.ps1"
       - "scripts/validateTinaGlfwX11Linux.sh"
@@ -104,6 +106,19 @@ jobs:
           -OutputRoot $env:TINALUX_LINUX_X11_METADATA_ROOT
           -BuildDir $env:TINALUX_LINUX_X11_BUILD_DIR
           -Compiler ${{ matrix.compiler }}
+
+      - name: Capture Linux X11 Threshold Warnings
+        if: ${{ always() }}
+        shell: pwsh
+        env:
+          TINALUX_LINUX_X11_METADATA_ROOT: ${{ github.workspace }}/ci-artifacts/linux-tina-glfw-x11/${{ matrix.compiler }}/metadata
+        run: >
+          ./tests/scripts/ci_execution_summary_threshold_guard.ps1
+          -OutputRoot $env:TINALUX_LINUX_X11_METADATA_ROOT
+          -WorkflowName linux-tina-glfw-x11
+          -SummaryTitle "Linux X11 构建阈值守卫"
+          -OverallDurationThresholdSeconds 1200
+          -StageThresholds build=1200
 
       - name: Validate Linux X11 Metadata
         if: ${{ always() }}

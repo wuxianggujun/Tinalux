@@ -51,6 +51,36 @@ $checks = @(
         Description = 'metadata validation threshold markdown requirement'
     },
     @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_execution_summary_threshold_guard.ps1"
+        Pattern = 'ci_metadata_manifest_helpers\.ps1'
+        Description = 'execution summary threshold guard helper wiring'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_execution_summary_threshold_guard.ps1"
+        Pattern = 'schemaVersion = 1'
+        Description = 'execution summary threshold guard schema version'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_execution_summary_threshold_guard.ps1"
+        Pattern = 'Join-Path \$outputRootPath "threshold-check\.json"'
+        Description = 'execution summary threshold guard json filename'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_execution_summary_threshold_guard.ps1"
+        Pattern = 'Join-Path \$outputRootPath "threshold-check\.md"'
+        Description = 'execution summary threshold guard markdown filename'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_execution_summary_threshold_guard.ps1"
+        Pattern = 'Update-MetadataManifest'
+        Description = 'execution summary threshold guard manifest update'
+    },
+    @{
+        Path = Join-Path $repoRootPath "tests/scripts/ci_execution_summary_threshold_guard.ps1"
+        Pattern = 'mode = "warning-only"'
+        Description = 'execution summary threshold guard warning-only mode'
+    },
+    @{
         Path = Join-Path $repoRootPath "tests/scripts/windows_desktop_smoke_ci_metadata.ps1"
         Pattern = 'ci_metadata_manifest_helpers\.ps1'
         Description = 'Windows metadata helper wiring'
@@ -322,6 +352,11 @@ $checks = @(
     },
     @{
         Path = Join-Path $repoRootPath ".github/workflows/android-build-scripts-smoke.yml"
+        Pattern = 'name:\s+Capture Android Smoke Threshold Warnings'
+        Description = 'Android workflow threshold guard step'
+    },
+    @{
+        Path = Join-Path $repoRootPath ".github/workflows/android-build-scripts-smoke.yml"
         Pattern = '"tests/scripts/ci_metadata_manifest_helpers\.ps1"'
         Description = 'Android workflow metadata helper trigger'
     },
@@ -329,6 +364,11 @@ $checks = @(
         Path = Join-Path $repoRootPath ".github/workflows/android-build-scripts-smoke.yml"
         Pattern = '"tests/scripts/ci_metadata_validate\.ps1"'
         Description = 'Android workflow metadata validation trigger'
+    },
+    @{
+        Path = Join-Path $repoRootPath ".github/workflows/android-build-scripts-smoke.yml"
+        Pattern = '"tests/scripts/ci_execution_summary_threshold_guard\.ps1"'
+        Description = 'Android workflow threshold trigger'
     },
     @{
         Path = Join-Path $repoRootPath ".github/workflows/linux-tina-glfw-x11.yml"
@@ -342,6 +382,11 @@ $checks = @(
     },
     @{
         Path = Join-Path $repoRootPath ".github/workflows/linux-tina-glfw-x11.yml"
+        Pattern = 'name:\s+Capture Linux X11 Threshold Warnings'
+        Description = 'Linux workflow threshold guard step'
+    },
+    @{
+        Path = Join-Path $repoRootPath ".github/workflows/linux-tina-glfw-x11.yml"
         Pattern = '"tests/scripts/ci_metadata_manifest_helpers\.ps1"'
         Description = 'Linux workflow metadata helper trigger'
     },
@@ -349,6 +394,11 @@ $checks = @(
         Path = Join-Path $repoRootPath ".github/workflows/linux-tina-glfw-x11.yml"
         Pattern = '"tests/scripts/ci_metadata_validate\.ps1"'
         Description = 'Linux workflow metadata validation trigger'
+    },
+    @{
+        Path = Join-Path $repoRootPath ".github/workflows/linux-tina-glfw-x11.yml"
+        Pattern = '"tests/scripts/ci_execution_summary_threshold_guard\.ps1"'
+        Description = 'Linux workflow threshold trigger'
     },
     @{
         Path = Join-Path $repoRootPath "docs/CI验证入口.md"
@@ -407,6 +457,7 @@ foreach ($check in $checks) {
 }
 
 Write-Host "Validated CI metadata contract:"
+Write-Host "  tests/scripts/ci_execution_summary_threshold_guard.ps1"
 Write-Host "  tests/scripts/windows_desktop_smoke_ci_metadata.ps1"
 Write-Host "  tests/scripts/android_build_scripts_smoke_ci_metadata.ps1"
 Write-Host "  tests/scripts/linux_tina_glfw_x11_ci_metadata.ps1"

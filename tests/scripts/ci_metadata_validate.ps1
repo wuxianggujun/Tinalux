@@ -61,6 +61,8 @@ function Get-RequiredManifestFileIds {
                 "executionSummaryMarkdown",
                 "metadataManifest",
                 "runnerFingerprint",
+                "thresholdCheck",
+                "thresholdCheckMarkdown",
                 "workflowSummary"
             )
         }
@@ -70,6 +72,8 @@ function Get-RequiredManifestFileIds {
                 "executionSummaryMarkdown",
                 "metadataManifest",
                 "runnerFingerprint",
+                "thresholdCheck",
+                "thresholdCheckMarkdown",
                 "workflowSummary"
             )
         }

@@ -13,7 +13,7 @@
 - 三条 workflow 的 `runner-fingerprint.json` / `execution-summary.json` 已对齐顶层 schema，并固定 `schemaVersion = 1`，便于横向比对状态、耗时和步骤统计
 - 三条 workflow 的 metadata 目录现已统一提供 `metadata-manifest.json` 作为索引入口，便于脚本或团队成员快速定位各类 JSON / Markdown 输出
 - 三条 workflow 现已在上传 artifact 前执行 metadata 自动验收，并产出 `metadata-validation.json` / `metadata-validation.md`
-- Windows 桌面 smoke 现已额外产出 `threshold-check.json` / `threshold-check.md`，先用于 `warning-only` 的回归告警摘要，不直接拦截 CI
+- 三条 workflow 现已额外产出 `threshold-check.json` / `threshold-check.md`，先用于 `warning-only` 的回归告警摘要，不直接拦截 CI
 - `P1` 真机验证仍未自动化，继续按 backlog / TODO 管理
 
 ## Workflow 选择
@@ -38,7 +38,8 @@
   - job 超时 `30` 分钟
 - 当前附加能力：
   - workflow summary 会输出 runner 指纹、编译器版本、单阶段构建耗时和构建目录体积
-  - 会额外记录 `runner-fingerprint.json`、`build-run.json`、`execution-summary.json`、`execution-summary.md`、`metadata-manifest.json` 与 `metadata-validation.json`
+  - 会额外记录 `runner-fingerprint.json`、`build-run.json`、`execution-summary.json`、`execution-summary.md`、`threshold-check.json`、`threshold-check.md`、`metadata-manifest.json` 与 `metadata-validation.json`
+  - `threshold-check.json` / `threshold-check.md` 当前会基于 execution summary 状态与构建耗时输出 `warning-only` 告警摘要
   - metadata 目录会作为独立 artifact 在成功和失败场景都上传，便于下载比对 runner、compiler 和构建结果
 - 失败回溯：
   - 上传 `build/tina_glfw-linux-x11/<compiler>/**` 构建目录，产物保留 `7` 天
@@ -129,7 +130,8 @@
   - `./tests/scripts/android_build_scripts_smoke_stage_run.ps1 -Stage validate -RepoRoot . -OutputRoot ...`
 - 当前附加能力：
   - workflow summary 会输出 runner 指纹，以及 stage / validate 两阶段耗时摘要
-  - 会额外记录 `runner-fingerprint.json`、`script-stage.json`、`script-validate.json`、`execution-summary.json`、`execution-summary.md`、`metadata-manifest.json` 与 `metadata-validation.json`
+  - 会额外记录 `runner-fingerprint.json`、`script-stage.json`、`script-validate.json`、`execution-summary.json`、`execution-summary.md`、`threshold-check.json`、`threshold-check.md`、`metadata-manifest.json` 与 `metadata-validation.json`
+  - `threshold-check.json` / `threshold-check.md` 当前会基于 stage / validate 两阶段耗时与 execution summary 状态输出 `warning-only` 告警摘要
   - metadata 目录会作为独立 artifact 在成功和失败场景都上传，便于下载比对 runner、耗时和保留的 smoke 临时目录
 - 失败回溯：
   - 保留 smoke 临时目录
