@@ -13,7 +13,7 @@
 - 三条 workflow 的 `runner-fingerprint.json` / `execution-summary.json` 已对齐顶层 schema，并固定 `schemaVersion = 1`，便于横向比对状态、耗时和步骤统计
 - 三条 workflow 的 metadata 目录现已统一提供 `metadata-manifest.json` 作为索引入口，便于脚本或团队成员快速定位各类 JSON / Markdown 输出
 - 三条 workflow 现已在上传 artifact 前执行 metadata 自动验收，并产出 `metadata-validation.json` / `metadata-validation.md`
-- 三条 workflow 现已额外产出 `threshold-check.json` / `threshold-check.md`，先用于 `warning-only` 的回归告警摘要，不直接拦截 CI
+- 三条 workflow 现已额外产出 `threshold-check.json` / `threshold-check.md`，先用于 `warning-only` 的回归告警摘要，不直接拦截 CI；命中阈值时会在 GitHub Actions 日志里发出 `warning` 注解
 - `P1` 真机验证仍未自动化，继续按 backlog / TODO 管理
 
 ## Workflow 选择

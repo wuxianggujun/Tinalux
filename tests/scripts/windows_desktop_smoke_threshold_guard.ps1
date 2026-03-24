@@ -208,6 +208,28 @@ function Format-CheckValue {
     return $text
 }
 
+function Format-GitHubCommandMessage {
+    param([string]$Message)
+
+    if ($null -eq $Message) {
+        return ""
+    }
+
+    return $Message.Replace("%", "%25").Replace("`r", "%0D").Replace("`n", "%0A")
+}
+
+function Publish-GitHubWarnings {
+    param(
+        [string]$WorkflowName,
+        [object[]]$Checks
+    )
+
+    foreach ($check in @($Checks | Where-Object { $_.status -eq "warning" })) {
+        $message = "{0} threshold {1}: {2}" -f $WorkflowName, $check.id, $check.message
+        Write-Host ("::warning::{0}" -f (Format-GitHubCommandMessage -Message $message))
+    }
+}
+
 function New-ThresholdSummaryMarkdown {
     param(
         [string]$Status,
@@ -467,6 +489,8 @@ $metadataManifestPath = Update-MetadataManifest `
 if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
     Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $summaryMarkdown
 }
+
+Publish-GitHubWarnings -WorkflowName "windows-desktop-smoke" -Checks $checkArray
 
 Write-Host "Captured Windows desktop smoke threshold summary:"
 Write-Host "  status=$guardStatus"
