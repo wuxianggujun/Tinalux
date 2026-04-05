@@ -14,11 +14,13 @@ CMakeUserPresets.json
 .vs/
 .gradle/
 .kotlin/
+.clangd/
 *.user
 *.pro.user
 *.VC.db
 *.opendb
 *.suo
+*.iml
 local.properties
 
 # C/C++ build artifacts
@@ -34,6 +36,8 @@ local.properties
 *.a
 *.so
 *.dylib
+*.orig
+*.rej
 
 # CMake
 CMakeCache.txt
@@ -42,6 +46,16 @@ cmake_install.cmake
 install_manifest.txt
 CTestTestfile.cmake
 _deps/
+
+# Android local/generated outputs
+android/**/.cxx/
+android/**/captures/
+android/**/src/main/assets/icudtl.dat
+android/**/src/main/jniLibs/*/libtinalux_native.so
+*.apk
+*.ap_
+*.aab
+*.aar
 
 # Skia checkout (large; sync via scripts instead of committing)
 3rdparty/skia/
