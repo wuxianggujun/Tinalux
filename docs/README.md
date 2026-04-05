@@ -1,120 +1,57 @@
 # Tinalux 文档索引
 
 > 更新时间：2026-04-05
-> 说明：本目录已按“当前事实 / 历史归档”重整。带日期的阶段报告默认视为归档，不再作为当前实现依据。
+> 说明：本目录只保留面向用户和贡献者的项目文档。阶段汇报、审查、计划、进度记录等过程性文档已移除。
 
 ## 当前结论
 
 - 渲染后端：`OpenGL`、`Vulkan` 已实现；`Metal` 在 Apple 平台已有上下文与窗口 surface 实现，`Backend::Auto` 会按平台候选顺序自动选择并在失败时 fallback。
-- 平台层：桌面端使用仓库内固定的 `3rdparty/tina_glfw`；`GLFWWindow` 已覆盖 Windows / macOS / Linux。Linux/X11 的 IME 与窗口链路代码已接通，但缺少真机运行验证。
-- Android：不再只是方案稿，当前已有 `AndroidWindow`、`AndroidRuntime`、JNI/C ABI、`android/host` 宿主层、`android/tinalux-sdk` 和 `android/validation-app` 验证工程。
-- UI：约束布局、VBox/HBox/Flex/Grid/Responsive、三阶段事件、主题系统、富文本、文本输入、资源管理、异步图片加载、图标注册、组件级渲染缓存都已落地。
-- Markup：轻量声明式布局 DSL 已落地，当前使用无 `@` 关键字语法，支持 `style / import / component / if / elseif / else / for / res(...)`、位置参数、可选裸标识符 `id`、`${model.xxx}` 单向/双向属性绑定、`${someId.someProperty}` 普通属性/样式绑定、`Slot`、树状 `ViewModel`、声明式事件绑定；默认高层入口就是 `tinalux_add_markup_executable(...)` / `tinalux_target_enable_markup_autogen(...)`，单文件和目录扫描都可直接生成强类型 `Page / ui / slots` 头文件，默认输出到 `${CMAKE_CURRENT_BINARY_DIR}/tinalux_markup/<target>`；同一个入口现在还能顺手生成页面类骨架，默认走 `Page + ui.xxx.onXxx(...)` 主路线；普通页面开发建议先看 [`Markup一页式速查`](./Markup一页式速查.md)，再看仓库里的 [`samples/markup`](../samples/markup/README.md) 模板区，最后按需看 [`Markup页面推荐写法`](./Markup页面推荐写法.md)；`Handlers / slots::load / slots::actions...` 和独立 scaffold helper 这些低层接口统一放到 [`Markup高级接口`](./Markup高级接口.md)。
-- 测试：测试工程已提供 `TinaluxRunMarkupMentalModelExamples`、`TinaluxRunSmokeTests` 等快捷 target，是否跑通取决于当前本地构建环境。
-- Markup 最快验证入口：如果你只想确认推荐主路线没偏，可以直接构建运行 `TinaluxRunMarkupMentalModelExamples`，它会串起两份最小基准示例。
+- 平台层：桌面端使用仓库内固定的 `3rdparty/tina_glfw`；`GLFWWindow` 已覆盖 Windows / macOS / Linux。Linux/X11 的代码链路已接通，但仍需更多真机验证。
+- Android：当前仓库已包含 `AndroidWindow`、`AndroidRuntime`、JNI/C ABI、`android/host`、`android/tinalux-sdk` 和 `android/validation-app`。
+- UI 与 Markup：布局、事件、主题、控件、资源和轻量声明式 Markup DSL 都已落地；页面开发的推荐入口仍是 `TinaluxRunMarkupMentalModelExamples` 与 `samples/markup` 模板区。
 
 ## 新用户先看
 
 - [用户快速上手](./用户快速上手.md)  
-  第一次接触项目时的最短路径：先构建什么、先看什么、先跑哪条线。
+  第一次接触项目时的最短路径。
 - [源码导览](./源码导览.md)  
-  把 `main.cpp -> Application -> UIContext -> UI / Markup / Android` 这条主链路串起来。
-
-## 优先阅读
-
-- [用户快速上手](./用户快速上手.md)  
-  先给自己一条可执行路径，再进专项文档。
-- [源码导览](./源码导览.md)  
-  先把源码地图看清，再决定从 UI、Markup 还是 Android 深入。
+  从 `main.cpp` 到 `Application / UIContext / Markup / Android` 的源码地图。
 - [项目概述](./项目概述.md)  
   项目定位、模块边界、当前能力和主要缺口。
-- [CI验证入口](./CI验证入口.md)  
-  当前三条 GitHub Actions workflow 的职责、触发范围和查看顺序。
-- [项目审查与优先级建议-2026-03-23](./项目审查与优先级建议-2026-03-23.md)  
-  本轮源码审查、验证基线、提交脉络和下一阶段优先级建议。
-- [源码核对-当前状态-2026-03-16](./源码核对-当前状态-2026-03-16.md)  
-  基于源码和当前构建产物的最新核对结论，虽然文件名保留旧日期，但内容已更新到 2026-03-18。
-- [架构设计](./架构设计.md)  
-  当前真实架构，而不是早期设计草案。
-- [UI框架能力清单](./UI框架能力清单.md)  
-  按模块罗列已实现能力、部分实现项和明确未完成项。
+
+## 推荐阅读顺序
+
+1. [用户快速上手](./用户快速上手.md)
+2. [源码导览](./源码导览.md)
+3. [项目概述](./项目概述.md)
+4. [架构设计](./架构设计.md)
+5. [UI框架能力清单](./UI框架能力清单.md)
+6. 如果你要写页面，再进入下面的 Markup 文档组
+
+## Markup 文档
+
 - [Markup一页式速查](./Markup一页式速查.md)  
-  先看这一份，压缩成“普通页面开发真正需要记的内容”。
+  先跑最小基准，再记推荐主路线。
 - [samples/markup 模板区](../samples/markup/README.md)  
-  直接可抄的四种模板：单文件、目录扫描、单文件 scaffold、目录扫描 scaffold。
+  直接可抄的四种模板。
 - [Markup页面推荐写法](./Markup页面推荐写法.md)  
-  正常页面开发的抄代码版，默认主路线是 `Page + ui + onClick(...)`。
+  抄 CMake 和 C++ 页面起手式。
 - [Markup常见问题](./Markup常见问题.md)  
-  只回答高频困惑：`page.ui`、命名空间、scaffold、为什么不先看 `Handlers`。
+  先解高频困惑，再看低层接口。
 - [Markup高级接口](./Markup高级接口.md)  
-  只在低层场景反查：`Handlers / slots::load / slots::actions / attachUi(...)`。
+  只在低层场景反查。
 - [MarkupDSL语法参考](./MarkupDSL语法参考.md)  
-  只讲 `.tui` 本身怎么写，已按“最常用 / 较少使用”分区。
+  `.tui` 语法速查。
 
-## Markup 怎么看
+## 专题文档
 
-如果你现在主要是在用 Markup 做页面开发，直接按这个顺序走：
-
-1. [Markup一页式速查](./Markup一页式速查.md)  
-   先跑 `TinaluxRunMarkupMentalModelExamples`，先确认主路线没偏。
-2. [samples/markup 模板区](../samples/markup/README.md)  
-   四选一，决定你是单文件、目录扫描，还是 scaffold 起手。
-3. [Markup常见问题](./Markup常见问题.md)  
-   专门解 `page.ui`、命名空间、scaffold、为什么不先看 `Handlers`。
-4. [Markup页面推荐写法](./Markup页面推荐写法.md)  
-   抄 CMake 和 C++ 页面起手式。
-5. 按需再查：
-   [Markup高级接口](./Markup高级接口.md) / [MarkupDSL语法参考](./MarkupDSL语法参考.md)
-
-一句话记忆：
-
-- 先跑最小基准
-- 再选模板
-- 有困惑先看 FAQ
-- 最后抄代码
-
-## 当前文档
-
-- [用户快速上手](./用户快速上手.md)  
-  面向第一次接触仓库的用户，覆盖最短构建路径和阅读顺序。
-- [源码导览](./源码导览.md)  
-  面向要读源码的人，覆盖模块分层、主链路和目录入口。
-- [目录结构规划](./目录结构规划.md)  
-  反映当前仓库目录、Android 模块和构建入口。
-- [CI验证入口](./CI验证入口.md)  
-  统一说明 Linux / Windows / Android 三条 CI 验证链的职责边界。
-- [项目审查与优先级建议-2026-03-23](./项目审查与优先级建议-2026-03-23.md)  
-  汇总本轮代码审查、测试验证、提交记录和排期建议。
-- [开发计划](./开发计划.md)  
-  当前主线任务，不再沿用早期阶段式完成度叙述。
-- [主题系统设计与实现](./主题系统设计与实现.md)  
-  说明 `Theme`、`ThemeManager`、样式 token 和已实现边界。
-- [动画系统使用指南](./动画系统使用指南.md)  
-  说明 `AnimationSink`、调度器接线和控件动画现状。
+- [目录结构规划](./目录结构规划.md)
+- [CI验证入口](./CI验证入口.md)
+- [设计规则](./设计规则.md)
+- [主题系统设计与实现](./主题系统设计与实现.md)
+- [动画系统使用指南](./动画系统使用指南.md)
 - [UI库核心能力完善-样式和布局](./UI库核心能力完善-样式和布局.md)
 - [UI库核心能力完善-文本和动画](./UI库核心能力完善-文本和动画.md)
 - [UI库核心能力完善-资源和工具](./UI库核心能力完善-资源和工具.md)
 - [Android平台多界面架构方案](./Android平台多界面架构方案.md)
-- [Android平台实现进展-2026-03-17](./Android平台实现进展-2026-03-17.md)
 - [LinuxX11构建验证](./LinuxX11构建验证.md)
-- [IME进度记录-2026-03-16](./IME进度记录-2026-03-16.md)
-- [设计规则](./设计规则.md)
-- [Markup一页式速查](./Markup一页式速查.md)
-- [Markup页面推荐写法](./Markup页面推荐写法.md)
-- [Markup常见问题](./Markup常见问题.md)
-- [Markup高级接口](./Markup高级接口.md)
-- [阶段交付-Canvas收口](./阶段交付-Canvas收口.md)
-
-## 历史归档
-
-下面这些文档保留为阶段记录或回顾材料，不再代表当前源码状态：
-
-- [项目当前进度总结-2026-03-15](./项目当前进度总结-2026-03-15.md)
-- [项目完整状态报告-2026-03-15](./项目完整状态报告-2026-03-15.md)
-- [修复进度报告-2026-03-15](./修复进度报告-2026-03-15.md)
-- [代码改进分析报告-2026-03-15](./代码改进分析报告-2026-03-15.md)
-- [改进工作总结-2026-03-15](./改进工作总结-2026-03-15.md)
-- [文档更新说明-2026-03-15](./文档更新说明-2026-03-15.md)
-- [快速改进指南](./快速改进指南.md)
-- [实施建议-优先级清单](./实施建议-优先级清单.md)
-- [代码审查报告](./代码审查报告.md)
