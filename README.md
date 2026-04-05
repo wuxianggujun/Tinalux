@@ -111,6 +111,8 @@ cmake --build build --config Debug --target TinaluxRunMarkupMentalModelExamples
 
 ## 推荐阅读顺序
 
+- [`docs/用户快速上手.md`](./docs/用户快速上手.md)：第一次接触项目时的最短路径
+- [`docs/源码导览.md`](./docs/源码导览.md)：从 `main.cpp` 到 `Application / UIContext / Markup` 的源码地图
 - [`docs/README.md`](./docs/README.md)：文档索引
 - [`docs/项目概述.md`](./docs/项目概述.md)：模块边界和源码状态
 - [`docs/UI框架能力清单.md`](./docs/UI框架能力清单.md)：能力清单

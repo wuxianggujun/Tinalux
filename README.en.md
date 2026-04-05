@@ -121,7 +121,9 @@ authoring baseline.
 
 ## Recommended Reading Order
 
-- [`docs/README.md`](./docs/README.md): documentation index
+- [`docs/用户快速上手.md`](./docs/用户快速上手.md): shortest onboarding path for first-time users (Chinese)
+- [`docs/源码导览.md`](./docs/源码导览.md): source map from `main.cpp` to `Application / UIContext / Markup` (Chinese)
+- [`docs/README.md`](./docs/README.md): documentation index (Chinese)
 - [`docs/项目概述.md`](./docs/项目概述.md): module boundaries and current status
 - [`docs/UI框架能力清单.md`](./docs/UI框架能力清单.md): capability checklist
 - [`docs/Markup一页式速查.md`](./docs/Markup一页式速查.md): fast Markup entry
