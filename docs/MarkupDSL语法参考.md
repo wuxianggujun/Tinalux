@@ -1,4 +1,4 @@
-# Tinalux Markup DSL 语法参考
+# Markup DSL 语法参考
 
 > 更新时间：2026-03-23
 > 说明：本文只描述当前源码已经实现并通过 smoke 的 DSL 语法。
