@@ -2,17 +2,17 @@
 
 [简体中文](./README.md) | English
 
-Tinalux is a cross-platform custom-drawn UI framework built on top of Skia.
-The current repository already includes the desktop window layer, multiple
-render backends, a UI widget system, a declarative Markup pipeline, and an
-Android native runtime plus host scaffolding.
+> A cross-platform custom-drawn UI framework on top of Skia, covering desktop runtime, declarative Markup UI, and Android host/native runtime wiring.
+
+Tinalux does not wrap native system widgets. It owns its widget tree, layout,
+hit testing, painting, and theming runtime. The current repository already
+includes the desktop window layer, multiple render backends, a UI widget
+system, a declarative Markup pipeline, and an Android native runtime plus host
+scaffolding.
 
 Current source version: `0.1.0`
 
 ## Overview
-
-Tinalux does not wrap native system widgets. It manages its own widget tree,
-layout, hit testing, painting, themes, and runtime state.
 
 Based on the current source tree, the project is organized around these modules:
 
